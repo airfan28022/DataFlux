@@ -1,0 +1,6 @@
+{
+  "name": "ระบบบริหารข้อมูลครูประจำชั้น",
+  "description": "ระบบเว็บแอปพลิเคชันสำหรับครูประจำชั้น จัดการข้อมูลนักเรียน น้ำหนัก-ส่วนสูง บันทึกการออมและเช็คชื่อ บันทึกคะแนนสอบ ปฏิทินกิจกรรม และจัดเก็บไฟล์ภาพบน Google Drive",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
