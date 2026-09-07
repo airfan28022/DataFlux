@@ -38,18 +38,19 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-base">ตัวอย่างเอกสารรายงานสำหรับพิมพ์ / บันทึก PDF</h3>
-              <p className="text-xs text-slate-500">จัดรูปแบบกระดาษ A4 มาตรฐาน พร้อมลงชื่อกำกับ</p>
+              <h3 className="font-bold text-slate-800 text-base">เอกสารสรุปผลการเรียน (บันทึกไฟล์ PDF / สั่งพิมพ์)</h3>
+              <p className="text-xs text-slate-500">จัดรูปแบบ A4 มาตรฐาน (ในหน้าต่างพิมพ์ ให้เลือกปลายทางเป็น "Save as PDF" เพื่อบันทึกเป็นไฟล์ PDF)</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-medium transition-all shadow-sm shadow-emerald-200 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-sm shadow-emerald-200 cursor-pointer"
+              title="บันทึกเป็นไฟล์ PDF หรือสั่งพิมพ์เอกสาร"
             >
-              <Printer className="w-4 h-4" />
-              <span>พิมพ์ / บันทึก PDF</span>
+              <Download className="w-4 h-4" />
+              <span>บันทึกเป็นไฟล์ PDF / สั่งพิมพ์</span>
             </button>
             <button
               onClick={onClose}

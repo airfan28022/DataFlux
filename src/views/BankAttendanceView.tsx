@@ -12,15 +12,18 @@ import {
   ArrowDownRight,
   History,
   Printer,
-  Save,
-  UserCheck,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
   X,
   Sparkles,
   CheckCircle2,
-  TrendingUp
+  TrendingUp,
+  Trash2,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertTriangle
 } from 'lucide-react';
 
 interface BankAttendanceViewProps {
@@ -63,21 +66,38 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   // Print PDF Modal
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  // Load data for the selected date
+  // Reset All Savings Modal State (Req 4: ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ ยืนยันด้วย Password)
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  // Load data for the selected date (Req 7: ให้ขึ้นสถานะมาเรียน ม อัตโนมัติเองเลย)
   const loadDayData = (date: string) => {
     const dayData = dataService.getDayAttendanceAndBank(date);
     const initialAtt: Record<string, AttendanceStatus> = {};
     const initialDep: Record<string, number> = {};
 
     const currentStudents = dataService.getStudents();
+    let hasUnsetAttendance = false;
     currentStudents.forEach((s) => {
-      initialAtt[s.id] = dayData.attendance[s.id] || 'present';
-      initialDep[s.id] = dayData.deposits[s.id] !== undefined ? dayData.deposits[s.id] : 0;
+      if (!dayData.attendance || !dayData.attendance[s.id]) {
+        initialAtt[s.id] = 'present';
+        hasUnsetAttendance = true;
+      } else {
+        initialAtt[s.id] = dayData.attendance[s.id];
+      }
+      initialDep[s.id] = dayData.deposits && dayData.deposits[s.id] !== undefined ? dayData.deposits[s.id] : 0;
     });
 
     setAttendanceMap(initialAtt);
     setDepositsMap(initialDep);
     setDayNote(dayData.note || '');
+
+    // Auto-mark present silently if first time opening day
+    if (hasUnsetAttendance) {
+      dataService.saveDayAttendanceAndBank(date, initialAtt, initialDep, dayData.note || '', true);
+    }
   };
 
   useEffect(() => {
@@ -124,27 +144,27 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     setAllHistoryRecords(dataService.getAllAttendanceAndBank());
   };
 
-  // Mark all present
-  const handleMarkAllPresent = () => {
-    const updated: Record<string, AttendanceStatus> = {};
-    students.forEach((s) => {
-      updated[s.id] = 'present';
-    });
-    setAttendanceMap(updated);
-    dataService.saveDayAttendanceAndBank(selectedDate, updated, depositsMap, dayNote, true);
-    dataService.notifyToast('success', 'เช็คชื่อสำเร็จ', 'กำหนดให้นักเรียนทุกคน "มาเรียน (ม)" เรียบร้อยแล้ว');
-    setAllHistoryRecords(dataService.getAllAttendanceAndBank());
-  };
-
-  // Save Day Record explicitly
-  const handleSaveDay = () => {
-    dataService.saveDayAttendanceAndBank(selectedDate, attendanceMap, depositsMap, dayNote, false);
-    setAllHistoryRecords(dataService.getAllAttendanceAndBank());
-    confetti({
-      particleCount: 50,
-      spread: 60,
-      origin: { y: 0.8 },
-    });
+  // Confirm Reset All Savings (Req 4)
+  const handleConfirmResetSavings = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPassword) {
+      setResetError('กรุณากรอก Password เข้าสู่ระบบ');
+      return;
+    }
+    const res = dataService.resetAllStudentsSavings(resetPassword);
+    if (res.success) {
+      setShowResetModal(false);
+      setResetPassword('');
+      setResetError('');
+      loadDayData(selectedDate);
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.8 },
+      });
+    } else {
+      setResetError(res.message);
+    }
   };
 
   // Navigate dates (Previous / Next / Today)
@@ -351,9 +371,6 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               <h2 className="text-base font-bold text-gray-900">
                 เงินฝาก & เช็คชื่อ (Bank & Attendance)
               </h2>
-              <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md">
-                PAGE 3
-              </span>
             </div>
             <p className="text-xs text-gray-500">
               บันทึกการมาเรียนและการออมเงิน พร้อมสรุปรายวันและประวัติการถอน
@@ -362,6 +379,21 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Req 4: Button to delete all students' savings to start fresh with password */}
+          <button
+            type="button"
+            onClick={() => {
+              setResetPassword('');
+              setResetError('');
+              setShowResetModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            title="ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ (ต้องยืนยันด้วย Password)"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>ลบเงินฝากทั้งหมด</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowHistoryModal(true)}
@@ -392,7 +424,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         </div>
       </div>
 
-      {/* COMPACT CALENDAR TRIGGER & DATE SELECTION BAR (ตามที่ผู้ใช้สั่ง: ตรงปฏิทิน ให้เป็นย่อ มีแค่ชื่อ เมื่อกดจะแสดงเป็น pop-up) */}
+      {/* COMPACT CALENDAR TRIGGER & DATE SELECTION BAR */}
       <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {/* Left: Compact Date Selector Button with pop-up trigger */}
@@ -419,7 +451,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               </span>
             </button>
 
-            {/* Prev / Today / Next Quick Buttons */}
+            {/* Prev / Today / Next Quick Buttons (Req 8: เลื่อนไปวันอื่นเป็นการเลื่อนเปล่าๆ ไม่มีข้อความ) */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
               <button
                 type="button"
@@ -447,29 +479,16 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             </div>
           </div>
 
-          {/* Right: Quick Action Buttons (เช็คมาทุกคน, บันทึก) */}
+          {/* Right: Auto-save & Status indicator (Req 6 & 7: เอาออกคำว่า บันทึกข้อมูล และ เช็คมาทุกคน จัดให้เรียบร้อย) */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleMarkAllPresent}
-              className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200 flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <UserCheck className="w-4 h-4" />
-              <span>เช็คมาทุกคน (ม)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSaveDay}
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>บันทึกข้อมูล</span>
-            </button>
+            <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 shadow-2xs">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>บันทึกข้อมูลอัตโนมัติ</span>
+            </span>
           </div>
         </div>
 
-        {/* Daily Note Input (ตามที่ผู้ใช้สั่ง: อยากให้สามารถเพิ่มข้อความตรงปฏิทินด้วย ว่านักเรียนไม่ฝากเงินเพราะอะไรงี้) */}
+        {/* Daily Note Input */}
         <div className="flex items-center gap-2.5 bg-amber-50/60 border border-amber-200/80 rounded-xl px-3.5 py-2 transition-all focus-within:border-amber-400 focus-within:bg-amber-50">
           <MessageSquare className="w-4 h-4 text-amber-600 shrink-0" />
           <div className="flex-1 flex items-center gap-2">
@@ -490,39 +509,6 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             </span>
           )}
         </div>
-
-        {/* Req 4 Notification Banner: When selected date has blue dot withdrawal pending */}
-        {pendingWithdrawals.filter((p) => p.date === selectedDate && p.status === 'pending').length > 0 && (
-          <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-blue-950">
-            <div className="flex items-center gap-2.5">
-              <span className="w-3 h-3 rounded-full bg-blue-600 ring-2 ring-blue-300 animate-pulse shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                  <span>วันที่นี้มีจุดสีน้ำเงินในปฏิทิน (รายการถอนเงินที่รอตัดยอด)</span>
-                </p>
-                <p className="text-[11px] text-blue-700">
-                  {pendingWithdrawals
-                    .filter((p) => p.date === selectedDate && p.status === 'pending')
-                    .map((p) => `${p.studentName}: ถอน ${p.amount} บาท (เหตุผล: ${p.reason})`)
-                    .join(' | ')}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                dataService.clearWithdrawalDate(selectedDate);
-                setPendingWithdrawals(dataService.getWithdrawalPendingDays());
-                setAllHistoryRecords(dataService.getAllAttendanceAndBank());
-                loadDayData(selectedDate);
-              }}
-              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>ปรับเงินฝากเป็น 0 & ลงหมายเหตุทันที</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Main Attendance & Deposit Table (จัดหน้าให้เรียบร้อยสบายตา) */}
@@ -900,7 +886,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             className={`w-2 h-2 rounded-full ${
                               isSelected ? 'bg-blue-300 ring-1 ring-white' : 'bg-blue-600 ring-1 ring-blue-300 animate-pulse'
                             }`}
-                            title="มีรายการถอนเงิน (คลิกเพื่อปรับเงินฝากเป็น 0 บาท และลงบันทึกเหตุผลในหมายเหตุอัตโนมัติ)"
+                            title="ถอนเงิน"
                           />
                         )}
                         {hasDeposit && !hasBlueDot && (
@@ -908,7 +894,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             className={`w-1.5 h-1.5 rounded-full ${
                               isSelected ? 'bg-white' : 'bg-emerald-500'
                             }`}
-                            title="มีเงินฝาก"
+                            title="ฝากเงิน"
                           />
                         )}
                         {hasAbsence && (
@@ -916,7 +902,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             className={`w-1.5 h-1.5 rounded-full ${
                               isSelected ? 'bg-rose-200' : 'bg-rose-500'
                             }`}
-                            title="มีนักเรียนขาด/ป่วย/ลา"
+                            title="ขาด/ป่วย/ลา"
                           />
                         )}
                         {hasNote && (
@@ -924,7 +910,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             className={`w-1.5 h-1.5 rounded-full ${
                               isSelected ? 'bg-amber-200' : 'bg-amber-500'
                             }`}
-                            title="มีข้อความบันทึก"
+                            title="บันทึก"
                           />
                         )}
                       </div>
@@ -933,11 +919,11 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 })}
               </div>
 
-              {/* Dots Legend (Req 4: แสดงจุดสีน้ำเงินตรงปฏิทินเงินฝาก) */}
+              {/* Dots Legend (Req 5: อธิบายจุดน้ำเงินใช้คำสั้นๆพอ 'ถอนเงิน' และสีส้มเป็น 'บันทึก') */}
               <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-[11px] text-slate-500">
                 <span className="flex items-center gap-1.5 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-1 ring-blue-300 inline-block animate-pulse" />
-                  <span className="font-bold text-blue-800">จุดสีน้ำเงิน: ถอนเงิน (คลิกเพื่อปรับเป็น 0 บ. + ลงหมายเหตุ)</span>
+                  <span className="font-bold text-blue-800">ถอนเงิน</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
@@ -949,7 +935,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
-                  <span>มีข้อความบันทึก</span>
+                  <span>บันทึก</span>
                 </span>
               </div>
 
@@ -1252,6 +1238,93 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
           </tbody>
         </table>
       </PrintReportModal>
+
+      {/* RESET ALL SAVINGS CONFIRMATION MODAL (Req 4: ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ ยืนยันด้วย Password) */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-rose-100 max-w-md w-full animate-bounce-short">
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-inner">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                  ลบเงินฝากของนักเรียนทั้งหมด
+                </h3>
+                <p className="text-xs text-rose-600 font-semibold mt-0.5">
+                  เพื่อเริ่มฝากใหม่ (ต้องยืนยันด้วย Password เข้าสู่ระบบ)
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-rose-50/80 border border-rose-200/80 rounded-2xl mb-4 text-xs text-rose-900 space-y-1">
+              <div className="flex items-center gap-1.5 font-bold text-rose-700">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>คำเตือนสำคัญ:</span>
+              </div>
+              <p className="leading-relaxed text-rose-800/90 text-[11px]">
+                การดำเนินการนี้จะรีเซ็ตยอดเงินฝากสะสมของนักเรียนทุกคนเป็น 0 บาท และล้างประวัติเงินฝากเดิม เพื่อให้คุณครูสามารถเริ่มต้นบันทึกรอบใหม่ได้ทันที
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmResetSavings} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>กรุณากรอกรหัสผ่านเข้าสู่ระบบ (Password)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    value={resetPassword}
+                    onChange={(e) => {
+                      setResetPassword(e.target.value);
+                      if (resetError) setResetError('');
+                    }}
+                    placeholder="กรอก Password เพื่อยืนยัน"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all outline-hidden pr-10"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {resetError && (
+                  <p className="text-xs text-rose-600 font-bold mt-1.5 flex items-center gap-1">
+                    <X className="w-3.5 h-3.5" />
+                    <span>{resetError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setResetPassword('');
+                    setResetError('');
+                  }}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>ยืนยันลบเงินฝากทั้งหมด</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

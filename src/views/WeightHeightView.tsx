@@ -211,9 +211,6 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-gray-900">น้ำหนัก - ส่วนสูง (Weight & Height)</h2>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                PAGE 1
-              </span>
             </div>
             <p className="text-xs text-gray-500">
               บันทึกสุขภาพการเจริญเติบโต คำนวณค่าดัชนีมวลกาย (BMI) อัตโนมัติ พร้อมระบบ Auto-Save

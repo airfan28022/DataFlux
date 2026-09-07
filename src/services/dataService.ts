@@ -235,7 +235,6 @@ class DataService {
   public loginWithCredentials(username: string, password: string): boolean {
     if (this.verifyCredentials(username, password)) {
       this.setAdminLoggedIn(true);
-      this.notifyToast('success', 'เข้าสู่ระบบสำเร็จ', 'ยินดีต้อนรับเข้าสู่ระบบบริหารข้อมูลครูประจำชั้น');
       return true;
     }
     return false;
@@ -290,6 +289,62 @@ class DataService {
     }
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
     this.notifyChanges();
+  }
+
+  public updateStudentFullName(studentId: string, fullName: string, isSilent = false): boolean {
+    const students = this.getStudents();
+    const index = students.findIndex((s) => s.id === studentId);
+    if (index < 0) return false;
+
+    const trimmed = fullName.trim();
+    if (!trimmed) return false;
+
+    let prefix: 'เด็กชาย' | 'เด็กหญิง' | 'นาย' | 'นางสาว' = students[index].prefix || 'เด็กชาย';
+    let cleanName = trimmed;
+
+    if (cleanName.startsWith('เด็กชาย')) {
+      prefix = 'เด็กชาย';
+      cleanName = cleanName.replace(/^เด็กชาย\s*/, '');
+    } else if (cleanName.startsWith('ด.ช.')) {
+      prefix = 'เด็กชาย';
+      cleanName = cleanName.replace(/^ด\.ช\.\s*/, '');
+    } else if (cleanName.startsWith('เด็กหญิง')) {
+      prefix = 'เด็กหญิง';
+      cleanName = cleanName.replace(/^เด็กหญิง\s*/, '');
+    } else if (cleanName.startsWith('ด.ญ.')) {
+      prefix = 'เด็กหญิง';
+      cleanName = cleanName.replace(/^ด\.ญ\.\s*/, '');
+    } else if (cleanName.startsWith('นาย')) {
+      prefix = 'นาย';
+      cleanName = cleanName.replace(/^นาย\s*/, '');
+    } else if (cleanName.startsWith('นางสาว')) {
+      prefix = 'นางสาว';
+      cleanName = cleanName.replace(/^นางสาว\s*/, '');
+    } else if (cleanName.startsWith('น.ส.')) {
+      prefix = 'นางสาว';
+      cleanName = cleanName.replace(/^น\.ส\.\s*/, '');
+    }
+
+    const parts = cleanName.split(/\s+/);
+    const firstName = parts[0] || students[index].firstName;
+    const lastName = parts.slice(1).join(' ');
+
+    const updatedStudent: Student = {
+      ...students[index],
+      prefix,
+      firstName,
+      lastName,
+      gender: (prefix === 'เด็กชาย' || prefix === 'นาย') ? 'male' : 'female',
+      updatedAt: new Date().toISOString(),
+    };
+
+    students[index] = updatedStudent;
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    if (!isSilent) {
+      this.notifyToast('success', 'บันทึกชื่อสำเร็จ', `อัปเดตชื่อเป็น ${prefix}${firstName} ${lastName}`);
+    }
+    this.notifyChanges();
+    return true;
   }
 
   public deleteStudent(studentId: string): void {
@@ -629,6 +684,56 @@ class DataService {
       success: true,
       clearedCount: matched.length,
       message: `ปรับเงินฝากเป็น 0 บาท และลงบันทึกในหมายเหตุประจำวันเรียบร้อยแล้ว`
+    };
+  }
+
+  // Requirement 4: Delete/reset all students' savings to start fresh, authenticated with login password
+  public resetAllStudentsSavings(password: string): { success: boolean; message: string } {
+    if (!this.verifyAdminPassword(password)) {
+      return {
+        success: false,
+        message: 'รหัสผ่านไม่ถูกต้อง กรุณากรอก Password เข้าสู่ระบบที่ถูกต้องเพื่อยืนยัน'
+      };
+    }
+
+    // 1. Reset each student's currentSavings to 0
+    const students = this.getStudents();
+    const updatedStudents = students.map((s) => ({
+      ...s,
+      currentSavings: 0,
+      updatedAt: new Date().toISOString(),
+    }));
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+
+    // 2. Clear all deposit records in history so deposits can start completely fresh
+    const allBank = this.getAllAttendanceAndBank();
+    Object.keys(allBank).forEach((dateKey) => {
+      if (allBank[dateKey]?.deposits) {
+        const clearedDeposits: Record<string, number> = {};
+        Object.keys(allBank[dateKey].deposits).forEach((sId) => {
+          clearedDeposits[sId] = 0;
+        });
+        allBank[dateKey].deposits = clearedDeposits;
+        allBank[dateKey].updatedAt = new Date().toISOString();
+      }
+    });
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+
+    // 3. Clear pending withdrawal logs & pending days
+    this.saveWithdrawalPendingDays([]);
+    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify([]));
+
+    // 4. Notify toast & sync immediately
+    this.notifyToast(
+      'success',
+      'รีเซ็ตเงินฝากสำเร็จ',
+      'ลบเงินฝากของนักเรียนทั้งหมดเป็น 0 บาท เรียบร้อยแล้ว พร้อมเริ่มบันทึกเงินฝากใหม่'
+    );
+    this.notifyChanges(true); // immediate sync with Google Sheets
+
+    return {
+      success: true,
+      message: 'ลบเงินฝากของนักเรียนทั้งหมดเรียบร้อยแล้ว'
     };
   }
 

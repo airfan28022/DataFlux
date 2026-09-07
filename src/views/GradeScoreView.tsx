@@ -21,7 +21,9 @@ import {
   BookOpen,
   X,
   FileText,
-  RotateCcw
+  RotateCcw,
+  CheckCircle2,
+  Download
 } from 'lucide-react';
 
 interface GradeScoreViewProps {
@@ -87,6 +89,18 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   // Print PDF Modal State
   const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // Auto-Save Status (Req 4: บันทึกข้อมูลอัตโนมัติ)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('saved');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerAutoSaveEffect = () => {
+    setAutoSaveStatus('saving');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      setAutoSaveStatus('saved');
+    }, 600);
+  };
 
   // Sync dataService subscriptions
   useEffect(() => {
@@ -312,7 +326,16 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     return currentChapters.find((ch) => ch.chapterNumber === activeChapterTab) || currentChapters[0];
   }, [currentChapters, activeChapterTab]);
 
-  // Update a topic's title in the active chapter
+  // Handle student name change directly from table (Req 3: ตรงชื่อ-สกุล ให้สามารถกรอก เปลี่ยนชื่อใหม่ได้ทุกเมื่อ)
+  const handleUpdateStudentName = (studentId: string, newFullName: string) => {
+    if (!newFullName.trim()) return;
+    const success = dataService.updateStudentFullName(studentId, newFullName, false);
+    if (success) {
+      triggerAutoSaveEffect();
+    }
+  };
+
+  // Update a topic's title in the active chapter (Req 2 & 4: 2 บรรทัด & บันทึกอัตโนมัติ)
   const handleUpdateTopicTitle = (chapterNum: number, topicIdx: number, newTitle: string) => {
     if (!activeSheet) return;
 
@@ -333,6 +356,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
   };
 
   // Add a new topic (เรื่องที่ 11, 12...) to the active chapter
@@ -355,6 +379,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
     dataService.notifyToast('success', 'เพิ่มเรื่องสำเร็จ', `เพิ่มเรื่องที่ ${currentActiveChapter?.topics.length ? currentActiveChapter.topics.length + 1 : 1} เรียบร้อย`);
   };
 
@@ -382,6 +407,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
     dataService.notifyToast('success', 'ลบเรื่องเรียบร้อย');
   };
 
@@ -418,6 +444,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
     setActiveScorePopover(null);
   };
 
@@ -441,6 +468,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
   };
 
   // Fill full scores for final exam
@@ -459,6 +487,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet);
+    triggerAutoSaveEffect();
     dataService.notifyToast('success', 'บันทึกสำเร็จ', `เติมคะแนนสอบปลายภาคเต็ม (${max}) ให้ทุกคนเรียบร้อยแล้ว`);
   };
 
@@ -474,6 +503,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     };
 
     dataService.saveScoreSheet(updatedSheet);
+    triggerAutoSaveEffect();
     dataService.notifyToast('success', 'ล้างคะแนนสอบปลายภาคเรียบร้อย');
   };
 
@@ -653,9 +683,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               <h2 className="text-base font-bold text-gray-900">
                 กรอกคะแนน & ตัดเกรด (Grade Tracker)
               </h2>
-              <span className="text-[10px] font-bold text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
-                PAGE 4
-              </span>
             </div>
             <p className="text-xs text-gray-500">
               สร้างวิชา กำหนด 1-8 บทเรียน บันทึกคะแนนรายเรื่อง เพิ่มเรื่องได้ไม่จำกัด สอบปลายภาค และสรุปตัดเกรดอัตโนมัติ
@@ -664,6 +691,12 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Auto-Save Indicator (Req 4: ให้หน้ากรอกคะแนนบันทึกข้อมูลอัตโนมัติ) */}
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-semibold shadow-2xs select-none">
+            <CheckCircle2 className={`w-4 h-4 text-emerald-600 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
+            <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกข้อมูลอัตโนมัติ'}</span>
+          </div>
+
           {/* Main "+" Button for Pop-up Modal */}
           <button
             type="button"
@@ -831,170 +864,150 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
       </div>
 
-      {/* CHAPTER SELECTOR BUTTONS (Req 2: แสดงเป็นปุ่มวงกลมมีเลข 1, 2... เมื่อกดแสดงรายละเอียดบท และแท็บปลายภาค/สรุป) */}
-      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs font-black text-slate-600 mr-1 flex items-center gap-1">
-              <BookOpen className="w-4 h-4 text-sky-600" />
-              เลือกบทเรียน:
-            </span>
+      {/* UNIFIED SCORE WORKSPACE: Chapter Selector is directly attached to the score input table */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        {/* TOP ATTACHED BAR: Chapter Selector & Navigation (ติดกันกับหน้าใส่คะแนน) */}
+        <div className="p-3.5 sm:p-4 bg-slate-50/75 border-b border-slate-200 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-black text-slate-700 mr-1 flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-sky-600" />
+                เลือกบทเรียน:
+              </span>
 
-            {/* Circular buttons for Chapter 1, 2, 3... (Req 2) */}
-            {currentChapters.map((ch) => {
-              const isSelected = activeChapterTab === ch.chapterNumber;
-              return (
-                <button
-                  key={`tab-circle-${ch.chapterNumber}`}
-                  type="button"
-                  onClick={() => setActiveChapterTab(ch.chapterNumber)}
-                  className={`w-10 h-10 rounded-full font-black text-sm transition-all flex items-center justify-center cursor-pointer ${
-                    isSelected
-                      ? 'bg-sky-600 text-white shadow-md ring-3 ring-sky-200 scale-105'
-                      : 'bg-slate-100 text-slate-700 hover:bg-sky-50 hover:text-sky-700 border border-slate-200'
-                  }`}
-                  title={`${ch.title} (คะแนนเก็บเต็ม ${ch.maxScore || 15} คะแนน)`}
-                >
-                  {ch.chapterNumber}
-                </button>
-              );
-            })}
+              {/* Circular buttons for Chapter 1, 2, 3... */}
+              {currentChapters.map((ch) => {
+                const isSelected = activeChapterTab === ch.chapterNumber;
+                return (
+                  <button
+                    key={`tab-circle-${ch.chapterNumber}`}
+                    type="button"
+                    onClick={() => setActiveChapterTab(ch.chapterNumber)}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-xs sm:text-sm transition-all flex items-center justify-center cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-600 text-white shadow-md ring-3 ring-sky-200 scale-105'
+                        : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-700 border border-slate-200 shadow-2xs'
+                    }`}
+                    title={`${ch.title} (คะแนนเก็บเต็ม ${ch.maxScore || 15} คะแนน)`}
+                  >
+                    {ch.chapterNumber}
+                  </button>
+                );
+              })}
 
-            <div className="h-6 w-px bg-slate-200 mx-1" />
+              <div className="h-6 w-px bg-slate-200 mx-1" />
 
-            {/* Final Exam Button (Req 6) */}
-            <button
-              type="button"
-              onClick={() => setActiveChapterTab('final')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeChapterTab === 'final'
-                  ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-200'
-                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>📝 สอบปลายภาค</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                  activeChapterTab === 'final' ? 'bg-amber-700 text-white' : 'bg-amber-200/60 text-amber-900'
+              {/* Final Exam Button */}
+              <button
+                type="button"
+                onClick={() => setActiveChapterTab('final')}
+                className={`px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeChapterTab === 'final'
+                    ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-200'
+                    : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 shadow-2xs'
                 }`}
               >
-                เต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}
-              </span>
-            </button>
-
-            {/* Overall Summary Tab Button */}
-            <button
-              type="button"
-              onClick={() => setActiveChapterTab('summary')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeChapterTab === 'summary'
-                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-200'
-                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300/80'
-              }`}
-            >
-              <Award className="w-3.5 h-3.5" />
-              <span>📊 รวมทุกบท</span>
-            </button>
-          </div>
-
-          {/* Quick Stats Pill */}
-          <div className="text-xs text-slate-500 flex items-center gap-3">
-            <span>
-              ภาคเรียนที่: <strong>{activeSheet?.term || 1}</strong>
-            </span>
-            <span>
-              ปีการศึกษา: <strong>{profile.academicYear}</strong>
-            </span>
-            <span>
-              คะแนนเฉลี่ย: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Selected Chapter Detail Card (Req 2: เมื่อกดจะแสดงรายละเอียดเองว่าบทที่เท่าไร ชื่ออะไร) */}
-        {typeof activeChapterTab === 'number' && currentActiveChapter && (
-          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                {currentActiveChapter.chapterNumber}
-              </div>
-              <div>
-                <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                  บทที่ {currentActiveChapter.chapterNumber}: {currentActiveChapter.title}
+                <FileText className="w-3.5 h-3.5" />
+                <span>📝 สอบปลายภาค</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                    activeChapterTab === 'final' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
+                  }`}
+                >
+                  เต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}
                 </span>
-                <span className="text-[11px] text-slate-500 block">
-                  จำนวน {currentActiveChapter.topics.length} เรื่อง (มีชื่อเรื่องคิดคะแนน{' '}
-                  {currentActiveChapter.topics.filter((t) => t?.trim()).length} เรื่อง)
-                </span>
-              </div>
+              </button>
+
+              {/* Overall Summary Tab Button */}
+              <button
+                type="button"
+                onClick={() => setActiveChapterTab('summary')}
+                className={`px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeChapterTab === 'summary'
+                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-200'
+                    : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300 shadow-2xs'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>📊 รวมทุกบท</span>
+              </button>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-1 rounded-lg">
+
+            {/* Quick Stats Pill */}
+            <div className="text-xs text-slate-500 flex items-center gap-3">
+              <span>
+                ภาคเรียนที่: <strong>{activeSheet?.term || 1}</strong>
+              </span>
+              <span>
+                ปีการศึกษา: <strong>{profile.academicYear}</strong>
+              </span>
+              <span>
+                คะแนนเฉลี่ย: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Selected Chapter Detail Badge */}
+          {typeof activeChapterTab === 'number' && currentActiveChapter && (
+            <div className="bg-sky-50/90 border border-sky-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                  {currentActiveChapter.chapterNumber}
+                </div>
+                <div>
+                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                    บทที่ {currentActiveChapter.chapterNumber}: {currentActiveChapter.title}
+                  </span>
+                  <span className="text-[11px] text-slate-500 ml-2">
+                    (มีชื่อเรื่องคิดคะแนน {currentActiveChapter.topics.filter((t) => t?.trim()).length}/{currentActiveChapter.topics.length} เรื่อง)
+                  </span>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-lg">
                 คะแนนเก็บประจำบท: เต็ม <strong>{currentActiveChapter.maxScore || 15}</strong> คะแนน
               </span>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* VIEW 1: SINGLE CHAPTER SCORE GRID (Req 3: หัวตารางลอย Sticky Header, Req 4: เพิ่มเรื่องที่ 11, 12 ด้วยปุ่มบวก) */}
-      {typeof activeChapterTab === 'number' && currentActiveChapter && (
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-4">
-          {/* Chapter Actions Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <p className="text-xs text-slate-600">
-              กรอกชื่อเรื่องในหัวตารางเพื่อคิดคะแนน (เรื่องละเต็ม 5) • ระบบเฉลี่ยเต็ม {currentActiveChapter.maxScore || 15} ให้อัตโนมัติ • กดปุ่ม <strong>"+ เรื่อง"</strong> เพื่อเพิ่มเรื่องที่ 11, 12...
-            </p>
+        {/* WORKSPACE CONTENT: DIRECTLY ATTACHED */}
+        <div className="p-4 sm:p-5 space-y-4">
+          {/* VIEW 1: SINGLE CHAPTER SCORE GRID */}
+          {typeof activeChapterTab === 'number' && currentActiveChapter && (
+            <div className="space-y-4">
+              {/* Chapter Actions Guide (Action buttons moved to bottom) */}
+              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
+                กรอกชื่อเรื่องในหัวตารางเพื่อคิดคะแนน (เรื่องละเต็ม 5) • ระบบเฉลี่ยเต็ม {currentActiveChapter.maxScore || 15} ให้อัตโนมัติ • กดปุ่ม <strong>"+ เรื่อง"</strong> เพื่อเพิ่มเรื่องที่ 11, 12...
+              </div>
 
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <button
-                type="button"
-                onClick={handleFillAllFives}
-                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                title="ใส่คะแนนเต็ม (5) ให้ทุกคนในหัวข้อที่คิดคะแนน"
-              >
-                เติมคะแนนเต็ม (5) ทุกคน
-              </button>
-              <button
-                type="button"
-                onClick={handleClearChapterScores}
-                className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                title="ล้างคะแนนในบทนี้"
-              >
-                ล้างคะแนน
-              </button>
-            </div>
-          </div>
+              {/* Sticky Table Container */}
+              <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
+                    <tr className="bg-slate-100 text-slate-700 font-semibold">
+                      {/* Sticky left columns */}
+                      <th className="py-2.5 px-2.5 w-12 text-center align-bottom sticky top-0 left-0 z-30 bg-slate-100 border-r border-slate-200">
+                        ลำดับ
+                      </th>
+                      <th className="py-2.5 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
+                        ชื่อ - นามสกุล นักเรียน
+                      </th>
 
-          {/* Sticky Table Container (Req 3: เมื่อเลื่อนลงจะใส่คะแนนคนท้ายๆ ชื่อหัวข้อจะลอยค้างอยู่ด้านบน) */}
-          <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
-                <tr className="bg-slate-100 text-slate-700 font-semibold">
-                  {/* Sticky left columns */}
-                  <th className="py-2.5 px-2.5 w-12 text-center align-bottom sticky top-0 left-0 z-30 bg-slate-100 border-r border-slate-200">
-                    ลำดับ
-                  </th>
-                  <th className="py-2.5 px-3 min-w-[170px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                    ชื่อ - นามสกุล นักเรียน
-                  </th>
-
-                  {/* Dynamic Topic Columns (Req 4: รองรับ 10 เรื่องขึ้นไป) */}
+                  {/* Dynamic Topic Columns (แคบเหมือนเดิม แต่ 2-3 บรรทัด) */}
                   {currentActiveChapter.topics.map((topicTitle, i) => {
                     const isTopicActive = !!topicTitle.trim();
 
                     return (
                       <th
                         key={`topic-head-${i}`}
-                        className={`py-2 px-1 text-center min-w-[88px] max-w-[110px] align-top sticky top-0 z-20 border-r border-slate-200/80 transition-colors ${
+                        className={`py-1.5 px-0.5 text-center w-16 min-w-[66px] sm:min-w-[72px] max-w-[80px] align-top sticky top-0 z-20 border-r border-slate-200/80 transition-colors ${
                           isTopicActive ? 'bg-sky-50/95' : 'bg-slate-100/95 opacity-80'
                         }`}
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between px-1">
-                            <span className="text-[10px] text-slate-500 font-bold block">
-                              เรื่องที่ {i + 1}
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-between px-0.5">
+                            <span className="text-[9px] text-slate-500 font-bold block leading-none">
+                              เรื่อง {i + 1}
                             </span>
                             {currentActiveChapter.topics.length > 1 && (
                               <button
@@ -1003,12 +1016,12 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                                 className="text-slate-300 hover:text-rose-600 p-0.5 rounded transition-colors cursor-pointer"
                                 title={`ลบเรื่องที่ ${i + 1}`}
                               >
-                                <X className="w-3 h-3" />
+                                <X className="w-2.5 h-2.5" />
                               </button>
                             )}
                           </div>
-                          <input
-                            type="text"
+                          <textarea
+                            rows={2}
                             value={topicTitle}
                             onChange={(e) =>
                               handleUpdateTopicTitle(
@@ -1018,15 +1031,15 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                               )
                             }
                             placeholder="ชื่อเรื่อง..."
-                            className="w-full px-1.5 py-1 text-center font-bold text-[11px] rounded border border-slate-300 focus:border-sky-500 bg-white outline-hidden shadow-2xs"
-                            title="พิมพ์ชื่อเรื่อง (ถ้าเว้นว่างไว้ จะไม่นำมาคิดคะแนน)"
+                            className="w-full px-1 py-0.5 text-center font-bold text-[10px] rounded-md border border-slate-300 focus:border-sky-500 bg-white outline-hidden shadow-2xs resize-none leading-tight break-words"
+                            title="พิมพ์ชื่อเรื่อง (เว้นว่างไว้จะไม่คิดคะแนน)"
                           />
                           {isTopicActive ? (
-                            <span className="inline-block text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                            <span className="inline-block text-[8px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded leading-tight">
                               เต็ม 5
                             </span>
                           ) : (
-                            <span className="inline-block text-[9px] font-medium text-slate-400 bg-slate-200/80 px-1.5 py-0.5 rounded">
+                            <span className="inline-block text-[8px] font-medium text-slate-400 bg-slate-200/80 px-1 py-0.2 rounded leading-tight">
                               ไม่คิดคะแนน
                             </span>
                           )}
@@ -1072,13 +1085,27 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       <td className="py-2 px-2.5 text-center text-slate-500 font-medium sticky left-0 z-10 bg-white border-r border-slate-100">
                         {idx + 1}
                       </td>
-                      <td className="py-2 px-3 sticky left-12 z-10 bg-white border-r border-slate-100">
-                        <span className="font-semibold text-slate-800 block text-xs">
-                          {student.prefix}{student.firstName} {student.lastName}
-                        </span>
-                        {student.nickname && (
-                          <span className="text-[10px] text-slate-400">({student.nickname})</span>
-                        )}
+                      <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
+                        <input
+                          type="text"
+                          defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
+                          key={`ch-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
+                            if (val && val !== cur) {
+                              handleUpdateStudentName(student.id, val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          placeholder="พิมพ์ชื่อ - นามสกุล..."
+                          className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
+                          title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
+                        />
                       </td>
 
                       {/* Topic Score Cells with interactive popup choices 0,1,2,3,4,5 or - */}
@@ -1189,20 +1216,49 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             </table>
           </div>
 
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between flex-wrap gap-2">
-            <span>
+          {/* Bottom Bar: Action buttons & Auto-Save indicator (ปุ่มล้างคะแนน กับ เติมคะแนน 5 ทุกคน และบันทึกอัตโนมัติอยู่ด้านล่างเลย) */}
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-slate-600">
               คะแนนดิบจะคิดเฉพาะเรื่องที่กรอกชื่อเรื่อง (เรื่องละ 5 คะแนน) และนำไปคำนวณเฉลี่ยเทียบกับคะแนนเก็บ{' '}
-              <strong>{currentActiveChapter.maxScore || 15} คะแนน</strong> โดยอัตโนมัติ
-            </span>
+              <strong className="text-slate-900">{currentActiveChapter.maxScore || 15} คะแนน</strong> โดยอัตโนมัติ
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+              {/* บันทึกอัตโนมัติ */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-semibold select-none">
+                <CheckCircle2 className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
+                <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกอัตโนมัติ'}</span>
+              </div>
+
+              {/* เติมคะแนน 5 ทุกคน */}
+              <button
+                type="button"
+                onClick={handleFillAllFives}
+                className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="ใส่คะแนนเต็ม (5) ให้ทุกคนในหัวข้อที่คิดคะแนน"
+              >
+                เติมคะแนน 5 ทุกคน
+              </button>
+
+              {/* ล้างคะแนน */}
+              <button
+                type="button"
+                onClick={handleClearChapterScores}
+                className="px-3.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                title="ล้างคะแนนในบทนี้"
+              >
+                ล้างคะแนน
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* VIEW 2: FINAL EXAM SCORE TAB (Req 6: สอบปลายภาค) */}
       {activeChapterTab === 'final' && (
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-4">
+        <div className="space-y-4">
           {/* Header Card */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 p-4 rounded-xl border border-amber-200">
+          <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />
@@ -1217,28 +1273,9 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 กรอกคะแนนสอบปลายภาคของนักเรียนแต่ละคน (0 ถึง {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}) คะแนนนี้จะนำไปรวมกับคะแนนเก็บทุกบทเพื่อตัดเกรดในแท็บ "รวมทุกบท"
               </p>
             </div>
-
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
-              <button
-                type="button"
-                onClick={handleFillAllFinalExamMax}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                title={`ใส่คะแนนเต็ม (${activeSheet?.finalExamMaxScore || 30}) ให้ทุกคน`}
-              >
-                เติมคะแนนเต็ม ({activeSheet?.finalExamMaxScore || 30}) ทุกคน
-              </button>
-              <button
-                type="button"
-                onClick={handleClearFinalExam}
-                className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                title="ล้างคะแนนสอบปลายภาค"
-              >
-                ล้างคะแนน
-              </button>
-            </div>
           </div>
 
-          {/* Sticky Table for Final Exam (Req 3: Sticky Header) */}
+          {/* Sticky Table for Final Exam */}
           <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
@@ -1246,7 +1283,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   <th className="py-2.5 px-3 w-12 text-center align-bottom sticky top-0 left-0 z-30 bg-slate-100 border-r border-slate-200">
                     ลำดับ
                   </th>
-                  <th className="py-2.5 px-4 min-w-[200px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
+                  <th className="py-2.5 px-4 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
                     ชื่อ - นามสกุล นักเรียน
                   </th>
                   <th className="py-2.5 px-4 w-44 text-center sticky top-0 z-20 bg-amber-100/90 text-amber-950 font-bold border-r border-slate-200">
@@ -1276,13 +1313,27 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       <td className="py-2.5 px-3 text-center text-slate-500 font-medium sticky left-0 z-10 bg-white border-r border-slate-100">
                         {idx + 1}
                       </td>
-                      <td className="py-2.5 px-4 sticky left-12 z-10 bg-white border-r border-slate-100">
-                        <span className="font-semibold text-slate-800 block text-xs">
-                          {student.prefix}{student.firstName} {student.lastName}
-                        </span>
-                        {student.nickname && (
-                          <span className="text-[10px] text-slate-400">({student.nickname})</span>
-                        )}
+                      <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
+                        <input
+                          type="text"
+                          defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
+                          key={`exam-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
+                            if (val && val !== cur) {
+                              handleUpdateStudentName(student.id, val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          placeholder="พิมพ์ชื่อ - นามสกุล..."
+                          className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
+                          title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
+                        />
                       </td>
 
                       {/* Final Exam Input Cell */}
@@ -1333,13 +1384,48 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               </tbody>
             </table>
           </div>
+
+          {/* Bottom Bar for Final Exam: Action buttons & Auto-Save indicator */}
+          <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs text-amber-900">
+              คะแนนสอบปลายภาคจะนำไปรวมกับคะแนนเก็บของบทเรียนที่ 1 ถึง {currentChapters.length} ในหน้า "รวมทุกบท"
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+              {/* บันทึกอัตโนมัติ */}
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/90 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold select-none">
+                <CheckCircle2 className={`w-3.5 h-3.5 text-amber-700 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
+                <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกอัตโนมัติ'}</span>
+              </div>
+
+              {/* เติมคะแนนเต็มทุกคน */}
+              <button
+                type="button"
+                onClick={handleFillAllFinalExamMax}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                title={`ใส่คะแนนเต็ม (${activeSheet?.finalExamMaxScore || 30}) ให้ทุกคน`}
+              >
+                เติมคะแนน {activeSheet?.finalExamMaxScore || 30} ทุกคน
+              </button>
+
+              {/* ล้างคะแนน */}
+              <button
+                type="button"
+                onClick={handleClearFinalExam}
+                className="px-3.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                title="ล้างคะแนนสอบปลายภาค"
+              >
+                ล้างคะแนน
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* VIEW 3: OVERALL SUMMARY TAB (คะแนนเก็บทุกบท + สอบปลายภาค + ตัดเกรด) */}
       {activeChapterTab === 'summary' && (
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/60 p-4 rounded-xl border border-emerald-200">
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/60 p-3.5 sm:p-4 rounded-xl border border-emerald-200">
             <div>
               <div className="flex items-center gap-2">
                 <Award className="w-4 h-4 text-emerald-700" />
@@ -1355,14 +1441,15 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             <button
               type="button"
               onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-emerald-200 cursor-pointer self-start sm:self-auto"
+              title="บันทึกผลการประเมินเป็นไฟล์ PDF หรือสั่งพิมพ์"
             >
-              <Printer className="w-4 h-4" />
-              <span>พิมพ์เอกสารสรุปผลการเรียน</span>
+              <Download className="w-4 h-4" />
+              <span>บันทึกเป็นไฟล์ PDF / พิมพ์สรุปผล</span>
             </button>
           </div>
 
-          {/* Sticky Table Container for Overall Summary (Req 3: Sticky Header) */}
+          {/* Sticky Table Container for Overall Summary */}
           <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
@@ -1370,7 +1457,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   <th className="py-3 px-2.5 w-12 text-center align-bottom sticky top-0 left-0 z-30 bg-slate-100 border-r border-slate-200">
                     ลำดับ
                   </th>
-                  <th className="py-3 px-3 min-w-[170px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
+                  <th className="py-3 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
                     ชื่อ - นามสกุล นักเรียน
                   </th>
 
@@ -1428,11 +1515,26 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     <td className="py-2.5 px-2.5 text-center text-slate-500 font-medium sticky left-0 z-10 bg-white border-r border-slate-100">
                       {row.order}
                     </td>
-                    <td className="py-2.5 px-3 sticky left-12 z-10 bg-white border-r border-slate-100">
-                      <span className="font-semibold text-slate-800 block text-xs">{row.studentName}</span>
-                      {row.nickname && (
-                        <span className="text-[10px] text-slate-400">({row.nickname})</span>
-                      )}
+                    <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
+                      <input
+                        type="text"
+                        defaultValue={row.studentName}
+                        key={`sum-std-${row.studentId}-${row.studentName}`}
+                        onBlur={(e) => {
+                          const val = e.target.value.trim();
+                          if (val && val !== row.studentName) {
+                            handleUpdateStudentName(row.studentId, val);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        placeholder="พิมพ์ชื่อ - นามสกุล..."
+                        className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
+                        title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
+                      />
                     </td>
 
                     {/* Scaled Chapter Score Cells */}
@@ -1485,28 +1587,39 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             </table>
           </div>
 
-          {/* Distribution & Statistics Bar */}
-          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs">
-            <div className="flex items-center gap-3">
-              <span className="text-slate-500">
+          {/* Distribution & Statistics Bar with PDF Export */}
+          <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-slate-600">
                 คะแนนเฉลี่ยทั้งห้อง: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
               </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-400 text-xs mr-1">การกระจายเกรด:</span>
+                {Object.entries(gradeCounts).map(([grd, count]) => (
+                  <span
+                    key={grd}
+                    className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[11px]"
+                  >
+                    เกรด {grd}: {count} คน
+                  </span>
+                ))}
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-slate-400 text-xs mr-1">การกระจายเกรด:</span>
-              {Object.entries(gradeCounts).map(([grd, count]) => (
-                <span
-                  key={grd}
-                  className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[11px]"
-                >
-                  เกรด {grd}: {count} คน
-                </span>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowPrintModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-xs cursor-pointer shrink-0"
+              title="บันทึกผลการประเมินเป็นไฟล์ PDF"
+            >
+              <Download className="w-4 h-4" />
+              <span>บันทึกเป็นไฟล์ PDF / พิมพ์เอกสาร</span>
+            </button>
           </div>
         </div>
       )}
+        </div>
+      </div>
 
       {/* POP-UP MODAL: "แก้ไขข้อมูล" / CREATE SUBJECT (Req 1, 5, 6) */}
       {showConfigModal && (

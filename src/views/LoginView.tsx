@@ -22,6 +22,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const profile = dataService.getProfile();
@@ -46,9 +47,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
       const isValid = dataService.loginWithCredentials(username, password);
       if (isValid) {
         setIsSubmitting(false);
-        onLoginSuccess();
+        setErrorMessage('');
+        setSuccessMessage('เข้าสู่ระบบสำเร็จ');
+        setTimeout(() => {
+          onLoginSuccess();
+        }, 150);
       } else {
         setIsSubmitting(false);
+        setSuccessMessage('');
         setErrorMessage('User ID หรือ Password ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
       }
     }, 200);
@@ -87,6 +93,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
               <p className="font-semibold">ระบบตัดการเชื่อมต่ออัตโนมัติ</p>
               <p className="text-[11px] text-amber-700">{inactivityNotice}</p>
             </div>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-800 font-bold flex items-center gap-2 animate-bounce-short shadow-xs">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+            <span>{successMessage}</span>
           </div>
         )}
 

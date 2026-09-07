@@ -247,9 +247,6 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-gray-900">ข้อมูลนักเรียน (Student Records)</h2>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                PAGE 2
-              </span>
             </div>
             <p className="text-xs text-gray-500">
               ทะเบียนประวัตินักเรียน การติดต่อ ผู้ปกครอง การเดินทาง ค่าขนม และฟิลด์กำหนดเอง
