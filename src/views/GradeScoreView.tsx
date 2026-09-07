@@ -691,12 +691,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Auto-Save Indicator (Req 4: ให้หน้ากรอกคะแนนบันทึกข้อมูลอัตโนมัติ) */}
-          <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-semibold shadow-2xs select-none">
-            <CheckCircle2 className={`w-4 h-4 text-emerald-600 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
-            <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกข้อมูลอัตโนมัติ'}</span>
-          </div>
-
           {/* Main "+" Button for Pop-up Modal */}
           <button
             type="button"
@@ -975,11 +969,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
           {/* VIEW 1: SINGLE CHAPTER SCORE GRID */}
           {typeof activeChapterTab === 'number' && currentActiveChapter && (
             <div className="space-y-4">
-              {/* Chapter Actions Guide (Action buttons moved to bottom) */}
-              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
-                กรอกชื่อเรื่องในหัวตารางเพื่อคิดคะแนน (เรื่องละเต็ม 5) • ระบบเฉลี่ยเต็ม {currentActiveChapter.maxScore || 15} ให้อัตโนมัติ • กดปุ่ม <strong>"+ เรื่อง"</strong> เพื่อเพิ่มเรื่องที่ 11, 12...
-              </div>
-
               {/* Sticky Table Container */}
               <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
                 <table className="w-full text-left border-collapse text-xs">
