@@ -1,23 +1,14 @@
 import React, { useState } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
-import { GAS_CODE_TEMPLATE } from '../services/gasCodeTemplate';
-import { DEFAULT_DRIVE_FOLDER_ID } from '../utils/helpers';
 import {
   Settings,
   KeyRound,
   User,
-  School,
-  HardDrive,
-  Code,
-  Download,
-  Upload,
-  Check,
-  Copy,
   X,
-  ExternalLink,
-  RefreshCw,
-  Sparkles
+  CheckCircle2,
+  ShieldCheck,
+  CloudCheck
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -32,9 +23,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'gas' | 'backup'>('profile');
-  const [copiedGasCode, setCopiedGasCode] = useState(false);
-  const [isTestingGas, setIsTestingGas] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
 
   if (!isOpen) return null;
 
@@ -69,56 +58,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setPasswordMsg({ text: 'เปลี่ยนรหัสผ่าน Admin สำเร็จเรียบร้อยแล้ว!', isError: false });
   };
 
-  const handleCopyGasCode = () => {
-    navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
-    setCopiedGasCode(true);
-    dataService.notifyToast('success', 'คัดลอกโค้ด GAS สำเร็จ', 'นำโค้ดไปวางใน Google Apps Script ได้ทันที');
-    setTimeout(() => setCopiedGasCode(false), 3000);
-  };
-
-  const handleTestGas = async () => {
-    if (!profile.gasWebAppUrl) {
-      dataService.notifyToast('warning', 'กรุณาระบุ URL ของ Google Apps Script Web App ก่อนทดสอบ');
-      return;
-    }
-    setIsTestingGas(true);
-    await dataService.syncWithGoogleAppsScript();
-    setIsTestingGas(false);
-  };
-
-  const handleExportBackup = () => {
-    const json = dataService.exportDatabaseJson();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup_classroom_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    dataService.notifyToast('success', 'สำรองข้อมูลสำเร็จ', 'ดาวน์โหลดไฟล์ JSON สำรองข้อมูลเรียบร้อยแล้ว');
-  };
-
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = ev.target?.result as string;
-      if (content) {
-        if (confirm('การนำเข้าข้อมูลจะเขียนทับข้อมูลปัจจุบัน คุณต้องการดำเนินการต่อหรือไม่?')) {
-          dataService.importDatabaseJson(content);
-          setProfile(dataService.getProfile());
-        }
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden">
+      <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
           <div className="flex items-center gap-2.5">
@@ -126,8 +68,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-lg">ตั้งค่าระบบและการเชื่อมต่อ</h3>
-              <p className="text-xs text-slate-500">จัดการข้อมูลครูประจำชั้น รหัสผ่าน และการเชื่อมต่อ Google</p>
+              <h3 className="font-bold text-slate-800 text-lg">ตั้งค่าระบบและบัญชีครู</h3>
+              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้นและรหัสผ่านผู้ดูแลระบบ</p>
             </div>
           </div>
           <button
@@ -139,7 +81,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 text-xs font-medium overflow-x-auto">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 text-xs font-medium">
           <button
             onClick={() => setActiveTab('profile')}
             className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
@@ -159,26 +101,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <KeyRound className="w-4 h-4" /> เปลี่ยนรหัสผ่าน Admin
-          </button>
-          <button
-            onClick={() => setActiveTab('gas')}
-            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'gas'
-                ? 'border-emerald-600 text-emerald-700 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <HardDrive className="w-4 h-4" /> Google Drive & Sheets (GAS)
-          </button>
-          <button
-            onClick={() => setActiveTab('backup')}
-            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'backup'
-                ? 'border-emerald-600 text-emerald-700 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Download className="w-4 h-4" /> สำรองข้อมูล (Backup)
           </button>
         </div>
 
@@ -233,9 +155,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <div className="pt-3 flex justify-end">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors cursor-pointer"
                 >
-                  บันทึกการเปลี่ยนแปลง
+                  บันทึกข้อมูล
                 </button>
               </div>
             </form>
@@ -243,10 +165,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
           {/* TAB 2: Password Change */}
           {activeTab === 'password' && (
-            <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
-              <p className="text-xs text-slate-500">
-                รหัสผ่านเริ่มต้นสำหรับ Admin: <span className="font-semibold text-emerald-700">456789</span>
-              </p>
+            <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md mx-auto">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>รหัสผ่านเริ่มต้นสำหรับ Admin คือ <strong className="text-emerald-700">456789</strong></span>
+              </div>
 
               {passwordMsg && (
                 <div
@@ -299,118 +222,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors"
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors cursor-pointer"
                 >
                   อัปเดตรหัสผ่าน Admin
                 </button>
               </div>
             </form>
           )}
+        </div>
 
-          {/* TAB 3: Google Apps Script & Drive */}
-          {activeTab === 'gas' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl text-xs space-y-2">
-                <div className="font-semibold text-emerald-900 flex items-center gap-1.5 text-sm">
-                  <Sparkles className="w-4 h-4 text-emerald-600" /> ข้อมูลการเชื่อมต่อ Google Workspace
-                </div>
-                <p className="text-emerald-800">
-                  ระบบได้ตั้งค่าโฟลเดอร์สำหรับจัดเก็บรูปภาพ Google Drive เริ่มต้นไว้ที่ Folder ID:
-                  <span className="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200 ml-1">
-                    {DEFAULT_DRIVE_FOLDER_ID}
-                  </span>
-                </p>
-                <p className="text-slate-600">
-                  ท่านสามารถคัดลอกโค้ด Google Apps Script (Code.gs) ด้านล่างไปสร้าง Web App เพื่อเชื่อมโยงฐานข้อมูล Google Sheets ให้ซิงค์ข้อมูลจริงได้ทันที
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Google Apps Script Web App URL (ถ้ามี)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={profile.gasWebAppUrl}
-                    onChange={(e) => setProfile({ ...profile, gasWebAppUrl: e.target.value })}
-                    placeholder="https://script.google.com/macros/s/.../exec"
-                    className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-xs font-mono outline-hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTestGas}
-                    disabled={isTestingGas}
-                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingGas ? 'animate-spin' : ''}`} />
-                    <span>ทดสอบเชื่อมต่อ</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-900 text-slate-100">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                    <Code className="w-4 h-4" /> โค้ด Google Apps Script (Code.gs) พร้อมใช้งาน
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleCopyGasCode}
-                    className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
-                  >
-                    {copiedGasCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedGasCode ? 'คัดลอกแล้ว!' : 'คัดลอกโค้ด'}</span>
-                  </button>
-                </div>
-                <pre className="text-[11px] font-mono max-h-48 overflow-y-auto text-slate-300 p-2 bg-slate-950 rounded-xl border border-slate-800">
-                  {GAS_CODE_TEMPLATE}
-                </pre>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: Backup & Restore */}
-          {activeTab === 'backup' && (
-            <div className="space-y-4">
-              <p className="text-xs text-slate-500">
-                ระบบจัดเก็บข้อมูลใน Local Cache ที่รวดเร็วและปลอดภัย ท่านสามารถดาวน์โหลดไฟล์สำรองข้อมูล JSON เก็บไว้ หรือนำเข้าเพื่อกู้คืนข้อมูลได้ตลอดเวลา
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-5 border border-slate-200 rounded-2xl bg-slate-50 flex flex-col items-center text-center">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
-                    <Download className="w-5 h-5" />
-                  </div>
-                  <h4 className="font-bold text-slate-800 text-sm">ส่งออกข้อมูลสำรอง (Export JSON)</h4>
-                  <p className="text-xs text-slate-500 mt-1 mb-4">
-                    ดาวน์โหลดข้อมูลทั้งหมด: นักเรียน, น้ำหนัก-ส่วนสูง, ออมทรัพย์, คะแนน, กิจกรรม
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleExportBackup}
-                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-medium transition-colors"
-                  >
-                    ดาวน์โหลดไฟล์ Backup
-                  </button>
-                </div>
-
-                <div className="p-5 border border-slate-200 rounded-2xl bg-slate-50 flex flex-col items-center text-center">
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center mb-3">
-                    <Upload className="w-5 h-5" />
-                  </div>
-                  <h4 className="font-bold text-slate-800 text-sm">นำเข้าข้อมูลสำรอง (Import JSON)</h4>
-                  <p className="text-xs text-slate-500 mt-1 mb-4">
-                    เลือกไฟล์ JSON ที่เคยดาวน์โหลดไว้ เพื่อกู้คืนข้อมูลสู่ระบบ
-                  </p>
-                  <label className="w-full py-2 bg-white border border-slate-300 hover:border-emerald-500 text-slate-700 rounded-xl text-xs font-medium text-center transition-colors cursor-pointer">
-                    เลือกไฟล์ .json
-                    <input type="file" accept=".json" onChange={handleImportBackup} className="hidden" />
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
+        {/* Clean Background Services Indicator */}
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>ระบบหลังบ้านเชื่อมต่อ Google Sheets และ Drive ทำงานอัตโนมัติ</span>
+          </div>
+          <span className="text-[11px] text-slate-400">Security Encrypted</span>
         </div>
       </div>
     </div>

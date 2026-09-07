@@ -1,25 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Navigation } from './components/Navigation';
 import { ToastContainer } from './components/ToastContainer';
 import { SweetAlertModal } from './components/SweetAlertModal';
-import { AdminLoginModal } from './components/AdminLoginModal';
 import { SettingsModal } from './components/SettingsModal';
 import { DashboardView } from './views/DashboardView';
 import { WeightHeightView } from './views/WeightHeightView';
 import { StudentRecordsView } from './views/StudentRecordsView';
 import { BankAttendanceView } from './views/BankAttendanceView';
 import { GradeScoreView } from './views/GradeScoreView';
+import { LoginView } from './views/LoginView';
 import { dataService } from './services/dataService';
 import { TeacherProfile } from './types';
 import { formatThaiDateTime } from './utils/helpers';
 
+const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes of inactivity
+
 export default function App() {
+  // REQUIREMENT 1: Must be on Login page on every entry/refresh. Never auto-login.
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [isAdmin, setIsAdmin] = useState<boolean>(dataService.getIsAdmin());
-  const [showAdminLogin, setShowAdminLogin] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [profile, setProfile] = useState<TeacherProfile>(dataService.getProfile());
+
+  const lastActivityTimestamp = useRef<number>(Date.now());
+
+  // Reset admin state on initial load to guarantee login wall on every fresh entry
+  useEffect(() => {
+    dataService.setAdminLoggedIn(false);
+  }, []);
 
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
@@ -29,24 +41,79 @@ export default function App() {
     return unsub;
   }, []);
 
-  const handleAdminToggle = () => {
-    if (isAdmin) {
-      dataService.logoutAdmin();
-    } else {
-      setShowAdminLogin(true);
-    }
+  const handleLoginSuccess = () => {
+    lastActivityTimestamp.current = Date.now();
+    setInactivityNotice(null);
+    setIsAuthenticated(true);
+    setIsAdmin(true);
   };
+
+  const handleLogout = useCallback((reason?: 'manual' | 'inactivity') => {
+    dataService.logoutAdmin();
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+    if (reason === 'inactivity') {
+      setInactivityNotice('ไม่มีการเคลื่อนไหวบนเว็บไซต์เกิน 15 นาที ระบบจึงนำท่านกลับสู่หน้าเข้าสู่ระบบเพื่อความปลอดภัย');
+    } else {
+      setInactivityNotice(null);
+    }
+  }, []);
+
+  // REQUIREMENT 1 (cont.): 15-minute inactivity tracker
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    lastActivityTimestamp.current = Date.now();
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    const handleUserActivity = () => {
+      lastActivityTimestamp.current = Date.now();
+    };
+
+    activityEvents.forEach((event) => {
+      window.addEventListener(event, handleUserActivity, { passive: true });
+    });
+
+    const intervalId = setInterval(() => {
+      const inactiveDuration = Date.now() - lastActivityTimestamp.current;
+      if (inactiveDuration >= INACTIVITY_TIMEOUT_MS) {
+        handleLogout('inactivity');
+      }
+    }, 10000); // verify every 10 seconds
+
+    return () => {
+      activityEvents.forEach((event) => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+      clearInterval(intervalId);
+    };
+  }, [isAuthenticated, handleLogout]);
 
   const lastModifiedFormatted = profile.lastModifiedTimestamp
     ? formatThaiDateTime(profile.lastModifiedTimestamp).replace(/.*เวลา\s*/, '')
     : 'ไม่มีข้อมูล';
+
+  // If not authenticated, ALWAYS display the Login screen
+  if (!isAuthenticated) {
+    return (
+      <>
+        <LoginView
+          onLoginSuccess={handleLoginSuccess}
+          inactivityNotice={inactivityNotice}
+        />
+        <ToastContainer />
+        <SweetAlertModal />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFB] text-gray-800 flex flex-col font-sans selection:bg-emerald-100 selection:text-emerald-900 antialiased overflow-x-hidden">
       {/* High Density Header */}
       <Header
         isAdmin={isAdmin}
-        onAdminToggle={handleAdminToggle}
+        onAdminToggle={() => handleLogout('manual')}
+        onLogout={() => handleLogout('manual')}
         onOpenSettings={() => setShowSettings(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -81,14 +148,14 @@ export default function App() {
       {/* High Density Footer */}
       <footer className="h-10 sm:h-11 bg-white border-t border-emerald-100 flex flex-wrap items-center justify-between px-4 sm:px-8 text-[10px] sm:text-[11px] text-gray-400 shrink-0 mt-auto gap-2">
         <div className="flex items-center gap-2">
-          <span>Google Drive Folder ID:</span>
+          <span>ระบบหลังบ้านเชื่อมต่อ Google Drive & Sheets อัตโนมัติ</span>
           <span className="font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] border border-emerald-100">
-            {profile.driveFolderId || '1nymxjSukQ_exIWuN6HRehXRTFrPrfekP'}
+            Auto-Sync Active
           </span>
         </div>
 
         <div className="flex items-center gap-4 text-gray-400">
-          <span className="hidden sm:inline">Version 2.4.0 (Stable)</span>
+          <span className="hidden sm:inline">Version 2.5.0 (Cloudflare Ready)</span>
           <span className="flex items-center gap-1.5 text-gray-500 font-medium">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
             <span>แก้ไขล่าสุด: {lastModifiedFormatted}</span>
@@ -96,12 +163,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Modals and Global Overlays */}
-      <AdminLoginModal
-        isOpen={showAdminLogin}
-        onClose={() => setShowAdminLogin(false)}
-      />
-
+      {/* Settings Modal */}
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}

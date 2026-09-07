@@ -81,6 +81,18 @@ export interface WithdrawalLog {
   createdAt: string;
 }
 
+export interface WithdrawalPendingDay {
+  id: string;
+  withdrawalLogId?: string;
+  studentId: string;
+  studentName: string;
+  date: string; // YYYY-MM-DD
+  amount: number; // Deposit amount on that day to be zeroed
+  reason: string; // Withdrawal reason
+  status: 'pending' | 'cleared'; // 'pending' shows blue dot; 'cleared' means cleared to 0
+  createdAt: string;
+}
+
 export type GradingSystem = 'thai_standard' | 'letter_grade';
 
 export interface StudentScoreRow {

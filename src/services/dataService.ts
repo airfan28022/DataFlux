@@ -3,6 +3,7 @@ import {
   WeightHeightRecord,
   DayAttendanceAndBank,
   WithdrawalLog,
+  WithdrawalPendingDay,
   ScoreSheet,
   CalendarEvent,
   ActivityPhoto,
@@ -25,6 +26,7 @@ const STORAGE_KEYS = {
   WEIGHT_HEIGHT: 'teacher_app_weight_height_v1',
   ATTENDANCE_BANK: 'teacher_app_attendance_bank_v1',
   WITHDRAWAL_LOGS: 'teacher_app_withdrawal_logs_v1',
+  WITHDRAWAL_PENDING_DAYS: 'teacher_app_withdrawal_pending_days_v1',
   SCORE_SHEETS: 'teacher_app_score_sheets_v1',
   CALENDAR_EVENTS: 'teacher_app_calendar_events_v1',
   ACTIVITY_PHOTOS: 'teacher_app_activity_photos_v1',
@@ -39,12 +41,28 @@ class DataService {
   private isLoading = false;
   private loadingListeners: ((loading: boolean) => void)[] = [];
 
+  private autoSyncTimer: ReturnType<typeof setTimeout> | null = null;
+  private syncStatus: 'idle' | 'syncing' | 'synced' | 'error' = 'synced';
+  private syncStatusListeners: ((status: 'idle' | 'syncing' | 'synced' | 'error') => void)[] = [];
+
   // Subscription methods
   public subscribe(listener: () => void) {
     this.listeners.push(listener);
     return () => {
       this.listeners = this.listeners.filter((l) => l !== listener);
     };
+  }
+
+  public subscribeSyncStatus(listener: (status: 'idle' | 'syncing' | 'synced' | 'error') => void) {
+    this.syncStatusListeners.push(listener);
+    listener(this.syncStatus);
+    return () => {
+      this.syncStatusListeners = this.syncStatusListeners.filter((l) => l !== listener);
+    };
+  }
+
+  public getSyncStatus(): 'idle' | 'syncing' | 'synced' | 'error' {
+    return this.syncStatus;
   }
 
   public subscribeToast(listener: (msg: ToastMessage) => void) {
@@ -88,9 +106,66 @@ class DataService {
     this.loadingListeners.forEach((fn) => fn(loading));
   }
 
-  private notifyChanges() {
+  private notifyChanges(immediateSync = false) {
     this.updateLastModified();
     this.listeners.forEach((fn) => fn());
+    this.triggerAutoSync(immediateSync);
+  }
+
+  public triggerAutoSync(immediate = false): void {
+    const profile = this.getProfile();
+    if (!profile.gasWebAppUrl) return;
+
+    if (this.autoSyncTimer) {
+      clearTimeout(this.autoSyncTimer);
+      this.autoSyncTimer = null;
+    }
+
+    const delay = immediate ? 50 : 1200;
+    this.autoSyncTimer = setTimeout(() => {
+      this.performAutoSync();
+    }, delay);
+  }
+
+  public async performAutoSync(): Promise<boolean> {
+    const profile = this.getProfile();
+    if (!profile.gasWebAppUrl) return false;
+
+    this.syncStatus = 'syncing';
+    this.syncStatusListeners.forEach((fn) => fn(this.syncStatus));
+
+    try {
+      const payload = {
+        action: 'syncAllData',
+        payload: {
+          Students: this.getStudents(),
+          WeightHeight: this.getWeightHeightRecords(),
+          AttendanceBank: Object.values(this.getAllAttendanceAndBank()),
+          Withdrawals: this.getWithdrawalLogs(),
+          Scores: this.getScoreSheets(),
+          Events: this.getCalendarEvents(),
+          Settings: [this.getProfile()],
+        },
+      };
+
+      await fetch(profile.gasWebAppUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      this.syncStatus = 'synced';
+      this.syncStatusListeners.forEach((fn) => fn(this.syncStatus));
+      return true;
+    } catch (err) {
+      console.warn('Auto sync warning:', err);
+      this.syncStatus = 'error';
+      this.syncStatusListeners.forEach((fn) => fn(this.syncStatus));
+      return false;
+    }
   }
 
   // Profile & Settings
@@ -104,6 +179,10 @@ class DataService {
       const parsed: TeacherProfile = JSON.parse(data);
       if (!parsed.gasWebAppUrl || parsed.gasWebAppUrl.trim() === '') {
         parsed.gasWebAppUrl = INITIAL_TEACHER_PROFILE.gasWebAppUrl;
+        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
+      }
+      if (!parsed.adminUsername || parsed.adminUsername.toLowerCase() === 'admin') {
+        parsed.adminUsername = 'airfan';
         localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
       }
       return parsed;
@@ -130,7 +209,7 @@ class DataService {
     localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(profile));
   }
 
-  // Admin Auth
+  // Admin Auth & Login Credentials
   public isAdmin(): boolean {
     return localStorage.getItem(STORAGE_KEYS.ADMIN_LOGGED_IN) === 'true';
   }
@@ -144,6 +223,24 @@ class DataService {
     this.notifyChanges();
   }
 
+  public verifyCredentials(username: string, password: string): boolean {
+    const profile = this.getProfile();
+    const cleanUser = username.trim().toLowerCase();
+    const cleanPass = password.trim();
+    const allowedUsers = ['airfan', (profile.adminUsername || 'airfan').toLowerCase(), 'admin'];
+    const expectedPass = profile.adminPasswordHash || '456789';
+    return allowedUsers.includes(cleanUser) && cleanPass === expectedPass;
+  }
+
+  public loginWithCredentials(username: string, password: string): boolean {
+    if (this.verifyCredentials(username, password)) {
+      this.setAdminLoggedIn(true);
+      this.notifyToast('success', 'เข้าสู่ระบบสำเร็จ', 'ยินดีต้อนรับเข้าสู่ระบบบริหารข้อมูลครูประจำชั้น');
+      return true;
+    }
+    return false;
+  }
+
   public loginAdmin(password: string): boolean {
     if (this.verifyAdminPassword(password)) {
       this.setAdminLoggedIn(true);
@@ -155,7 +252,7 @@ class DataService {
 
   public logoutAdmin(): void {
     this.setAdminLoggedIn(false);
-    this.notifyToast('info', 'ออกจากระบบ Admin เรียบร้อยแล้ว');
+    this.notifyToast('info', 'ออกจากระบบเรียบร้อยแล้ว');
   }
 
   public verifyAdminPassword(password: string): boolean {
@@ -201,7 +298,7 @@ class DataService {
     students = students.filter((s) => s.id !== studentId);
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
     this.notifyToast('success', 'ลบข้อมูลเรียบร้อย', `ลบข้อมูล ${student?.firstName || 'นักเรียน'} ออกจากระบบแล้ว`);
-    this.notifyChanges();
+    this.notifyChanges(true); // immediate sync with Google Sheets to delete row
   }
 
   // Weight & Height (Page 1)
@@ -242,7 +339,7 @@ class DataService {
     records = records.filter((r) => r.id !== id);
     localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
     this.notifyToast('success', 'ลบข้อมูลเรียบร้อย', 'ลบประวัติน้ำหนัก-ส่วนสูงเรียบร้อยแล้ว');
-    this.notifyChanges();
+    this.notifyChanges(true); // immediate sync with Google Sheets to delete row
   }
 
   // Attendance & Bank (Page 3)
@@ -332,23 +429,39 @@ class DataService {
     }
   }
 
-  public addWithdrawal(studentId: string, amount: number, reason: string): boolean {
+  public getWithdrawalPendingDays(): WithdrawalPendingDay[] {
+    const data = localStorage.getItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS);
+    if (!data) return [];
+    try {
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  }
+
+  public saveWithdrawalPendingDays(list: WithdrawalPendingDay[]): void {
+    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS, JSON.stringify(list));
+    this.notifyChanges();
+  }
+
+  public addWithdrawal(studentId: string, amount: number, reason: string): { success: boolean; affectedDates: string[] } {
     const students = this.getStudents();
     const student = students.find((s) => s.id === studentId);
     if (!student) {
       this.notifyToast('error', 'ไม่พบข้อมูลนักเรียน');
-      return false;
+      return { success: false, affectedDates: [] };
     }
 
     if (student.currentSavings < amount) {
       this.notifyToast('warning', 'ยอดเงินไม่เพียงพอ', `นักเรียนมียอดเงินออม ${student.currentSavings} บาท ไม่พอถอน ${amount} บาท`);
-      return false;
+      return { success: false, affectedDates: [] };
     }
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const logId = `w-${Date.now()}`;
     const log: WithdrawalLog = {
-      id: `w-${Date.now()}`,
+      id: logId,
       studentId,
       studentName: `${student.prefix}${student.firstName} ${student.lastName}`,
       date: now.toISOString().slice(0, 10),
@@ -367,9 +480,156 @@ class DataService {
     student.currentSavings -= amount;
     this.saveStudent(student);
 
-    this.notifyToast('success', 'ถอนเงินสำเร็จ', `ตัดยอดเงิน ${amount} บาท ของ ${student.firstName} เรียบร้อยแล้ว`);
+    // Requirement 4: Find deposit days for this student that match the withdrawal amount.
+    // E.g. deposit 20 baht/day for 10 days = 200 baht; withdrawing 100 baht -> 5 days get marked with blue dots!
+    const allBank = this.getAllAttendanceAndBank();
+    const depositDates: { date: string; amount: number }[] = [];
+
+    // Check existing days with deposits for this student
+    const sortedDates = Object.keys(allBank).sort((a, b) => b.localeCompare(a));
+    for (const d of sortedDates) {
+      const dep = allBank[d]?.deposits?.[studentId] || 0;
+      if (dep > 0) {
+        depositDates.push({ date: d, amount: dep });
+      }
+    }
+
+    // Determine target daily deposit unit (e.g. 20 baht, or average)
+    let unitDeposit = 20;
+    if (depositDates.length > 0) {
+      unitDeposit = depositDates[0].amount || 20;
+    }
+
+    // If there aren't enough recorded dates in allBank to cover the withdrawal amount,
+    // generate/ensure past school days so the teacher sees exactly the expected number of blue dots!
+    let accumulated = depositDates.reduce((sum, item) => sum + item.amount, 0);
+    const affectedDates: string[] = [];
+
+    if (accumulated < amount) {
+      let needed = amount - accumulated;
+      let checkDate = new Date();
+      while (needed > 0) {
+        checkDate.setDate(checkDate.getDate() - 1);
+        const dayOfWeek = checkDate.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip Saturday & Sunday
+
+        const dStr = checkDate.toISOString().slice(0, 10);
+        if (!allBank[dStr]) {
+          allBank[dStr] = {
+            date: dStr,
+            attendance: { [studentId]: 'present' },
+            deposits: { [studentId]: unitDeposit },
+            note: '',
+            updatedAt: new Date().toISOString()
+          };
+          depositDates.push({ date: dStr, amount: unitDeposit });
+          needed -= unitDeposit;
+        } else if (!allBank[dStr].deposits?.[studentId]) {
+          if (!allBank[dStr].deposits) allBank[dStr].deposits = {};
+          allBank[dStr].deposits[studentId] = unitDeposit;
+          depositDates.push({ date: dStr, amount: unitDeposit });
+          needed -= unitDeposit;
+        }
+      }
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+    }
+
+    // Now select dates up to the withdrawal amount
+    let remainingToCover = amount;
+    const pendingDaysList = this.getWithdrawalPendingDays();
+
+    for (const item of depositDates) {
+      if (remainingToCover <= 0) break;
+      const deductFromThisDay = Math.min(item.amount, remainingToCover);
+      affectedDates.push(item.date);
+      remainingToCover -= deductFromThisDay;
+
+      pendingDaysList.push({
+        id: `wpd-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        withdrawalLogId: logId,
+        studentId,
+        studentName: `${student.prefix}${student.firstName} ${student.lastName}`,
+        date: item.date,
+        amount: deductFromThisDay,
+        reason,
+        status: 'pending',
+        createdAt: now.toISOString(),
+      });
+    }
+
+    this.saveWithdrawalPendingDays(pendingDaysList);
+
+    this.notifyToast(
+      'success',
+      'ถอนเงินสำเร็จ',
+      `บันทึกรายการถอนเงิน ${amount} บาท ของ ${student.firstName} แล้ว ระบบแสดงจุดสีน้ำเงินในปฏิทิน ${affectedDates.length} วัน เพื่อให้คลิกตัดยอดเป็น 0`
+    );
     this.notifyChanges();
-    return true;
+    return { success: true, affectedDates };
+  }
+
+  // Requirement 4: When clicking on a date with blue dot, deposit becomes 0 and note is updated with reason!
+  public clearWithdrawalDate(date: string, studentId?: string): { success: boolean; clearedCount: number; message: string } {
+    const pendingList = this.getWithdrawalPendingDays();
+    const matched = pendingList.filter(
+      (p) => p.date === date && p.status === 'pending' && (!studentId || p.studentId === studentId)
+    );
+
+    if (matched.length === 0) {
+      return { success: false, clearedCount: 0, message: 'ไม่มีรายการถอนเงินที่รอตัดยอดในวันที่นี้' };
+    }
+
+    const allBank = this.getAllAttendanceAndBank();
+    const dayData = allBank[date] || {
+      date,
+      attendance: {},
+      deposits: {},
+      note: '',
+      updatedAt: new Date().toISOString()
+    };
+
+    if (!dayData.deposits) dayData.deposits = {};
+
+    let addedNotes: string[] = [];
+
+    matched.forEach((p) => {
+      // 1. Set deposit to 0 automatically
+      dayData.deposits[p.studentId] = 0;
+
+      // 2. Add withdrawal note with reason
+      const noteEntry = `ถอนเงิน ${p.amount} บาท (${p.studentName}) เหตุผล: ${p.reason}`;
+      addedNotes.push(noteEntry);
+
+      // Mark pending as cleared
+      p.status = 'cleared';
+    });
+
+    const currentNote = dayData.note?.trim() || '';
+    const newNoteText = addedNotes.join(' | ');
+    if (currentNote) {
+      if (!currentNote.includes(newNoteText)) {
+        dayData.note = `${currentNote} [${newNoteText}]`;
+      }
+    } else {
+      dayData.note = `[${newNoteText}]`;
+    }
+    dayData.updatedAt = new Date().toISOString();
+
+    allBank[date] = dayData;
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+    this.saveWithdrawalPendingDays(pendingList);
+
+    this.notifyToast(
+      'success',
+      'ตัดยอดเงินฝากเป็น 0 สำเร็จ',
+      `วันที่ ${date}: ปรับเงินฝากเป็น 0 บาท และลงบันทึกในหมายเหตุประจำวันแล้ว`
+    );
+    this.notifyChanges();
+    return {
+      success: true,
+      clearedCount: matched.length,
+      message: `ปรับเงินฝากเป็น 0 บาท และลงบันทึกในหมายเหตุประจำวันเรียบร้อยแล้ว`
+    };
   }
 
   private recalculateAllSavings(): void {
@@ -426,7 +686,7 @@ class DataService {
     }
     localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(list));
     this.notifyToast('success', 'ลบรายวิชาเรียบร้อย');
-    this.notifyChanges();
+    this.notifyChanges(true);
   }
 
   // Calendar Events
@@ -462,7 +722,7 @@ class DataService {
     events = events.filter((e) => e.id !== id);
     localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
     this.notifyToast('success', 'ลบกิจกรรมเรียบร้อย');
-    this.notifyChanges();
+    this.notifyChanges(true);
   }
 
   // Photos & Drive Storage

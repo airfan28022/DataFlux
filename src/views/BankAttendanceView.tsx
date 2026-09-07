@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Student, TeacherProfile, AttendanceStatus, DayAttendanceAndBank, WithdrawalLog } from '../types';
+import { Student, TeacherProfile, AttendanceStatus, DayAttendanceAndBank, WithdrawalLog, WithdrawalPendingDay } from '../types';
 import { dataService } from '../services/dataService';
 import { formatThaiDate } from '../utils/helpers';
 import { ImageWithFallback } from '../components/ImageWithFallback';
@@ -44,6 +44,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   const [depositsMap, setDepositsMap] = useState<Record<string, number>>({});
   const [dayNote, setDayNote] = useState<string>('');
   const [withdrawalLogs, setWithdrawalLogs] = useState<WithdrawalLog[]>(dataService.getWithdrawalLogs());
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<WithdrawalPendingDay[]>(dataService.getWithdrawalPendingDays());
   const [allHistoryRecords, setAllHistoryRecords] = useState<Record<string, DayAttendanceAndBank>>(dataService.getAllAttendanceAndBank());
 
   // Calendar Modal State
@@ -89,6 +90,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       setProfile(dataService.getProfile());
       setWithdrawalLogs(dataService.getWithdrawalLogs());
       setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+      setPendingWithdrawals(dataService.getWithdrawalPendingDays());
     });
     return unsub;
   }, []);
@@ -180,13 +182,18 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       return;
     }
 
-    const success = dataService.addWithdrawal(withdrawStudentId, withdrawAmount, withdrawReason.trim());
-    if (success) {
+    const result = dataService.addWithdrawal(withdrawStudentId, withdrawAmount, withdrawReason.trim());
+    if (result.success) {
       setShowWithdrawModal(false);
       setWithdrawAmount(50);
       setWithdrawReason('');
       setWithdrawStudentId('');
       setWithdrawalLogs(dataService.getWithdrawalLogs());
+      setPendingWithdrawals(dataService.getWithdrawalPendingDays());
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+      loadDayData(selectedDate);
+      // Auto open calendar modal so teacher sees the blue dots immediately
+      setShowCalendarModal(true);
     }
   };
 
@@ -262,12 +269,16 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     setCalendarMonth(new Date(calYear, calMonth + 1, 1));
   };
 
-  // Check dots for date
+  // Check dots for date (Req 4: Blue dot for withdrawal pending clearance)
   const getDayDotStatus = (dayNum: number) => {
     const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
     let hasDeposit = false;
     let hasAbsence = false;
     let hasNote = false;
+
+    // Check if date has pending blue dot withdrawal
+    const pendingItems = pendingWithdrawals.filter((p) => p.date === dateStr && p.status === 'pending');
+    const hasBlueDot = pendingItems.length > 0;
 
     if (dateStr === selectedDate) {
       hasDeposit = Object.values(depositsMap).some((v) => (Number(v) || 0) > 0);
@@ -290,21 +301,39 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       }
     }
 
-    return { dateStr, hasDeposit, hasAbsence, hasNote };
+    return { dateStr, hasDeposit, hasAbsence, hasNote, hasBlueDot, pendingItems };
   };
 
   // Click on date in calendar pop-up
-  // Clicking once selects; clicking 2 times (clicking already selected date, or double-click) closes pop-up!
+  // Requirement 4: เมื่อได้กดวันที่ ที่มีจุดสีน้ำเงิน เงินฝากนั้นจะเป็น 0 อัตโนมัติ พร้อมแจ้งเหตุผลตรงที่หมายเหตุประจำวัน ว่าถอนเงิน พร้อมเหตุผล
   const handleCalendarDayClick = (dateStr: string) => {
-    if (dateStr === selectedDate) {
-      // Second click on the same date -> Close popup as requested!
-      setShowCalendarModal(false);
-    } else {
+    const pendingItems = pendingWithdrawals.filter((p) => p.date === dateStr && p.status === 'pending');
+    
+    if (pendingItems.length > 0) {
+      // Execute clearance: deposit -> 0, note -> withdrawal with reason
+      dataService.clearWithdrawalDate(dateStr);
+      setPendingWithdrawals(dataService.getWithdrawalPendingDays());
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
       setSelectedDate(dateStr);
+      loadDayData(dateStr);
+    } else {
+      if (dateStr === selectedDate) {
+        // Second click on the same date -> Close popup as requested!
+        setShowCalendarModal(false);
+      } else {
+        setSelectedDate(dateStr);
+      }
     }
   };
 
   const handleCalendarDayDoubleClick = (dateStr: string) => {
+    const pendingItems = pendingWithdrawals.filter((p) => p.date === dateStr && p.status === 'pending');
+    if (pendingItems.length > 0) {
+      dataService.clearWithdrawalDate(dateStr);
+      setPendingWithdrawals(dataService.getWithdrawalPendingDays());
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+      loadDayData(dateStr);
+    }
     setSelectedDate(dateStr);
     setShowCalendarModal(false);
   };
@@ -461,6 +490,39 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             </span>
           )}
         </div>
+
+        {/* Req 4 Notification Banner: When selected date has blue dot withdrawal pending */}
+        {pendingWithdrawals.filter((p) => p.date === selectedDate && p.status === 'pending').length > 0 && (
+          <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-blue-950">
+            <div className="flex items-center gap-2.5">
+              <span className="w-3 h-3 rounded-full bg-blue-600 ring-2 ring-blue-300 animate-pulse shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                  <span>วันที่นี้มีจุดสีน้ำเงินในปฏิทิน (รายการถอนเงินที่รอตัดยอด)</span>
+                </p>
+                <p className="text-[11px] text-blue-700">
+                  {pendingWithdrawals
+                    .filter((p) => p.date === selectedDate && p.status === 'pending')
+                    .map((p) => `${p.studentName}: ถอน ${p.amount} บาท (เหตุผล: ${p.reason})`)
+                    .join(' | ')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                dataService.clearWithdrawalDate(selectedDate);
+                setPendingWithdrawals(dataService.getWithdrawalPendingDays());
+                setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+                loadDayData(selectedDate);
+              }}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>ปรับเงินฝากเป็น 0 & ลงหมายเหตุทันที</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Attendance & Deposit Table (จัดหน้าให้เรียบร้อยสบายตา) */}
@@ -804,9 +866,13 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
                 {Array.from({ length: daysInCalMonth }).map((_, i) => {
                   const dayNum = i + 1;
-                  const { dateStr, hasDeposit, hasAbsence, hasNote } = getDayDotStatus(dayNum);
+                  const { dateStr, hasDeposit, hasAbsence, hasNote, hasBlueDot, pendingItems } = getDayDotStatus(dayNum);
                   const isSelected = dateStr === selectedDate;
                   const isToday = dateStr === new Date().toISOString().slice(0, 10);
+
+                  const blueDotTitle = hasBlueDot
+                    ? ` • มีรายการถอนเงิน ${pendingItems.length} รายการ (คลิกเพื่อปรับเงินฝากเป็น 0 และบันทึกหมายเหตุอัตโนมัติ)`
+                    : '';
 
                   return (
                     <button
@@ -817,17 +883,27 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       className={`h-9 rounded-xl text-xs font-semibold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-emerald-600 text-white font-bold shadow-sm ring-2 ring-emerald-300'
+                          : hasBlueDot
+                          ? 'bg-blue-50/70 text-blue-900 font-bold border-2 border-blue-400 hover:bg-blue-100/80 shadow-2xs'
                           : isToday
                           ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-300'
                           : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-100'
                       }`}
-                      title={`${formatThaiDate(dateStr)}${hasDeposit ? ' • มีฝากเงิน' : ''}${hasAbsence ? ' • มีขาด/ป่วย/ลา' : ''}${hasNote ? ' • มีข้อความบันทึก' : ''}`}
+                      title={`${formatThaiDate(dateStr)}${blueDotTitle}${hasDeposit ? ' • มีฝากเงิน' : ''}${hasAbsence ? ' • มีขาด/ป่วย/ลา' : ''}${hasNote ? ' • มีข้อความบันทึก' : ''}`}
                     >
                       <span>{dayNum}</span>
 
-                      {/* Dots: Green (Deposit), Red (Sick/Leave/Absent), Amber (Note) */}
+                      {/* Dots: Blue (Withdrawal), Green (Deposit), Red (Sick/Leave/Absent), Amber (Note) */}
                       <div className="flex items-center gap-0.5 absolute bottom-1">
-                        {hasDeposit && (
+                        {hasBlueDot && (
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              isSelected ? 'bg-blue-300 ring-1 ring-white' : 'bg-blue-600 ring-1 ring-blue-300 animate-pulse'
+                            }`}
+                            title="มีรายการถอนเงิน (คลิกเพื่อปรับเงินฝากเป็น 0 บาท และลงบันทึกเหตุผลในหมายเหตุอัตโนมัติ)"
+                          />
+                        )}
+                        {hasDeposit && !hasBlueDot && (
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
                               isSelected ? 'bg-white' : 'bg-emerald-500'
@@ -857,8 +933,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 })}
               </div>
 
-              {/* Dots Legend */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-500">
+              {/* Dots Legend (Req 4: แสดงจุดสีน้ำเงินตรงปฏิทินเงินฝาก) */}
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1.5 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-1 ring-blue-300 inline-block animate-pulse" />
+                  <span className="font-bold text-blue-800">จุดสีน้ำเงิน: ถอนเงิน (คลิกเพื่อปรับเป็น 0 บ. + ลงหมายเหตุ)</span>
+                </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                   <span>มีการฝากเงิน</span>
@@ -908,6 +988,36 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                         <strong className="text-rose-900 font-bold">{previewStats.absent} คน</strong>
                       </div>
                     </div>
+
+                    {/* Blue dot pending indicator in modal preview */}
+                    {pendingWithdrawals.filter((p) => p.date === selectedDate && p.status === 'pending').length > 0 && (
+                      <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-blue-950">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-blue-300 animate-pulse shrink-0" />
+                          <div>
+                            <p className="font-bold text-blue-900">มีรายการถอนเงินที่รอตัดยอด (จุดสีน้ำเงิน)</p>
+                            <p className="text-[10px] text-blue-700">
+                              {pendingWithdrawals
+                                .filter((p) => p.date === selectedDate && p.status === 'pending')
+                                .map((p) => `${p.studentName}: ถอน ${p.amount} บ. (${p.reason})`)
+                                .join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            dataService.clearWithdrawalDate(selectedDate);
+                            setPendingWithdrawals(dataService.getWithdrawalPendingDays());
+                            setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+                            loadDayData(selectedDate);
+                          }}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[11px] shadow-xs cursor-pointer shrink-0"
+                        >
+                          ปรับเงินฝากเป็น 0 ทันที
+                        </button>
+                      </div>
+                    )}
 
                     {/* Editable Note inside modal */}
                     <div className="pt-1">

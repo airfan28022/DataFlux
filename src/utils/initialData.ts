@@ -354,7 +354,7 @@ export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
   schoolName: 'โรงเรียนอนุบาลและประถมศึกษาสาธิต',
   classroomName: 'ชั้นประถมศึกษาปีที่ 6/1',
   academicYear: '2569',
-  adminUsername: 'Admin',
+  adminUsername: 'airfan',
   adminPasswordHash: '456789',
   gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbxNAC_8XCViH4bm1-Qc77U4LKP7KzwHVIpX3pnLhXDO8Rl5ews7NeHgefAQCxurNLXu/exec',
   driveFolderId: DEFAULT_DRIVE_FOLDER_ID,
