@@ -17,9 +17,17 @@ interface LoginViewProps {
   inactivityNotice?: string | null;
 }
 
+const REMEMBER_USER_KEY = 'teacher_system_remembered_username';
+const REMEMBER_FLAG_KEY = 'teacher_system_remember_id_flag';
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivityNotice }) => {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => {
+    return localStorage.getItem(REMEMBER_USER_KEY) || '';
+  });
   const [password, setPassword] = useState('');
+  const [rememberId, setRememberId] = useState(() => {
+    return localStorage.getItem(REMEMBER_FLAG_KEY) !== 'false';
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -43,21 +51,28 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const isValid = dataService.loginWithCredentials(username, password);
-      if (isValid) {
-        setIsSubmitting(false);
-        setErrorMessage('');
-        setSuccessMessage('เข้าสู่ระบบสำเร็จ');
-        setTimeout(() => {
-          onLoginSuccess();
-        }, 150);
+    const isValid = dataService.loginWithCredentials(username, password);
+    if (isValid) {
+      if (rememberId) {
+        localStorage.setItem(REMEMBER_USER_KEY, username.trim());
+        localStorage.setItem(REMEMBER_FLAG_KEY, 'true');
       } else {
-        setIsSubmitting(false);
-        setSuccessMessage('');
-        setErrorMessage('User ID หรือ Password ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+        localStorage.removeItem(REMEMBER_USER_KEY);
+        localStorage.setItem(REMEMBER_FLAG_KEY, 'false');
       }
-    }, 200);
+
+      setIsSubmitting(false);
+      setErrorMessage('');
+      setSuccessMessage('เข้าสู่ระบบสำเร็จ');
+      // แสดงเสี้ยววินาทีพอแล้วเปลี่ยนหน้าทันที
+      setTimeout(() => {
+        onLoginSuccess();
+      }, 100);
+    } else {
+      setIsSubmitting(false);
+      setSuccessMessage('');
+      setErrorMessage('User ID หรือ Password ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+    }
   };
 
   return (
@@ -162,6 +177,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+          </div>
+
+          {/* Remember User ID Checkbox */}
+          <div className="flex items-center justify-between text-xs px-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-slate-600 hover:text-slate-800 transition-colors">
+              <input
+                type="checkbox"
+                checked={rememberId}
+                onChange={(e) => setRememberId(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+              />
+              <span className="font-semibold text-slate-700">จำ User ID</span>
+            </label>
           </div>
 
           <div className="pt-2">

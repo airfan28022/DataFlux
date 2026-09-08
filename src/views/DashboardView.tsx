@@ -163,6 +163,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
     dataService.notifyToast('success', 'บันทึกการแก้ไขกิจกรรมแล้ว');
     setIsEditingEventInModal(false);
     setModalEditEventId(null);
+    setShowDayDetailModal(false);
   };
 
   const handleStartAddEventInModal = () => {
@@ -199,6 +200,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
     setShowModalAddForm(false);
     setModalEventTitle('');
     setModalEventDesc('');
+    setShowDayDetailModal(false);
   };
 
   const getColorClasses = (color: CalendarEvent['color']) => {

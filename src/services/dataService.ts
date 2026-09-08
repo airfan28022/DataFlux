@@ -1,5 +1,6 @@
 import {
   Student,
+  AttendanceStatus,
   WeightHeightRecord,
   DayAttendanceAndBank,
   WithdrawalLog,
@@ -750,14 +751,19 @@ class DataService {
     localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
 
     // 2. Clear all deposit records in history so deposits can start completely fresh
+    // รวมถึงลบการไม่มีเรียน การขาด ป่วย ลา ด้วย ให้มาเรียนทั้งหมดอัตโนมัติ
     const allBank = this.getAllAttendanceAndBank();
     Object.keys(allBank).forEach((dateKey) => {
-      if (allBank[dateKey]?.deposits) {
+      if (allBank[dateKey]) {
         const clearedDeposits: Record<string, number> = {};
-        Object.keys(allBank[dateKey].deposits).forEach((sId) => {
-          clearedDeposits[sId] = 0;
+        const allPresentAttendance: Record<string, AttendanceStatus> = {};
+        students.forEach((s) => {
+          clearedDeposits[s.id] = 0;
+          allPresentAttendance[s.id] = 'present';
         });
         allBank[dateKey].deposits = clearedDeposits;
+        allBank[dateKey].attendance = allPresentAttendance;
+        allBank[dateKey].note = '';
         allBank[dateKey].updatedAt = new Date().toISOString();
       }
     });
@@ -770,14 +776,14 @@ class DataService {
     // 4. Notify toast & sync immediately
     this.notifyToast(
       'success',
-      'รีเซ็ตเงินฝากสำเร็จ',
-      'ลบเงินฝากของนักเรียนทั้งหมดเป็น 0 บาท เรียบร้อยแล้ว พร้อมเริ่มบันทึกเงินฝากใหม่'
+      'ลบเงินฝากและรีเซ็ตการมาเรียนสำเร็จ',
+      'ลบเงินฝากของทุกคนเป็น 0 บาท และปรับสถานะเป็นมาเรียนทั้งหมด (ลบการไม่มีเรียน ขาด ป่วย ลา) เรียบร้อยแล้ว'
     );
     this.notifyChanges(true); // immediate sync with Google Sheets
 
     return {
       success: true,
-      message: 'ลบเงินฝากของนักเรียนทั้งหมดเรียบร้อยแล้ว'
+      message: 'ลบเงินฝากและปรับสถานะเป็นมาเรียนทั้งหมดเรียบร้อยแล้ว'
     };
   }
 

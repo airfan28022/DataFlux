@@ -51,7 +51,7 @@ export default function App() {
     setShowLoginSuccessNotice(true);
     setTimeout(() => {
       setShowLoginSuccessNotice(false);
-    }, 1400); // แสดงแปปเดียวและหายทันที
+    }, 450); // แสดงเพียงเสี้ยววินาทีพอตามที่ต้องการ
   };
 
   const handleLogout = useCallback((reason?: 'manual' | 'inactivity') => {

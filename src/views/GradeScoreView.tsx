@@ -902,25 +902,25 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
       </div>
 
-      {/* SUBJECT TABS BAR WITH COMPACT TERM BUTTONS IN FRONT OF SUBJECTS */}
-      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+      {/* SUBJECT TABS BAR WITH COMPACT TERM BUTTONS IN FRONT OF SUBJECTS (Req: ปรับขนาดเล็กนิดหนึ่ง และปรับเป็นสีเขียวอ่อน) */}
+      <div className="bg-emerald-50/80 p-2 sm:p-2.5 rounded-2xl border border-emerald-200/90 shadow-2xs">
         <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-thin">
-          {/* Small Term Selector Buttons in front of subjects */}
-          <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 shrink-0">
+          {/* Small Compact Term Selector Buttons in front of subjects */}
+          <div className="inline-flex items-center p-0.5 bg-white/90 rounded-lg border border-emerald-200/90 shrink-0">
             <button
               type="button"
               onClick={() => handleSwitchTerm('1')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTermTab === '1'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-purple-700 hover:bg-slate-200/70'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70'
               }`}
               title="สลับไปภาคเรียนที่ 1"
             >
               <span>ภาคเรียนที่ 1</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
-                  activeTermTab === '1' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                className={`text-[9px] px-1 py-0.2 rounded-full font-semibold ${
+                  activeTermTab === '1' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
                 }`}
               >
                 {term1Sheets.length}
@@ -930,17 +930,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             <button
               type="button"
               onClick={() => handleSwitchTerm('2')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 activeTermTab === '2'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-purple-700 hover:bg-slate-200/70'
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70'
               }`}
               title="สลับไปภาคเรียนที่ 2"
             >
               <span>ภาคเรียนที่ 2</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
-                  activeTermTab === '2' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                className={`text-[9px] px-1 py-0.2 rounded-full font-semibold ${
+                  activeTermTab === '2' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
                 }`}
               >
                 {term2Sheets.length}
@@ -948,10 +948,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             </button>
           </div>
 
-          <div className="h-5 w-px bg-slate-200 shrink-0 mx-0.5" />
+          <div className="h-4 w-px bg-emerald-200 shrink-0 mx-0.5" />
 
           {/* Subjects in the Active Term */}
-          <span className="text-xs font-bold text-slate-400 pl-0.5 shrink-0">รายวิชา:</span>
+          <span className="text-xs font-bold text-emerald-900 pl-0.5 shrink-0">รายวิชา:</span>
           {currentTermSheets.length > 0 ? (
             currentTermSheets.map((sheet) => {
               const isActive = sheet.id === activeSheetId;
@@ -960,8 +960,8 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   key={sheet.id}
                   className={`group flex items-center rounded-xl transition-all ${
                     isActive
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-white text-emerald-950 hover:bg-emerald-100/70 border border-emerald-200/80'
                   }`}
                 >
                   <button
@@ -970,7 +970,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       setActiveSheetId(sheet.id);
                       setActiveChapterTab(1);
                     }}
-                    className="px-3.5 py-2 text-xs font-bold whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+                    className="px-3 py-1.5 text-xs font-bold whitespace-nowrap cursor-pointer flex items-center gap-1.5"
                   >
                     <span>{sheet.subjectName}</span>
                     {sheet.subjectCode && (
@@ -985,9 +985,9 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       e.stopPropagation();
                       handleDeleteSubject(sheet.id);
                     }}
-                    className={`p-1.5 mr-1 rounded-lg transition-colors cursor-pointer ${
+                    className={`p-1 mr-1 rounded-lg transition-colors cursor-pointer ${
                       isActive
-                        ? 'text-purple-200 hover:text-white hover:bg-purple-700'
+                        ? 'text-emerald-200 hover:text-white hover:bg-emerald-700'
                         : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
                     }`}
                     title={`ลบรายวิชา "${sheet.subjectName}"`}
@@ -998,12 +998,12 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               );
             })
           ) : (
-            <div className="flex items-center gap-2 py-1 px-3 bg-amber-50/70 border border-amber-200/70 rounded-xl text-xs text-amber-800 font-medium">
+            <div className="flex items-center gap-2 py-1 px-3 bg-white/90 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-medium">
               <span>ยังไม่มีรายวิชาในภาคเรียนที่ {activeTermTab}</span>
               <button
                 type="button"
                 onClick={() => handleOpenCreateModal(activeTermTab)}
-                className="text-xs font-bold text-purple-700 hover:underline flex items-center gap-0.5 ml-1 cursor-pointer"
+                className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-0.5 ml-1 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>เพิ่มวิชาในภาคเรียนที่ {activeTermTab}</span>
@@ -1015,7 +1015,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
           <button
             type="button"
             onClick={() => handleOpenCreateModal(activeTermTab)}
-            className="p-2 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200/70 transition-colors cursor-pointer shrink-0 ml-1"
+            className="p-1.5 rounded-xl bg-white text-emerald-700 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer shrink-0 ml-1"
             title={`เพิ่มรายวิชาใหม่ในภาคเรียนที่ ${activeTermTab} (+)`}
           >
             <Plus className="w-4 h-4" />
@@ -1078,7 +1078,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>📝 สอบปลายภาค</span>
+                  <span>📝 สอบ</span>
                   <span
                     className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
                       activeChapterTab === 'final' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
@@ -1160,32 +1160,9 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-lg">
-                    คะแนนเก็บประจำบท: เต็ม <strong>{currentActiveChapter.maxScore || 15}</strong> คะแนน
-                  </span>
-                  {!isTableFullscreen ? (
-                    <button
-                      type="button"
-                      onClick={() => setIsTableFullscreen(true)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-102"
-                      title="ขยายตารางเต็มหน้าต่างเพื่อกรอกคะแนน"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                      <span>ขยายเต็ม</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsTableFullscreen(false)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-102"
-                      title="ปิดหน้าต่างเต็มจอ (Esc)"
-                    >
-                      <Minimize2 className="w-3.5 h-3.5" />
-                      <span>ปิดหน้าต่าง</span>
-                    </button>
-                  )}
-                </div>
+                <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-lg">
+                  คะแนนเก็บประจำบท: เต็ม <strong>{currentActiveChapter.maxScore || 15}</strong> คะแนน
+                </span>
               </div>
             )}
           </div>
@@ -1207,28 +1184,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                           ลำดับ
                         </th>
                         <th className="py-2.5 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                          <div className="flex items-center justify-between gap-1">
-                            <span>ชื่อ - นามสกุล นักเรียน</span>
-                            {!isTableFullscreen ? (
-                              <button
-                                type="button"
-                                onClick={() => setIsTableFullscreen(true)}
-                                className="text-slate-400 hover:text-sky-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
-                                title="ขยายตารางเต็มหน้าต่าง"
-                              >
-                                <Maximize2 className="w-3.5 h-3.5" />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setIsTableFullscreen(false)}
-                                className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
-                                title="ปิดหน้าต่างขยายเต็ม"
-                              >
-                                <Minimize2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
+                          ชื่อ - นามสกุล นักเรียน
                         </th>
 
                   {/* Dynamic Topic Columns (แคบเหมือนเดิม แต่ 2-3 บรรทัด) */}
@@ -1537,38 +1493,15 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />
                 <h3 className="text-sm font-bold text-amber-950">
-                  แบบบันทึกคะแนนสอบปลายภาค (Final Examination)
+                  แบบบันทึกคะแนนสอบ (Examination)
                 </h3>
                 <span className="text-xs font-bold text-amber-900 bg-amber-200/70 px-2.5 py-0.5 rounded-md">
                   คะแนนเต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30} คะแนน
                 </span>
               </div>
               <p className="text-xs text-amber-800 mt-1">
-                กรอกคะแนนสอบปลายภาคของนักเรียนแต่ละคน (0 ถึง {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}) คะแนนนี้จะนำไปรวมกับคะแนนเก็บทุกบทเพื่อตัดเกรดในแท็บ "รวมทุกบท"
+                กรอกคะแนนสอบของนักเรียนแต่ละคน (0 ถึง {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}) คะแนนนี้จะนำไปรวมกับคะแนนเก็บทุกบทเพื่อตัดเกรดในแท็บ "รวมทุกบท"
               </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {!isTableFullscreen ? (
-                <button
-                  type="button"
-                  onClick={() => setIsTableFullscreen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
-                  title="ขยายตารางเต็มหน้าต่าง"
-                >
-                  <Maximize2 className="w-3.5 h-3.5" />
-                  <span>ขยายเต็ม</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsTableFullscreen(false)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
-                  title="ปิดหน้าต่างเต็มจอ (Esc)"
-                >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span>ปิดหน้าต่าง</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -1583,31 +1516,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     ลำดับ
                   </th>
                   <th className="py-2.5 px-4 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                    <div className="flex items-center justify-between gap-1">
-                      <span>ชื่อ - นามสกุล นักเรียน</span>
-                      {!isTableFullscreen ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsTableFullscreen(true)}
-                          className="text-slate-400 hover:text-amber-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
-                          title="ขยายตารางเต็มหน้าต่าง"
-                        >
-                          <Maximize2 className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setIsTableFullscreen(false)}
-                          className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
-                          title="ปิดหน้าต่างขยายเต็ม"
-                        >
-                          <Minimize2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    ชื่อ - นามสกุล นักเรียน
                   </th>
                   <th className="py-2.5 px-4 w-44 text-center sticky top-0 z-20 bg-amber-100/90 text-amber-950 font-bold border-r border-slate-200">
-                    คะแนนสอบปลายภาค
+                    คะแนนสอบ
                     <span className="block text-[10px] text-amber-800 font-normal">
                       (เต็ม {activeSheet?.finalExamMaxScore || 30} คะแนน)
                     </span>
@@ -1733,7 +1645,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
           {/* Bottom Bar for Final Exam: Action buttons & Auto-Save indicator */}
           <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="text-xs text-amber-900">
-              คะแนนสอบปลายภาคจะนำไปรวมกับคะแนนเก็บของบทเรียนที่ 1 ถึง {currentChapters.length} ในหน้า "รวมทุกบท"
+              คะแนนสอบจะนำไปรวมกับคะแนนเก็บของบทเรียนที่ 1 ถึง {currentChapters.length} ในหน้า "รวมทุกบท"
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap shrink-0">
@@ -1817,28 +1729,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <Download className="w-4 h-4" />
                 <span>บันทึก PDF / พิมพ์สรุปผล</span>
               </button>
-
-              {!isTableFullscreen ? (
-                <button
-                  type="button"
-                  onClick={() => setIsTableFullscreen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
-                  title="ขยายตารางเต็มหน้าต่าง"
-                >
-                  <Maximize2 className="w-3.5 h-3.5" />
-                  <span>ขยายเต็ม</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsTableFullscreen(false)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
-                  title="ปิดหน้าต่างเต็มจอ (Esc)"
-                >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span>ปิดหน้าต่าง</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -1853,28 +1743,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     ลำดับ
                   </th>
                   <th className="py-3 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                    <div className="flex items-center justify-between gap-1">
-                      <span>ชื่อ - นามสกุล นักเรียน</span>
-                      {!isTableFullscreen ? (
-                        <button
-                          type="button"
-                          onClick={() => setIsTableFullscreen(true)}
-                          className="text-slate-400 hover:text-emerald-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
-                          title="ขยายตารางเต็มหน้าต่าง"
-                        >
-                          <Maximize2 className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setIsTableFullscreen(false)}
-                          className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
-                          title="ปิดหน้าต่างขยายเต็ม"
-                        >
-                          <Minimize2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    ชื่อ - นามสกุล นักเรียน
                   </th>
 
                   {/* Chapter Scaled Score Columns */}
@@ -1900,7 +1769,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
                   {/* Final Exam Column (Req 6) */}
                   <th className="py-3 px-3 w-24 text-center sticky top-0 z-20 bg-amber-100/90 text-amber-950 font-bold border-r border-slate-200">
-                    สอบปลายภาค
+                    สอบ
                     <span className="block text-[10px] text-amber-800 font-normal">
                       (เต็ม {activeSheet?.finalExamMaxScore || 30})
                     </span>
@@ -2311,10 +2180,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               <div className="p-3.5 bg-amber-50/70 rounded-xl border border-amber-200 flex items-center justify-between gap-3">
                 <div>
                   <label className="block font-bold text-amber-950 text-xs mb-0.5">
-                    คะแนนสอบปลายภาค (Final Examination) <span className="text-rose-500">*</span>
+                    คะแนนสอบ (Examination) <span className="text-rose-500">*</span>
                   </label>
                   <p className="text-[11px] text-amber-700">
-                    กำหนดคะแนนเต็มสำหรับการสอบปลายภาค (เช่น 20 หรือ 30 คะแนน)
+                    กำหนดคะแนนเต็มสำหรับการสอบ (เช่น 20 หรือ 30 คะแนน)
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -2408,7 +2277,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               ))}
               <th className="border border-slate-400 p-2 text-center w-16">รวมคะแนนเก็บ</th>
               <th className="border border-slate-400 p-2 text-center w-16">
-                สอบปลายภาค
+                สอบ
                 <span className="block text-[10px] font-normal">({activeSheet?.finalExamMaxScore || 30})</span>
               </th>
               <th className="border border-slate-400 p-2 text-center w-16">คะแนนรวม</th>

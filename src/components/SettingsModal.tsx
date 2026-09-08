@@ -30,6 +30,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();
     dataService.saveProfile(profile);
+    onClose();
   };
 
   const handlePasswordChange = (e: React.FormEvent) => {
@@ -46,7 +47,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       return;
     }
 
-    if (newPasswordInput !== confirmPasswordInput) {
+    if (!newPasswordInput !== !confirmPasswordInput && newPasswordInput !== confirmPasswordInput) {
       setPasswordMsg({ text: 'รหัสผ่านใหม่และการยืนยันไม่ตรงกัน', isError: true });
       return;
     }
@@ -56,6 +57,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setNewPasswordInput('');
     setConfirmPasswordInput('');
     setPasswordMsg({ text: 'เปลี่ยนรหัสผ่าน Admin สำเร็จเรียบร้อยแล้ว!', isError: false });
+    setTimeout(() => {
+      onClose();
+    }, 200);
   };
 
   return (

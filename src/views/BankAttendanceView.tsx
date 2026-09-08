@@ -157,6 +157,16 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       setShowResetModal(false);
       setResetPassword('');
       setResetError('');
+      const currentStudents = dataService.getStudents();
+      const allPresent: Record<string, AttendanceStatus> = {};
+      const allZeroDep: Record<string, number> = {};
+      currentStudents.forEach((s) => {
+        allPresent[s.id] = 'present';
+        allZeroDep[s.id] = 0;
+      });
+      setAttendanceMap(allPresent);
+      setDepositsMap(allZeroDep);
+      setDayNote('');
       loadDayData(selectedDate);
       confetti({
         particleCount: 50,
@@ -213,8 +223,6 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       setPendingWithdrawals(dataService.getWithdrawalPendingDays());
       setAllHistoryRecords(dataService.getAllAttendanceAndBank());
       loadDayData(selectedDate);
-      // Auto open calendar modal so teacher sees the blue dots immediately
-      setShowCalendarModal(true);
     }
   };
 
@@ -743,16 +751,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             <span>สรุปยอดประจำวัน: {formatThaiDate(selectedDate)}</span>
           </h4>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium hidden sm:inline">รวมสถิติประจำวันและสะสมทั้งหมด</span>
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="ดาวน์โหลดรายงานหรือพิมพ์เป็นไฟล์ PDF"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>ดาวน์โหลด PDF</span>
-            </button>
+            <span className="text-xs text-slate-500 font-medium">รวมสถิติประจำวันและสะสมทั้งหมด</span>
           </div>
         </div>
 
@@ -1366,7 +1365,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <span>คำเตือนสำคัญ:</span>
               </div>
               <p className="leading-relaxed text-rose-800/90 text-[11px]">
-                การดำเนินการนี้จะรีเซ็ตยอดเงินฝากสะสมของนักเรียนทุกคนเป็น 0 บาท และล้างประวัติเงินฝากเดิม เพื่อให้คุณครูสามารถเริ่มต้นบันทึกรอบใหม่ได้ทันที
+                การดำเนินการนี้จะรีเซ็ตยอดเงินฝากของนักเรียนทุกคนเป็น 0 บาท และปรับสถานะเป็นมาเรียนทั้งหมด (ลบการไม่มีเรียน ขาด ป่วย ลา ทั้งหมด) อัตโนมัติ เพื่อให้คุณครูเริ่มต้นบันทึกรอบใหม่ได้ทันที
               </p>
             </div>
 
