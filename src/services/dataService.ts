@@ -737,8 +737,34 @@ class DataService {
     };
   }
 
-  private recalculateAllSavings(): void {
-    // optional helper to ensure consistency
+  public recalculateAllSavings(): void {
+    const allBank = this.getAllAttendanceAndBank();
+    const students = this.getStudents();
+
+    // Sum deposits across all recorded dates for each student
+    const totalDepositsByStudent: Record<string, number> = {};
+    Object.values(allBank).forEach((day) => {
+      if (day.deposits) {
+        Object.entries(day.deposits).forEach(([sId, amt]) => {
+          totalDepositsByStudent[sId] = (totalDepositsByStudent[sId] || 0) + (Number(amt) || 0);
+        });
+      }
+    });
+
+    let hasChange = false;
+    const updatedStudents = students.map((s) => {
+      const sumDeposits = totalDepositsByStudent[s.id];
+      const newSavings = sumDeposits !== undefined ? sumDeposits : (s.currentSavings || 0);
+      if (s.currentSavings !== newSavings) {
+        hasChange = true;
+        return { ...s, currentSavings: Math.max(0, newSavings) };
+      }
+      return s;
+    });
+
+    if (hasChange) {
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+    }
   }
 
   // Score Tracker (Page 4)

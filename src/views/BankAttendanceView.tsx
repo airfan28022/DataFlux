@@ -12,6 +12,7 @@ import {
   ArrowDownRight,
   History,
   Printer,
+  Download,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
@@ -217,28 +218,53 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     }
   };
 
-  // Cumulative student attendance statistics across all saved dates
+  // Cumulative student attendance statistics across all saved dates (ม, ป, ล, ข)
   const studentCumulativeStats = useMemo(() => {
-    const stats: Record<string, { sick: number; personal: number; absent: number }> = {};
+    const stats: Record<string, { present: number; sick: number; personal: number; absent: number }> = {};
     students.forEach((s) => {
-      stats[s.id] = { sick: 0, personal: 0, absent: 0 };
+      stats[s.id] = { present: 0, sick: 0, personal: 0, absent: 0 };
     });
 
-    Object.entries(allHistoryRecords).forEach(([dateKey, dayData]: [string, DayAttendanceAndBank]) => {
-      const att = dateKey === selectedDate ? attendanceMap : dayData.attendance;
-      if (att) {
-        Object.entries(att).forEach(([studentId, st]) => {
-          if (stats[studentId]) {
-            if (st === 'sick') stats[studentId].sick += 1;
-            if (st === 'personal') stats[studentId].personal += 1;
-            if (st === 'absent') stats[studentId].absent += 1;
-          }
-        });
-      }
+    const allDates = new Set(Object.keys(allHistoryRecords));
+    allDates.add(selectedDate);
+
+    allDates.forEach((dateKey) => {
+      const att = dateKey === selectedDate ? attendanceMap : (allHistoryRecords[dateKey]?.attendance || {});
+      Object.entries(att).forEach(([studentId, st]) => {
+        if (stats[studentId]) {
+          if (st === 'present') stats[studentId].present += 1;
+          else if (st === 'sick') stats[studentId].sick += 1;
+          else if (st === 'personal') stats[studentId].personal += 1;
+          else if (st === 'absent') stats[studentId].absent += 1;
+        }
+      });
     });
 
     return stats;
   }, [students, allHistoryRecords, selectedDate, attendanceMap]);
+
+  // Real-time cumulative savings for each student across all recorded dates
+  const studentCumulativeSavings = useMemo(() => {
+    const savings: Record<string, number> = {};
+    students.forEach((s) => {
+      savings[s.id] = 0;
+    });
+
+    const allDates = new Set(Object.keys(allHistoryRecords));
+    allDates.add(selectedDate);
+
+    allDates.forEach((dateKey) => {
+      const dayDeposits = dateKey === selectedDate ? depositsMap : (allHistoryRecords[dateKey]?.deposits || {});
+      Object.entries(dayDeposits).forEach(([sId, amt]) => {
+        const val = Number(amt) || 0;
+        if (val > 0) {
+          savings[sId] = (savings[sId] || 0) + val;
+        }
+      });
+    });
+
+    return savings;
+  }, [students, allHistoryRecords, selectedDate, depositsMap]);
 
   // Statistics for a given date
   const getDayStats = (dateStr: string) => {
@@ -268,10 +294,26 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   // Current selected day statistics
   const currentDayStats = getDayStats(selectedDate);
-  const classroomAllSavings = students.reduce(
-    (sum: number, s) => sum + (Number(s.currentSavings) || 0),
-    0
-  );
+
+  // Total classroom savings calculated from real-time student cumulative savings
+  const classroomAllSavings = useMemo(() => {
+    return Object.values(studentCumulativeSavings).reduce((sum: number, val: number) => sum + (Number(val) || 0), 0);
+  }, [studentCumulativeSavings]);
+
+  // Total cumulative attendance counts across all students
+  const classroomCumulativeStats = useMemo(() => {
+    let totalPresent = 0;
+    let totalSick = 0;
+    let totalPersonal = 0;
+    let totalAbsent = 0;
+    (Object.values(studentCumulativeStats) as { present: number; sick: number; personal: number; absent: number }[]).forEach((st) => {
+      totalPresent += st.present;
+      totalSick += st.sick;
+      totalPersonal += st.personal;
+      totalAbsent += st.absent;
+    });
+    return { totalPresent, totalSick, totalPersonal, totalAbsent };
+  }, [studentCumulativeStats]);
 
   const selectedStudentForWithdraw = students.find((s) => s.id === withdrawStudentId);
 
@@ -415,11 +457,11 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
           <button
             type="button"
             onClick={() => setShowPrintModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            title="พิมพ์รายงานประจำวันเป็น PDF"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="ดาวน์โหลดรายงานหรือบันทึกเป็นไฟล์ PDF"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span>ดาวน์โหลด PDF</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>ดาวน์โหลดไฟล์ PDF</span>
           </button>
         </div>
       </div>
@@ -513,12 +555,23 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
       {/* Main Attendance & Deposit Table (จัดหน้าให้เรียบร้อยสบายตา) */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <CheckSquare className="w-4 h-4 text-emerald-600" />
             <span>บัญชีเช็คชื่อและการฝากเงิน: {formatThaiDate(selectedDate)}</span>
           </h3>
-          <span className="text-xs text-slate-500 font-medium">นักเรียนทั้งหมด {students.length} คน</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500 font-medium">นักเรียนทั้งหมด {students.length} คน</span>
+            <button
+              type="button"
+              onClick={() => setShowPrintModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+              title="ดาวน์โหลดรายงานเป็นไฟล์ PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>ดาวน์โหลด PDF</span>
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -529,10 +582,11 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <th className="py-2.5 px-3 min-w-[200px]">รูป / ชื่อ-สกุล นักเรียน</th>
                 <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
                 <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
-                <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/30">ขาดรวม</th>
-                <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/30">ป่วยรวม</th>
-                <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/30">ลากิจรวม</th>
-                <th className="py-2.5 px-3 w-28 text-right bg-emerald-50/30 text-emerald-800">
+                <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม (ม)</th>
+                <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม (ป)</th>
+                <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/40">ลากิจรวม (ล)</th>
+                <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/40">ขาดรวม (ข)</th>
+                <th className="py-2.5 px-3 w-32 text-right bg-emerald-100/40 text-emerald-900 font-bold">
                   ยอดออมสะสม
                 </th>
               </tr>
@@ -541,7 +595,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               {students.map((student, index) => {
                 const currentStatus = attendanceMap[student.id] || 'present';
                 const currentDeposit = depositsMap[student.id] || 0;
-                const stats = studentCumulativeStats[student.id] || { sick: 0, personal: 0, absent: 0 };
+                const stats = studentCumulativeStats[student.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
 
                 return (
                   <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
@@ -656,31 +710,38 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       )}
                     </td>
 
-                    {/* Cumulative Absent Total */}
-                    <td className="py-2 px-2 text-center bg-rose-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200/60">
-                        {stats.absent}
+                    {/* Cumulative Present Total (ม) */}
+                    <td className="py-2 px-2 text-center bg-emerald-50/20">
+                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60" title={`มาเรียนสะสม ${stats.present} วัน`}>
+                        {stats.present}
                       </span>
                     </td>
 
-                    {/* Cumulative Sick Total */}
+                    {/* Cumulative Sick Total (ป) */}
                     <td className="py-2 px-2 text-center bg-amber-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60">
+                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60" title={`ป่วยสะสม ${stats.sick} วัน`}>
                         {stats.sick}
                       </span>
                     </td>
 
-                    {/* Cumulative Personal Leave Total */}
+                    {/* Cumulative Personal Leave Total (ล) */}
                     <td className="py-2 px-2 text-center bg-blue-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60">
+                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60" title={`ลากิจสะสม ${stats.personal} วัน`}>
                         {stats.personal}
                       </span>
                     </td>
 
+                    {/* Cumulative Absent Total (ข) */}
+                    <td className="py-2 px-2 text-center bg-rose-50/20">
+                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200/60" title={`ขาดเรียนสะสม ${stats.absent} วัน`}>
+                        {stats.absent}
+                      </span>
+                    </td>
+
                     {/* Cumulative Savings */}
-                    <td className="py-2 px-3 text-right bg-emerald-50/20">
-                      <span className="font-bold text-emerald-700 text-xs sm:text-sm">
-                        {(student.currentSavings + (currentDeposit || 0)).toLocaleString()} ฿
+                    <td className="py-2 px-3 text-right bg-emerald-50/30">
+                      <span className="font-bold text-emerald-800 text-xs sm:text-sm">
+                        {(studentCumulativeSavings[student.id] || 0).toLocaleString()} ฿
                       </span>
                     </td>
                   </tr>
@@ -693,12 +754,23 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
       {/* SUMMARY STATS BOXES AT THE BOTTOM (Req 2: หน้าฝากเงิน ตรงที่แสดง ฝากเงินวันนี้ , มาเรียน, ลากิจ ที่เป็นกล่องสีเหลี่ม ทั้ง 6 ให้แสดงด้านล่างสุด) */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h4 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
             <span>สรุปยอดประจำวัน: {formatThaiDate(selectedDate)}</span>
           </h4>
-          <span className="text-xs text-slate-500 font-medium">สรุปข้อมูลการฝากเงินและการเข้าเรียน</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium hidden sm:inline">รวมสถิติประจำวันและสะสมทั้งหมด</span>
+            <button
+              type="button"
+              onClick={() => setShowPrintModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="ดาวน์โหลดรายงานหรือพิมพ์เป็นไฟล์ PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>ดาวน์โหลด PDF</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -717,7 +789,10 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
           {/* มาเรียน (ม) */}
           <div className="bg-emerald-50/80 border border-emerald-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-2xs">
-            <span className="text-xs text-emerald-800 font-bold">มาเรียน (ม)</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-emerald-800 font-bold">มาเรียน (ม)</span>
+              <span className="text-[10px] text-emerald-600 font-semibold">สะสม {classroomCumulativeStats.totalPresent}</span>
+            </div>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg sm:text-xl font-black text-emerald-700">
                 {currentDayStats.present} <span className="text-xs font-semibold text-emerald-800">คน</span>
@@ -728,20 +803,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             </div>
           </div>
 
-          {/* ลากิจ (ล) */}
-          <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-2xs">
-            <span className="text-xs text-blue-800 font-bold">ลากิจ (ล)</span>
-            <div className="flex items-baseline justify-between mt-2">
-              <span className="text-lg sm:text-xl font-black text-blue-700">
-                {currentDayStats.personal} <span className="text-xs font-semibold text-blue-800">คน</span>
-              </span>
-              <span className="text-xs font-medium text-blue-600">ครั้ง</span>
-            </div>
-          </div>
-
           {/* ป่วย (ป) */}
           <div className="bg-orange-50/80 border border-orange-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-2xs">
-            <span className="text-xs text-orange-800 font-bold">ป่วย (ป)</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-orange-800 font-bold">ป่วย (ป)</span>
+              <span className="text-[10px] text-orange-600 font-semibold">สะสม {classroomCumulativeStats.totalSick}</span>
+            </div>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg sm:text-xl font-black text-orange-700">
                 {currentDayStats.sick} <span className="text-xs font-semibold text-orange-800">คน</span>
@@ -750,9 +817,26 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             </div>
           </div>
 
+          {/* ลากิจ (ล) */}
+          <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-blue-800 font-bold">ลากิจ (ล)</span>
+              <span className="text-[10px] text-blue-600 font-semibold">สะสม {classroomCumulativeStats.totalPersonal}</span>
+            </div>
+            <div className="flex items-baseline justify-between mt-2">
+              <span className="text-lg sm:text-xl font-black text-blue-700">
+                {currentDayStats.personal} <span className="text-xs font-semibold text-blue-800">คน</span>
+              </span>
+              <span className="text-xs font-medium text-blue-600">ครั้ง</span>
+            </div>
+          </div>
+
           {/* ขาดเรียน (ข) */}
           <div className="bg-rose-50/80 border border-rose-200/80 rounded-2xl p-3 flex flex-col justify-between shadow-2xs">
-            <span className="text-xs text-rose-800 font-bold">ขาดเรียน (ข)</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-rose-800 font-bold">ขาดเรียน (ข)</span>
+              <span className="text-[10px] text-rose-600 font-semibold">สะสม {classroomCumulativeStats.totalAbsent}</span>
+            </div>
             <div className="flex items-baseline justify-between mt-2">
               <span className="text-lg sm:text-xl font-black text-rose-700">
                 {currentDayStats.absent} <span className="text-xs font-semibold text-rose-800">คน</span>
@@ -1070,11 +1154,14 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   required
                 >
                   <option value="">-- กรุณาเลือกนักเรียน --</option>
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.prefix}{s.firstName} {s.lastName} (คงเหลือ: {s.currentSavings} บาท)
-                    </option>
-                  ))}
+                  {students.map((s) => {
+                    const balance = studentCumulativeSavings[s.id] ?? s.currentSavings;
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {s.prefix}{s.firstName} {s.lastName} (คงเหลือ: {balance.toLocaleString()} บาท)
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -1082,7 +1169,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
                   <span className="text-amber-900">ยอดเงินออมปัจจุบัน:</span>
                   <span className="font-bold text-amber-800 text-sm">
-                    {selectedStudentForWithdraw.currentSavings} บาท
+                    {(studentCumulativeSavings[selectedStudentForWithdraw.id] ?? selectedStudentForWithdraw.currentSavings).toLocaleString()} บาท
                   </span>
                 </div>
               )}
@@ -1094,7 +1181,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <input
                   type="number"
                   min="1"
-                  max={selectedStudentForWithdraw ? selectedStudentForWithdraw.currentSavings : 999999}
+                  max={selectedStudentForWithdraw ? (studentCumulativeSavings[selectedStudentForWithdraw.id] ?? selectedStudentForWithdraw.currentSavings) : 999999}
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(Number(e.target.value))}
                   placeholder="เช่น 100"
@@ -1197,45 +1284,112 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         subtitle={`ข้อมูล ณ ${formatThaiDate(selectedDate, true)} • ห้องเรียน ${profile.classroomName}`}
         profile={profile}
       >
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+          <div className="p-2 border border-amber-300 rounded-lg bg-amber-50/70 text-amber-900">
+            <span className="block text-[10px] text-amber-700 font-medium">ยอดฝากวันนี้</span>
+            <span className="font-bold text-sm text-amber-800">{currentDayStats.totalDeposit.toLocaleString()} ฿</span>
+          </div>
+          <div className="p-2 border border-emerald-300 rounded-lg bg-emerald-50/70 text-emerald-900">
+            <span className="block text-[10px] text-emerald-700 font-medium">มาเรียน (ม) วันนี้ / สะสม</span>
+            <span className="font-bold text-sm text-emerald-800">{currentDayStats.present} / {classroomCumulativeStats.totalPresent} วัน</span>
+          </div>
+          <div className="p-2 border border-orange-300 rounded-lg bg-orange-50/70 text-orange-900">
+            <span className="block text-[10px] text-orange-700 font-medium">ป่วย (ป) วันนี้ / สะสม</span>
+            <span className="font-bold text-sm text-orange-800">{currentDayStats.sick} / {classroomCumulativeStats.totalSick} ครั้ง</span>
+          </div>
+          <div className="p-2 border border-blue-300 rounded-lg bg-blue-50/70 text-blue-900">
+            <span className="block text-[10px] text-blue-700 font-medium">ลากิจ (ล) วันนี้ / สะสม</span>
+            <span className="font-bold text-sm text-blue-800">{currentDayStats.personal} / {classroomCumulativeStats.totalPersonal} ครั้ง</span>
+          </div>
+          <div className="p-2 border border-rose-300 rounded-lg bg-rose-50/70 text-rose-900">
+            <span className="block text-[10px] text-rose-700 font-medium">ขาด (ข) วันนี้ / สะสม</span>
+            <span className="font-bold text-sm text-rose-800">{currentDayStats.absent} / {classroomCumulativeStats.totalAbsent} ครั้ง</span>
+          </div>
+        </div>
+
         <table className="w-full border-collapse border border-slate-400 text-xs">
           <thead>
             <tr className="bg-slate-100 border-b border-slate-400 font-bold">
-              <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
+              <th className="border border-slate-400 p-2 text-center w-10">ลำดับ</th>
               <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
-              <th className="border border-slate-400 p-2 text-right w-32">ยอดเงินออมสะสม</th>
-              <th className="border border-slate-400 p-2 text-center w-20">ขาด (ครั้ง)</th>
-              <th className="border border-slate-400 p-2 text-center w-20">ป่วย (ครั้ง)</th>
-              <th className="border border-slate-400 p-2 text-center w-20">ลากิจ (ครั้ง)</th>
+              <th className="border border-slate-400 p-2 text-center w-20">สถานะวันนี้</th>
+              <th className="border border-slate-400 p-2 text-right w-24">ฝากวันนี้</th>
+              <th className="border border-slate-400 p-2 text-center w-16">มารวม (ม)</th>
+              <th className="border border-slate-400 p-2 text-center w-16">ป่วยรวม (ป)</th>
+              <th className="border border-slate-400 p-2 text-center w-16">ลารวม (ล)</th>
+              <th className="border border-slate-400 p-2 text-center w-16">ขาดรวม (ข)</th>
+              <th className="border border-slate-400 p-2 text-right w-28">ยอดออมสะสม</th>
             </tr>
           </thead>
           <tbody>
             {students.map((s, idx) => {
+              const currentStatus = attendanceMap[s.id] || 'present';
               const currentDep = depositsMap[s.id] || 0;
-              const stats = studentCumulativeStats[s.id] || { sick: 0, personal: 0, absent: 0 };
-              const totalSavings = s.currentSavings + (currentDep || 0);
+              const stats = studentCumulativeStats[s.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
+              const totalSavings = studentCumulativeSavings[s.id] || 0;
+              const statusLabel =
+                currentStatus === 'present'
+                  ? 'มา (ม)'
+                  : currentStatus === 'sick'
+                  ? 'ป่วย (ป)'
+                  : currentStatus === 'personal'
+                  ? 'ลา (ล)'
+                  : 'ขาด (ข)';
 
               return (
                 <tr key={s.id} className="border-b border-slate-300">
-                  <td className="border border-slate-300 p-2 text-center">{idx + 1}</td>
-                  <td className="border border-slate-300 p-2 font-medium">
+                  <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
+                  <td className="border border-slate-300 p-1.5 font-medium">
                     {s.prefix}{s.firstName} {s.lastName}
                   </td>
-                  <td className="border border-slate-300 p-2 text-right font-bold text-emerald-800">
-                    {totalSavings.toLocaleString()} ฿
+                  <td className="border border-slate-300 p-1.5 text-center">{statusLabel}</td>
+                  <td className="border border-slate-300 p-1.5 text-right font-medium">
+                    {currentDep > 0 ? `${currentDep.toLocaleString()} ฿` : '-'}
                   </td>
-                  <td className="border border-slate-300 p-2 text-center font-semibold text-rose-700">
-                    {stats.absent}
+                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-emerald-800">
+                    {stats.present}
                   </td>
-                  <td className="border border-slate-300 p-2 text-center font-semibold text-amber-700">
+                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-amber-800">
                     {stats.sick}
                   </td>
-                  <td className="border border-slate-300 p-2 text-center font-semibold text-blue-700">
+                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-blue-800">
                     {stats.personal}
+                  </td>
+                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-rose-800">
+                    {stats.absent}
+                  </td>
+                  <td className="border border-slate-300 p-1.5 text-right font-bold text-emerald-800">
+                    {totalSavings.toLocaleString()} ฿
                   </td>
                 </tr>
               );
             })}
           </tbody>
+          <tfoot>
+            <tr className="bg-slate-100 font-bold border-t-2 border-slate-400">
+              <td colSpan={3} className="border border-slate-400 p-2 text-right">
+                รวมทั้งหมด ({students.length} คน):
+              </td>
+              <td className="border border-slate-400 p-2 text-right text-amber-900">
+                {currentDayStats.totalDeposit.toLocaleString()} ฿
+              </td>
+              <td className="border border-slate-400 p-2 text-center text-emerald-900">
+                {classroomCumulativeStats.totalPresent}
+              </td>
+              <td className="border border-slate-400 p-2 text-center text-amber-900">
+                {classroomCumulativeStats.totalSick}
+              </td>
+              <td className="border border-slate-400 p-2 text-center text-blue-900">
+                {classroomCumulativeStats.totalPersonal}
+              </td>
+              <td className="border border-slate-400 p-2 text-center text-rose-900">
+                {classroomCumulativeStats.totalAbsent}
+              </td>
+              <td className="border border-slate-400 p-2 text-right font-black text-emerald-900">
+                {classroomAllSavings.toLocaleString()} ฿
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </PrintReportModal>
 

@@ -68,12 +68,6 @@ export const Navigation: React.FC<NavigationProps> = ({
       desc: 'ตรวจวัด & วิเคราะห์ BMI',
     },
     {
-      id: 'students',
-      label: 'ข้อมูลนักเรียน',
-      icon: Users,
-      desc: 'ทะเบียน & บันทึกสุขภาพ',
-    },
-    {
       id: 'bank-attendance',
       label: 'เงินฝาก & เช็คชื่อ',
       icon: PiggyBank,
@@ -84,6 +78,12 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'กรอกคะแนน & ตัดเกรด',
       icon: FileSpreadsheet,
       desc: 'ประเมินตัวชี้วัด & GPA',
+    },
+    {
+      id: 'students',
+      label: 'ข้อมูลนักเรียน',
+      icon: Users,
+      desc: 'ทะเบียน & บันทึกสุขภาพ',
     },
   ];
 
