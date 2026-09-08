@@ -24,7 +24,9 @@ import {
   RotateCcw,
   CheckCircle2,
   Download,
-  UserPlus
+  UserPlus,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 interface GradeScoreViewProps {
@@ -118,6 +120,27 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   // Auto-Save Status (Req 4: บันทึกข้อมูลอัตโนมัติ)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('saved');
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fullscreen Table State: ขยายเต็มตารางคะแนน
+  const [isTableFullscreen, setIsTableFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isTableFullscreen) {
+        setIsTableFullscreen(false);
+      }
+    };
+    if (isTableFullscreen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isTableFullscreen]);
 
   const triggerAutoSaveEffect = () => {
     setAutoSaveStatus('saving');
@@ -879,68 +902,56 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
       </div>
 
-      {/* SUBJECT TABS BAR WITH TERM SEPARATION (Req 1: ปุ่มแยก 2 ปุ่ม "ภาคเรียนที่1" กับ "ภาคเรียนที่2") */}
-      <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-3">
-        {/* Term Separator 2 Buttons */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 mr-1">ภาคเรียน:</span>
-            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => handleSwitchTerm('1')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  activeTermTab === '1'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-purple-700 hover:bg-slate-200/60'
+      {/* SUBJECT TABS BAR WITH COMPACT TERM BUTTONS IN FRONT OF SUBJECTS */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-thin">
+          {/* Small Term Selector Buttons in front of subjects */}
+          <div className="inline-flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSwitchTerm('1')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                activeTermTab === '1'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-purple-700 hover:bg-slate-200/70'
+              }`}
+              title="สลับไปภาคเรียนที่ 1"
+            >
+              <span>ภาคเรียนที่ 1</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                  activeTermTab === '1' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
                 }`}
               >
-                <span>ภาคเรียนที่ 1</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                    activeTermTab === '1'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  {term1Sheets.length} วิชา
-                </span>
-              </button>
+                {term1Sheets.length}
+              </span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => handleSwitchTerm('2')}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  activeTermTab === '2'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-purple-700 hover:bg-slate-200/60'
+            <button
+              type="button"
+              onClick={() => handleSwitchTerm('2')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                activeTermTab === '2'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-purple-700 hover:bg-slate-200/70'
+              }`}
+              title="สลับไปภาคเรียนที่ 2"
+            >
+              <span>ภาคเรียนที่ 2</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
+                  activeTermTab === '2' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
                 }`}
               >
-                <span>ภาคเรียนที่ 2</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                    activeTermTab === '2'
-                      ? 'bg-white/20 text-white'
-                      : 'bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  {term2Sheets.length} วิชา
-                </span>
-              </button>
-            </div>
+                {term2Sheets.length}
+              </span>
+            </button>
           </div>
 
-          <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <span>แสดงวิชาเฉพาะ</span>
-            <span className="font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200/60">
-              ภาคเรียนที่ {activeTermTab}
-            </span>
-          </div>
-        </div>
+          <div className="h-5 w-px bg-slate-200 shrink-0 mx-0.5" />
 
-        {/* Subjects in the Active Term */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
-          <span className="text-xs font-bold text-slate-400 pl-1 shrink-0">รายวิชา:</span>
+          {/* Subjects in the Active Term */}
+          <span className="text-xs font-bold text-slate-400 pl-0.5 shrink-0">รายวิชา:</span>
           {currentTermSheets.length > 0 ? (
             currentTermSheets.map((sheet) => {
               const isActive = sheet.id === activeSheetId;
@@ -1013,128 +1024,212 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
       </div>
 
       {/* UNIFIED SCORE WORKSPACE: Chapter Selector is directly attached to the score input table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        {/* TOP ATTACHED BAR: Chapter Selector & Navigation (ติดกันกับหน้าใส่คะแนน) */}
-        <div className="p-3.5 sm:p-4 bg-slate-50/75 border-b border-slate-200 space-y-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-black text-slate-700 mr-1 flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4 text-sky-600" />
-                เลือกบทเรียน:
-              </span>
+      <div
+        className={
+          isTableFullscreen
+            ? 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 flex flex-col animate-in fade-in duration-150'
+            : 'contents'
+        }
+      >
+        <div
+          className={`bg-white rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col overflow-hidden ${
+            isTableFullscreen ? 'w-full h-full shadow-2xl' : ''
+          }`}
+        >
+          {/* TOP ATTACHED BAR: Chapter Selector & Navigation (ติดกันกับหน้าใส่คะแนน) */}
+          <div className="p-3.5 sm:p-4 bg-slate-50/75 border-b border-slate-200 space-y-3 shrink-0">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-slate-700 mr-1 flex items-center gap-1.5">
+                  <BookOpen className="w-4 h-4 text-sky-600" />
+                  เลือกบทเรียน:
+                </span>
 
-              {/* Circular buttons for Chapter 1, 2, 3... */}
-              {currentChapters.map((ch) => {
-                const isSelected = activeChapterTab === ch.chapterNumber;
-                return (
-                  <button
-                    key={`tab-circle-${ch.chapterNumber}`}
-                    type="button"
-                    onClick={() => setActiveChapterTab(ch.chapterNumber)}
-                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-xs sm:text-sm transition-all flex items-center justify-center cursor-pointer ${
-                      isSelected
-                        ? 'bg-sky-600 text-white shadow-md ring-3 ring-sky-200 scale-105'
-                        : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-700 border border-slate-200 shadow-2xs'
-                    }`}
-                    title={`${ch.title} (คะแนนเก็บเต็ม ${ch.maxScore || 15} คะแนน)`}
-                  >
-                    {ch.chapterNumber}
-                  </button>
-                );
-              })}
+                {/* Circular buttons for Chapter 1, 2, 3... */}
+                {currentChapters.map((ch) => {
+                  const isSelected = activeChapterTab === ch.chapterNumber;
+                  return (
+                    <button
+                      key={`tab-circle-${ch.chapterNumber}`}
+                      type="button"
+                      onClick={() => setActiveChapterTab(ch.chapterNumber)}
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-xs sm:text-sm transition-all flex items-center justify-center cursor-pointer ${
+                        isSelected
+                          ? 'bg-sky-600 text-white shadow-md ring-3 ring-sky-200 scale-105'
+                          : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-700 border border-slate-200 shadow-2xs'
+                      }`}
+                      title={`${ch.title} (คะแนนเก็บเต็ม ${ch.maxScore || 15} คะแนน)`}
+                    >
+                      {ch.chapterNumber}
+                    </button>
+                  );
+                })}
 
-              <div className="h-6 w-px bg-slate-200 mx-1" />
+                <div className="h-6 w-px bg-slate-200 mx-1" />
 
-              {/* Final Exam Button */}
-              <button
-                type="button"
-                onClick={() => setActiveChapterTab('final')}
-                className={`px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeChapterTab === 'final'
-                    ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-200'
-                    : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 shadow-2xs'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>📝 สอบปลายภาค</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                    activeChapterTab === 'final' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
+                {/* Final Exam Button */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChapterTab('final')}
+                  className={`px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeChapterTab === 'final'
+                      ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-200'
+                      : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 shadow-2xs'
                   }`}
                 >
-                  เต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}
-                </span>
-              </button>
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>📝 สอบปลายภาค</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                      activeChapterTab === 'final' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    เต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}
+                  </span>
+                </button>
 
-              {/* Overall Summary Tab Button */}
-              <button
-                type="button"
-                onClick={() => setActiveChapterTab('summary')}
-                className={`px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeChapterTab === 'summary'
-                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-200'
-                    : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300 shadow-2xs'
-                }`}
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>📊 รวมทุกบท</span>
-              </button>
-            </div>
+                {/* Overall Summary Tab Button */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChapterTab('summary')}
+                  className={`px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeChapterTab === 'summary'
+                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-200'
+                      : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300 shadow-2xs'
+                  }`}
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  <span>📊 รวมทุกบท</span>
+                </button>
+              </div>
 
-            {/* Quick Stats Pill */}
-            <div className="text-xs text-slate-500 flex items-center gap-3">
-              <span>
-                ภาคเรียนที่: <strong>{activeSheet?.term || 1}</strong>
-              </span>
-              <span>
-                ปีการศึกษา: <strong>{profile.academicYear}</strong>
-              </span>
-              <span>
-                คะแนนเฉลี่ย: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
-              </span>
-            </div>
-          </div>
-
-          {/* Selected Chapter Detail Badge */}
-          {typeof activeChapterTab === 'number' && currentActiveChapter && (
-            <div className="bg-sky-50/90 border border-sky-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                  {currentActiveChapter.chapterNumber}
+              {/* Action Buttons & Fullscreen Toggle / Close Button */}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Quick Stats Pill */}
+                <div className="text-xs text-slate-500 hidden sm:flex items-center gap-3">
+                  <span>
+                    วิชา: <strong className="text-slate-800">{activeSheet?.subjectName}</strong>
+                  </span>
+                  <span>
+                    ภาคเรียนที่: <strong>{activeSheet?.term || 1}</strong>
+                  </span>
+                  <span>
+                    คะแนนเฉลี่ย: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
+                  </span>
                 </div>
-                <div>
-                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                    บทที่ {currentActiveChapter.chapterNumber}: {currentActiveChapter.title}
+
+                {/* Fullscreen Expand / Close Button */}
+                {isTableFullscreen ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsTableFullscreen(false)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-rose-200 cursor-pointer active:scale-95"
+                    title="ปิดหน้าต่างขยายเต็ม (หรือกด Esc)"
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                    <span>ปิดหน้าต่าง</span>
+                    <span className="text-[10px] bg-rose-700 px-1.5 py-0.5 rounded font-normal">Esc</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsTableFullscreen(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-sky-200 cursor-pointer active:scale-95"
+                    title="ขยายตารางเต็มหน้าต่างเพื่อกรอกคะแนนได้อย่างจุใจ"
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                    <span>ขยายเต็ม</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Selected Chapter Detail Badge */}
+            {typeof activeChapterTab === 'number' && currentActiveChapter && (
+              <div className="bg-sky-50/90 border border-sky-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                    {currentActiveChapter.chapterNumber}
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      บทที่ {currentActiveChapter.chapterNumber}: {currentActiveChapter.title}
+                    </span>
+                    <span className="text-[11px] text-slate-500 ml-2">
+                      (มีชื่อเรื่องคิดคะแนน {currentActiveChapter.topics.filter((t) => t?.trim()).length}/{currentActiveChapter.topics.length} เรื่อง)
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-lg">
+                    คะแนนเก็บประจำบท: เต็ม <strong>{currentActiveChapter.maxScore || 15}</strong> คะแนน
                   </span>
-                  <span className="text-[11px] text-slate-500 ml-2">
-                    (มีชื่อเรื่องคิดคะแนน {currentActiveChapter.topics.filter((t) => t?.trim()).length}/{currentActiveChapter.topics.length} เรื่อง)
-                  </span>
+                  {!isTableFullscreen ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsTableFullscreen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-102"
+                      title="ขยายตารางเต็มหน้าต่างเพื่อกรอกคะแนน"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      <span>ขยายเต็ม</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsTableFullscreen(false)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-102"
+                      title="ปิดหน้าต่างเต็มจอ (Esc)"
+                    >
+                      <Minimize2 className="w-3.5 h-3.5" />
+                      <span>ปิดหน้าต่าง</span>
+                    </button>
+                  )}
                 </div>
               </div>
-              <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-lg">
-                คะแนนเก็บประจำบท: เต็ม <strong>{currentActiveChapter.maxScore || 15}</strong> คะแนน
-              </span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* WORKSPACE CONTENT: DIRECTLY ATTACHED */}
-        <div className="p-4 sm:p-5 space-y-4">
-          {/* VIEW 1: SINGLE CHAPTER SCORE GRID */}
-          {typeof activeChapterTab === 'number' && currentActiveChapter && (
-            <div className="space-y-4">
-              {/* Sticky Table Container */}
-              <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
-                    <tr className="bg-slate-100 text-slate-700 font-semibold">
-                      {/* Sticky left columns */}
-                      <th className="py-2.5 px-2.5 w-12 text-center align-bottom sticky top-0 left-0 z-30 bg-slate-100 border-r border-slate-200">
-                        ลำดับ
-                      </th>
-                      <th className="py-2.5 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                        ชื่อ - นามสกุล นักเรียน
-                      </th>
+          {/* WORKSPACE CONTENT: DIRECTLY ATTACHED */}
+          <div className={`p-4 sm:p-5 space-y-4 ${isTableFullscreen ? 'flex-1 min-h-0 flex flex-col overflow-hidden' : ''}`}>
+            {/* VIEW 1: SINGLE CHAPTER SCORE GRID */}
+            {typeof activeChapterTab === 'number' && currentActiveChapter && (
+              <div className={`space-y-4 ${isTableFullscreen ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
+                {/* Sticky Table Container */}
+                <div className={`overflow-x-auto overflow-y-auto border border-slate-200 rounded-2xl relative shadow-2xs ${
+                  isTableFullscreen ? 'flex-1 min-h-0' : 'max-h-[70vh]'
+                }`}>
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
+                      <tr className="bg-slate-100 text-slate-700 font-semibold">
+                        {/* Sticky left columns */}
+                        <th className="py-2.5 px-2.5 w-12 text-center align-bottom sticky top-0 left-0 z-30 bg-slate-100 border-r border-slate-200">
+                          ลำดับ
+                        </th>
+                        <th className="py-2.5 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
+                          <div className="flex items-center justify-between gap-1">
+                            <span>ชื่อ - นามสกุล นักเรียน</span>
+                            {!isTableFullscreen ? (
+                              <button
+                                type="button"
+                                onClick={() => setIsTableFullscreen(true)}
+                                className="text-slate-400 hover:text-sky-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
+                                title="ขยายตารางเต็มหน้าต่าง"
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setIsTableFullscreen(false)}
+                                className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
+                                title="ปิดหน้าต่างขยายเต็ม"
+                              >
+                                <Minimize2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </th>
 
                   {/* Dynamic Topic Columns (แคบเหมือนเดิม แต่ 2-3 บรรทัด) */}
                   {currentActiveChapter.topics.map((topicTitle, i) => {
@@ -1435,9 +1530,9 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
       {/* VIEW 2: FINAL EXAM SCORE TAB (Req 6: สอบปลายภาค) */}
       {activeChapterTab === 'final' && (
-        <div className="space-y-4">
+        <div className={`space-y-4 ${isTableFullscreen ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
           {/* Header Card */}
-          <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
             <div>
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />
@@ -1452,10 +1547,35 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 กรอกคะแนนสอบปลายภาคของนักเรียนแต่ละคน (0 ถึง {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}) คะแนนนี้จะนำไปรวมกับคะแนนเก็บทุกบทเพื่อตัดเกรดในแท็บ "รวมทุกบท"
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              {!isTableFullscreen ? (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                  title="ขยายตารางเต็มหน้าต่าง"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>ขยายเต็ม</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                  title="ปิดหน้าต่างเต็มจอ (Esc)"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span>ปิดหน้าต่าง</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Sticky Table for Final Exam */}
-          <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
+          <div className={`overflow-x-auto overflow-y-auto border border-slate-200 rounded-2xl relative shadow-2xs ${
+            isTableFullscreen ? 'flex-1 min-h-0' : 'max-h-[70vh]'
+          }`}>
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
                 <tr className="bg-slate-100 text-slate-700 font-semibold">
@@ -1463,7 +1583,28 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     ลำดับ
                   </th>
                   <th className="py-2.5 px-4 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                    ชื่อ - นามสกุล นักเรียน
+                    <div className="flex items-center justify-between gap-1">
+                      <span>ชื่อ - นามสกุล นักเรียน</span>
+                      {!isTableFullscreen ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsTableFullscreen(true)}
+                          className="text-slate-400 hover:text-amber-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
+                          title="ขยายตารางเต็มหน้าต่าง"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsTableFullscreen(false)}
+                          className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
+                          title="ปิดหน้าต่างขยายเต็ม"
+                        >
+                          <Minimize2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </th>
                   <th className="py-2.5 px-4 w-44 text-center sticky top-0 z-20 bg-amber-100/90 text-amber-950 font-bold border-r border-slate-200">
                     คะแนนสอบปลายภาค
@@ -1632,6 +1773,19 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               >
                 ล้างคะแนน
               </button>
+
+              {/* ปิดหน้าต่างเต็มจอ */}
+              {isTableFullscreen && (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(false)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="ปิดหน้าต่างขยายเต็ม"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span>ปิดหน้าต่าง</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1639,8 +1793,8 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
       {/* VIEW 3: OVERALL SUMMARY TAB (คะแนนเก็บทุกบท + สอบปลายภาค + ตัดเกรด) */}
       {activeChapterTab === 'summary' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/60 p-3.5 sm:p-4 rounded-xl border border-emerald-200">
+        <div className={`space-y-4 ${isTableFullscreen ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/60 p-3.5 sm:p-4 rounded-xl border border-emerald-200 shrink-0">
             <div>
               <div className="flex items-center gap-2">
                 <Award className="w-4 h-4 text-emerald-700" />
@@ -1653,19 +1807,45 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-emerald-200 cursor-pointer self-start sm:self-auto"
-              title="บันทึกผลการประเมินเป็นไฟล์ PDF หรือสั่งพิมพ์"
-            >
-              <Download className="w-4 h-4" />
-              <span>บันทึกเป็นไฟล์ PDF / พิมพ์สรุปผล</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-sm shadow-emerald-200 cursor-pointer self-start sm:self-auto"
+                title="บันทึกผลการประเมินเป็นไฟล์ PDF หรือสั่งพิมพ์"
+              >
+                <Download className="w-4 h-4" />
+                <span>บันทึก PDF / พิมพ์สรุปผล</span>
+              </button>
+
+              {!isTableFullscreen ? (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                  title="ขยายตารางเต็มหน้าต่าง"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>ขยายเต็ม</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(false)}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                  title="ปิดหน้าต่างเต็มจอ (Esc)"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span>ปิดหน้าต่าง</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Sticky Table Container for Overall Summary */}
-          <div className="overflow-x-auto overflow-y-auto max-h-[70vh] border border-slate-200 rounded-2xl relative shadow-2xs">
+          <div className={`overflow-x-auto overflow-y-auto border border-slate-200 rounded-2xl relative shadow-2xs ${
+            isTableFullscreen ? 'flex-1 min-h-0' : 'max-h-[70vh]'
+          }`}>
             <table className="w-full text-left border-collapse text-xs">
               <thead className="sticky top-0 z-20 shadow-xs border-b border-slate-200">
                 <tr className="bg-slate-100 text-slate-700 font-semibold">
@@ -1673,7 +1853,28 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     ลำดับ
                   </th>
                   <th className="py-3 px-3 min-w-[190px] align-bottom sticky top-0 left-12 z-30 bg-slate-100 border-r border-slate-200">
-                    ชื่อ - นามสกุล นักเรียน
+                    <div className="flex items-center justify-between gap-1">
+                      <span>ชื่อ - นามสกุล นักเรียน</span>
+                      {!isTableFullscreen ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsTableFullscreen(true)}
+                          className="text-slate-400 hover:text-emerald-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
+                          title="ขยายตารางเต็มหน้าต่าง"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsTableFullscreen(false)}
+                          className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-slate-200/80 transition-colors cursor-pointer"
+                          title="ปิดหน้าต่างขยายเต็ม"
+                        >
+                          <Minimize2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </th>
 
                   {/* Chapter Scaled Score Columns */}
@@ -1866,12 +2067,26 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <Download className="w-4 h-4" />
                 <span>บันทึกเป็นไฟล์ PDF / พิมพ์เอกสาร</span>
               </button>
+
+              {/* ปิดหน้าต่างเต็มจอ */}
+              {isTableFullscreen && (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(false)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="ปิดหน้าต่างขยายเต็ม"
+                >
+                  <Minimize2 className="w-4 h-4" />
+                  <span>ปิดหน้าต่าง</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
         </div>
       </div>
+    </div>
 
       {/* POP-UP MODAL: "แก้ไขข้อมูล" / CREATE SUBJECT (Req 1, 5, 6) */}
       {showConfigModal && (
