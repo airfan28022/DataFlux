@@ -25,51 +25,52 @@ export const ToastContainer: React.FC = () => {
   const getIcon = (type: ToastMessage['type']) => {
     switch (type) {
       case 'success':
-        return <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />;
+        return (
+          <div className="w-10 h-10 rounded-xl bg-emerald-100/90 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+        );
       case 'error':
-        return <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />;
+        return (
+          <div className="w-10 h-10 rounded-xl bg-rose-100/90 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+        );
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />;
+        return (
+          <div className="w-10 h-10 rounded-xl bg-amber-100/90 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+        );
       default:
-        return <Info className="w-5 h-5 text-sky-600 shrink-0" />;
-    }
-  };
-
-  const getBorderColor = (type: ToastMessage['type']) => {
-    switch (type) {
-      case 'success':
-        return 'border-emerald-200 bg-emerald-50/95';
-      case 'error':
-        return 'border-rose-200 bg-rose-50/95';
-      case 'warning':
-        return 'border-amber-200 bg-amber-50/95';
-      default:
-        return 'border-sky-200 bg-sky-50/95';
+        return (
+          <div className="w-10 h-10 rounded-xl bg-sky-100/90 text-sky-600 flex items-center justify-center shrink-0 shadow-2xs">
+            <Info className="w-5 h-5" />
+          </div>
+        );
     }
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-2 sm:px-0">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none p-4 gap-3">
       <AnimatePresence>
         {toasts.map((toast) => (
           <motion.div
             key={toast.id}
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, x: 20, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg backdrop-blur-sm ${getBorderColor(
-              toast.type
-            )}`}
+            initial={{ opacity: 0, scale: 0.88, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: -8 }}
+            transition={{ type: 'spring', damping: 24, stiffness: 320 }}
+            className="pointer-events-auto flex items-center gap-3.5 px-5 py-3.5 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-2xl max-w-sm w-full select-none"
           >
-            <div className="mt-0.5">{getIcon(toast.type)}</div>
-            <div className="flex-1 text-sm">
-              <div className="font-semibold text-slate-800">{toast.title}</div>
-              {toast.message && <div className="text-slate-600 text-xs mt-0.5">{toast.message}</div>}
+            {getIcon(toast.type)}
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-slate-800 text-sm">{toast.title}</div>
+              {toast.message && <div className="text-slate-500 text-xs mt-0.5 line-clamp-2">{toast.message}</div>}
             </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+              className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
               title="ปิด"
             >
               <X className="w-4 h-4" />

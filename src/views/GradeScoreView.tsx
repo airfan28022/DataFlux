@@ -23,11 +23,21 @@ import {
   FileText,
   RotateCcw,
   CheckCircle2,
-  Download
+  Download,
+  UserPlus
 } from 'lucide-react';
 
 interface GradeScoreViewProps {
   isAdmin: boolean;
+}
+
+interface SheetStudent {
+  id: string;
+  order: number;
+  firstName: string;
+  lastName: string;
+  prefix?: string;
+  nickname?: string;
 }
 
 interface ChapterFormItem {
@@ -62,6 +72,21 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     if (currentTermSheets.length > 0) return currentTermSheets[0];
     return scoreSheets.find((s) => s.id === activeSheetId) || scoreSheets[0];
   }, [currentTermSheets, scoreSheets, activeSheetId]);
+
+  // Current sheet students list (supports custom student counts/names per subject/class)
+  const currentSheetStudents: SheetStudent[] = useMemo(() => {
+    if (activeSheet?.studentList && activeSheet.studentList.length > 0) {
+      return activeSheet.studentList;
+    }
+    return students.map((s, idx) => ({
+      id: s.id,
+      order: s.order || idx + 1,
+      firstName: s.firstName,
+      lastName: s.lastName,
+      prefix: s.prefix || '',
+      nickname: s.nickname || '',
+    }));
+  }, [activeSheet?.studentList, students]);
 
   // Active Chapter View: 1 to N (circular buttons), or 'final' for สอบปลายภาค, or 'summary' for รวมทุกบท
   const [activeChapterTab, setActiveChapterTab] = useState<ActiveTabType>(1);
@@ -305,19 +330,27 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     const target = scoreSheets.find((s) => s.id === sheetIdToDelete);
     if (!target) return;
 
-    if (confirm(`คุณต้องการลบรายวิชา "${target.subjectName}" ใช่หรือไม่? ข้อมูลคะแนนทั้งหมดของวิชานี้จะถูกลบ`)) {
-      dataService.deleteScoreSheet(sheetIdToDelete);
-      setShowConfigModal(false);
+    dataService.showAlert({
+      type: 'warning',
+      title: 'ยืนยันการลบรายวิชา?',
+      text: `คุณต้องการลบรายวิชา "${target.subjectName}" ใช่หรือไม่? ข้อมูลคะแนนทั้งหมดของวิชานี้จะถูกลบ`,
+      showCancelButton: true,
+      confirmButtonText: 'ลบวิชานี้',
+      cancelButtonText: 'ยกเลิก',
+      onConfirm: () => {
+        dataService.deleteScoreSheet(sheetIdToDelete);
+        setShowConfigModal(false);
 
-      const remaining = scoreSheets.filter((s) => s.id !== sheetIdToDelete);
-      if (remaining.length > 0) {
-        setActiveSheetId(remaining[0].id);
-      } else {
-        const fresh = dataService.getScoreSheets();
-        setActiveSheetId(fresh[0]?.id || '');
-      }
-      setActiveChapterTab(1);
-    }
+        const remaining = scoreSheets.filter((s) => s.id !== sheetIdToDelete);
+        if (remaining.length > 0) {
+          setActiveSheetId(remaining[0].id);
+        } else {
+          const fresh = dataService.getScoreSheets();
+          setActiveSheetId(fresh[0]?.id || '');
+        }
+        setActiveChapterTab(1);
+      },
+    });
   };
 
   // Active Chapter Object
@@ -326,13 +359,107 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     return currentChapters.find((ch) => ch.chapterNumber === activeChapterTab) || currentChapters[0];
   }, [currentChapters, activeChapterTab]);
 
-  // Handle student name change directly from table (Req 3: ตรงชื่อ-สกุล ให้สามารถกรอก เปลี่ยนชื่อใหม่ได้ทุกเมื่อ)
+  // Handle student name change directly from table (supports per-sheet student lists)
   const handleUpdateStudentName = (studentId: string, newFullName: string) => {
-    if (!newFullName.trim()) return;
-    const success = dataService.updateStudentFullName(studentId, newFullName, false);
-    if (success) {
-      triggerAutoSaveEffect();
-    }
+    if (!activeSheet || !newFullName.trim()) return;
+
+    const currentList = currentSheetStudents;
+    const updatedList = currentList.map((s) => {
+      if (s.id === studentId) {
+        let prefix = s.prefix || '';
+        let rest = newFullName.trim();
+        const prefixes = ['เด็กชาย', 'เด็กหญิง', 'ด.ช.', 'ด.ญ.', 'นาย', 'นางสาว', 'น.ส.'];
+        for (const p of prefixes) {
+          if (rest.startsWith(p)) {
+            prefix = p;
+            rest = rest.substring(p.length).trim();
+            break;
+          }
+        }
+        const parts = rest.split(/\s+/);
+        const firstName = parts[0] || '';
+        const lastName = parts.slice(1).join(' ') || '';
+        return {
+          ...s,
+          prefix,
+          firstName: firstName || newFullName.trim(),
+          lastName,
+        };
+      }
+      return s;
+    });
+
+    const updatedSheet: ScoreSheet = {
+      ...activeSheet,
+      studentList: updatedList,
+      updatedAt: new Date().toISOString(),
+    };
+
+    dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
+  };
+
+  // Add a new student row to this specific class/sheet
+  const handleAddStudentRow = () => {
+    if (!activeSheet) return;
+    const currentList = currentSheetStudents;
+    const newOrder = currentList.length + 1;
+    const newStudent: SheetStudent = {
+      id: `std-row-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      order: newOrder,
+      prefix: '',
+      firstName: `นักเรียนคนที่ ${newOrder}`,
+      lastName: '',
+      nickname: '',
+    };
+    const updatedList = [...currentList, newStudent];
+    const updatedSheet: ScoreSheet = {
+      ...activeSheet,
+      studentList: updatedList,
+      updatedAt: new Date().toISOString(),
+    };
+
+    dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
+    dataService.notifyToast('success', 'เพิ่มแถวนักเรียนเรียบร้อย', `เพิ่มนักเรียนลำดับที่ ${newOrder} ในชั้นนี้แล้ว`);
+  };
+
+  // Remove a student row from this specific class/sheet
+  const handleRemoveStudentRow = (studentId: string, studentName: string) => {
+    if (!activeSheet) return;
+
+    dataService.showAlert({
+      type: 'warning',
+      title: 'ยืนยันลบแถวนักเรียน?',
+      text: `คุณต้องการลบ "${studentName}" ออกจากรายวิชานี้ใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: 'ลบแถวนี้',
+      cancelButtonText: 'ยกเลิก',
+      onConfirm: () => {
+        const filtered = currentSheetStudents.filter((s) => s.id !== studentId);
+        const reordered = filtered.map((s, idx) => ({ ...s, order: idx + 1 }));
+
+        const updatedChapters = currentChapters.map((ch) => {
+          const scores = { ...ch.scores };
+          delete scores[studentId];
+          return { ...ch, scores };
+        });
+        const finalExamScores = { ...(activeSheet.finalExamScores || {}) };
+        delete finalExamScores[studentId];
+
+        const updatedSheet: ScoreSheet = {
+          ...activeSheet,
+          chapters: updatedChapters,
+          finalExamScores,
+          studentList: reordered,
+          updatedAt: new Date().toISOString(),
+        };
+
+        dataService.saveScoreSheet(updatedSheet, true);
+        triggerAutoSaveEffect();
+        dataService.notifyToast('success', 'ลบแถวนักเรียนเรียบร้อย');
+      },
+    });
   };
 
   // Update a topic's title in the active chapter (Req 2 & 4: 2 บรรทัด & บันทึกอัตโนมัติ)
@@ -386,29 +513,38 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   // Remove a topic from the active chapter
   const handleRemoveTopic = (chapterNum: number, topicIdx: number) => {
     if (!activeSheet) return;
-    if (!confirm(`คุณต้องการลบ "เรื่องที่ ${topicIdx + 1}" ใช่หรือไม่?`)) return;
 
-    const updatedChapters = currentChapters.map((ch) => {
-      if (ch.chapterNumber === chapterNum) {
-        const newTopics = ch.topics.filter((_, idx) => idx !== topicIdx);
-        const newScores: Record<string, (number | '-' | null)[]> = {};
-        Object.entries(ch.scores).forEach(([stdId, arr]) => {
-          newScores[stdId] = arr.filter((_, idx) => idx !== topicIdx);
+    dataService.showAlert({
+      type: 'warning',
+      title: 'ยืนยันการลบเรื่อง?',
+      text: `คุณต้องการลบ "เรื่องที่ ${topicIdx + 1}" ใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: 'ลบเรื่อง',
+      cancelButtonText: 'ยกเลิก',
+      onConfirm: () => {
+        const updatedChapters = currentChapters.map((ch) => {
+          if (ch.chapterNumber === chapterNum) {
+            const newTopics = ch.topics.filter((_, idx) => idx !== topicIdx);
+            const newScores: Record<string, (number | '-' | null)[]> = {};
+            Object.entries(ch.scores).forEach(([stdId, arr]) => {
+              newScores[stdId] = arr.filter((_, idx) => idx !== topicIdx);
+            });
+            return { ...ch, topics: newTopics, scores: newScores };
+          }
+          return ch;
         });
-        return { ...ch, topics: newTopics, scores: newScores };
-      }
-      return ch;
+
+        const updatedSheet: ScoreSheet = {
+          ...activeSheet,
+          chapters: updatedChapters,
+          updatedAt: new Date().toISOString(),
+        };
+
+        dataService.saveScoreSheet(updatedSheet, true);
+        triggerAutoSaveEffect();
+        dataService.notifyToast('success', 'ลบเรื่องเรียบร้อย');
+      },
     });
-
-    const updatedSheet: ScoreSheet = {
-      ...activeSheet,
-      chapters: updatedChapters,
-      updatedAt: new Date().toISOString(),
-    };
-
-    dataService.saveScoreSheet(updatedSheet, true);
-    triggerAutoSaveEffect();
-    dataService.notifyToast('success', 'ลบเรื่องเรียบร้อย');
   };
 
   // Set a student's score for a specific topic (0, 1, 2, 3, 4, 5, or '-')
@@ -476,7 +612,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     if (!activeSheet) return;
     const max = activeSheet.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30;
     const newScores: Record<string, number> = {};
-    students.forEach((s) => {
+    currentSheetStudents.forEach((s) => {
       newScores[s.id] = max;
     });
 
@@ -494,17 +630,26 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   // Clear final exam scores
   const handleClearFinalExam = () => {
     if (!activeSheet) return;
-    if (!confirm('คุณต้องการล้างคะแนนสอบปลายภาคทั้งหมดใช่หรือไม่?')) return;
 
-    const updatedSheet: ScoreSheet = {
-      ...activeSheet,
-      finalExamScores: {},
-      updatedAt: new Date().toISOString(),
-    };
+    dataService.showAlert({
+      type: 'warning',
+      title: 'ยืนยันล้างคะแนนสอบปลายภาค?',
+      text: 'คุณต้องการล้างคะแนนสอบปลายภาคทั้งหมดใช่หรือไม่?',
+      showCancelButton: true,
+      confirmButtonText: 'ล้างคะแนน',
+      cancelButtonText: 'ยกเลิก',
+      onConfirm: () => {
+        const updatedSheet: ScoreSheet = {
+          ...activeSheet,
+          finalExamScores: {},
+          updatedAt: new Date().toISOString(),
+        };
 
-    dataService.saveScoreSheet(updatedSheet);
-    triggerAutoSaveEffect();
-    dataService.notifyToast('success', 'ล้างคะแนนสอบปลายภาคเรียบร้อย');
+        dataService.saveScoreSheet(updatedSheet);
+        triggerAutoSaveEffect();
+        dataService.notifyToast('success', 'ล้างคะแนนสอบปลายภาคเรียบร้อย');
+      },
+    });
   };
 
   // SCALING / WEIGHTING CALCULATION:
@@ -550,7 +695,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     const finalExamMax = activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30;
     const finalExamScores = activeSheet?.finalExamScores || {};
 
-    return students.map((student, idx) => {
+    return currentSheetStudents.map((student, idx) => {
       const chapterScaledScores: Record<number, number> = {};
       let totalChapterScaled = 0;
       let totalChapterMax = 0;
@@ -574,7 +719,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
       return {
         studentId: student.id,
         order: idx + 1,
-        studentName: `${student.prefix}${student.firstName} ${student.lastName}`,
+        studentName: `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim(),
         nickname: student.nickname,
         chapterScaledScores,
         totalChapterScaled: Number(totalChapterScaled.toFixed(1)),
@@ -587,7 +732,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         grade,
       };
     });
-  }, [students, currentChapters, activeSheet]);
+  }, [currentSheetStudents, currentChapters, activeSheet]);
 
   // Overall Statistics
   const averagePercentage =
@@ -606,7 +751,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     const chNum = currentActiveChapter.chapterNumber;
     const newScores: Record<string, (number | '-')[]> = {};
 
-    students.forEach((s) => {
+    currentSheetStudents.forEach((s) => {
       const arr = Array(currentActiveChapter.topics.length).fill('-');
       currentActiveChapter.topics.forEach((t, idx) => {
         if (t?.trim()) arr[idx] = 5;
@@ -634,24 +779,33 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   // Clear scores for current chapter
   const handleClearChapterScores = () => {
     if (!currentActiveChapter || !activeSheet) return;
-    if (!confirm(`คุณต้องการล้างคะแนนใน ${currentActiveChapter.title} ทั้งหมดใช่หรือไม่?`)) return;
 
-    const chNum = currentActiveChapter.chapterNumber;
-    const updatedChapters = currentChapters.map((ch) => {
-      if (ch.chapterNumber === chNum) {
-        return { ...ch, scores: {} };
-      }
-      return ch;
+    dataService.showAlert({
+      type: 'warning',
+      title: 'ยืนยันล้างคะแนนประจำบท?',
+      text: `คุณต้องการล้างคะแนนใน ${currentActiveChapter.title} ทั้งหมดใช่หรือไม่?`,
+      showCancelButton: true,
+      confirmButtonText: 'ล้างคะแนน',
+      cancelButtonText: 'ยกเลิก',
+      onConfirm: () => {
+        const chNum = currentActiveChapter.chapterNumber;
+        const updatedChapters = currentChapters.map((ch) => {
+          if (ch.chapterNumber === chNum) {
+            return { ...ch, scores: {} };
+          }
+          return ch;
+        });
+
+        const updatedSheet: ScoreSheet = {
+          ...activeSheet,
+          chapters: updatedChapters,
+          updatedAt: new Date().toISOString(),
+        };
+
+        dataService.saveScoreSheet(updatedSheet);
+        dataService.notifyToast('success', 'ล้างคะแนนเรียบร้อย');
+      },
     });
-
-    const updatedSheet: ScoreSheet = {
-      ...activeSheet,
-      chapters: updatedChapters,
-      updatedAt: new Date().toISOString(),
-    };
-
-    dataService.saveScoreSheet(updatedSheet);
-    dataService.notifyToast('success', 'ล้างคะแนนเรียบร้อย');
   };
 
   // Close popover when clicking outside
@@ -1065,7 +1219,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {students.map((student, idx) => {
+                {currentSheetStudents.map((student, idx) => {
                   const studentScores = currentActiveChapter.scores[student.id] || [];
                   const stats = computeChapterStudentScore(currentActiveChapter, student.id);
 
@@ -1075,26 +1229,36 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                         {idx + 1}
                       </td>
                       <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
-                        <input
-                          type="text"
-                          defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
-                          key={`ch-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
-                          onBlur={(e) => {
-                            const val = e.target.value.trim();
-                            const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
-                            if (val && val !== cur) {
-                              handleUpdateStudentName(student.id, val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          placeholder="พิมพ์ชื่อ - นามสกุล..."
-                          className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
-                          title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
+                            key={`ch-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
+                              if (val && val !== cur) {
+                                handleUpdateStudentName(student.id, val);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            placeholder="พิมพ์ชื่อ - นามสกุล..."
+                            className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
+                            title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStudentRow(student.id, `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim())}
+                            className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                            title="ลบแถวนักเรียนคนนี้"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
 
                       {/* Topic Score Cells with interactive popup choices 0,1,2,3,4,5 or - */}
@@ -1201,6 +1365,21 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </tr>
                   );
                 })}
+
+                {/* Add Student Row in Table */}
+                <tr>
+                  <td colSpan={currentActiveChapter.topics.length + 5} className="p-2.5 bg-slate-50/70 border-t border-slate-200 text-center">
+                    <button
+                      type="button"
+                      onClick={handleAddStudentRow}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-purple-50 text-purple-700 border border-dashed border-purple-300 hover:border-purple-400 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                      title="เพิ่มแถวนักเรียนใหม่ในชั้นนี้"
+                    >
+                      <UserPlus className="w-4 h-4 text-purple-600" />
+                      <span>+ เพิ่มแถวนักเรียน (เพิ่มชื่อนักเรียนในรายวิชานี้)</span>
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1218,6 +1397,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <CheckCircle2 className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
                 <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกอัตโนมัติ'}</span>
               </div>
+
+              {/* เพิ่มแถวนักเรียน */}
+              <button
+                type="button"
+                onClick={handleAddStudentRow}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="เพิ่มแถวนักเรียนใหม่ในชั้นนี้"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ เพิ่มแถวนักเรียน</span>
+              </button>
 
               {/* เติมคะแนน 5 ทุกคน */}
               <button
@@ -1290,7 +1480,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {students.map((student, idx) => {
+                {currentSheetStudents.map((student, idx) => {
                   const rawScore = activeSheet?.finalExamScores?.[student.id];
                   const scoreVal = typeof rawScore === 'number' ? rawScore : '';
                   const maxExam = activeSheet?.finalExamMaxScore || 30;
@@ -1303,26 +1493,36 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                         {idx + 1}
                       </td>
                       <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
-                        <input
-                          type="text"
-                          defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
-                          key={`exam-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
-                          onBlur={(e) => {
-                            const val = e.target.value.trim();
-                            const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
-                            if (val && val !== cur) {
-                              handleUpdateStudentName(student.id, val);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          placeholder="พิมพ์ชื่อ - นามสกุล..."
-                          className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
-                          title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
+                            key={`exam-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
+                              if (val && val !== cur) {
+                                handleUpdateStudentName(student.id, val);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            placeholder="พิมพ์ชื่อ - นามสกุล..."
+                            className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
+                            title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStudentRow(student.id, `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim())}
+                            className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                            title="ลบแถวนักเรียนคนนี้"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
 
                       {/* Final Exam Input Cell */}
@@ -1370,6 +1570,21 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </tr>
                   );
                 })}
+
+                {/* Add Student Row in Final Exam Table */}
+                <tr>
+                  <td colSpan={5} className="p-2.5 bg-slate-50/70 border-t border-slate-200 text-center">
+                    <button
+                      type="button"
+                      onClick={handleAddStudentRow}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-purple-50 text-purple-700 border border-dashed border-purple-300 hover:border-purple-400 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                      title="เพิ่มแถวนักเรียนใหม่ในชั้นนี้"
+                    >
+                      <UserPlus className="w-4 h-4 text-purple-600" />
+                      <span>+ เพิ่มแถวนักเรียน (เพิ่มชื่อนักเรียนในรายวิชานี้)</span>
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1386,6 +1601,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <CheckCircle2 className={`w-3.5 h-3.5 text-amber-700 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
                 <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกอัตโนมัติ'}</span>
               </div>
+
+              {/* เพิ่มแถวนักเรียน */}
+              <button
+                type="button"
+                onClick={handleAddStudentRow}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                title="เพิ่มแถวนักเรียนใหม่ในชั้นนี้"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ เพิ่มแถวนักเรียน</span>
+              </button>
 
               {/* เติมคะแนนเต็มทุกคน */}
               <button
@@ -1505,25 +1731,35 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       {row.order}
                     </td>
                     <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
-                      <input
-                        type="text"
-                        defaultValue={row.studentName}
-                        key={`sum-std-${row.studentId}-${row.studentName}`}
-                        onBlur={(e) => {
-                          const val = e.target.value.trim();
-                          if (val && val !== row.studentName) {
-                            handleUpdateStudentName(row.studentId, val);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        placeholder="พิมพ์ชื่อ - นามสกุล..."
-                        className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
-                        title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          defaultValue={row.studentName}
+                          key={`sum-std-${row.studentId}-${row.studentName}`}
+                          onBlur={(e) => {
+                            const val = e.target.value.trim();
+                            if (val && val !== row.studentName) {
+                              handleUpdateStudentName(row.studentId, val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          placeholder="พิมพ์ชื่อ - นามสกุล..."
+                          className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
+                          title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveStudentRow(row.studentId, row.studentName)}
+                          className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                          title="ลบแถวนักเรียนคนนี้"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
 
                     {/* Scaled Chapter Score Cells */}
@@ -1572,6 +1808,21 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </td>
                   </tr>
                 ))}
+
+                {/* Add Student Row in Summary Table */}
+                <tr>
+                  <td colSpan={currentChapters.length + 7} className="p-2.5 bg-slate-50/70 border-t border-slate-200 text-center">
+                    <button
+                      type="button"
+                      onClick={handleAddStudentRow}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-purple-50 text-purple-700 border border-dashed border-purple-300 hover:border-purple-400 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                      title="เพิ่มแถวนักเรียนใหม่ในชั้นนี้"
+                    >
+                      <UserPlus className="w-4 h-4 text-purple-600" />
+                      <span>+ เพิ่มแถวนักเรียน (เพิ่มชื่อนักเรียนในรายวิชานี้)</span>
+                    </button>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1595,15 +1846,27 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-xs cursor-pointer shrink-0"
-              title="บันทึกผลการประเมินเป็นไฟล์ PDF"
-            >
-              <Download className="w-4 h-4" />
-              <span>บันทึกเป็นไฟล์ PDF / พิมพ์เอกสาร</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleAddStudentRow}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="เพิ่มแถวนักเรียนใหม่ในชั้นนี้"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ เพิ่มแถวนักเรียน</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-xs cursor-pointer shrink-0"
+                title="บันทึกผลการประเมินเป็นไฟล์ PDF"
+              >
+                <Download className="w-4 h-4" />
+                <span>บันทึกเป็นไฟล์ PDF / พิมพ์เอกสาร</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

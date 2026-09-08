@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityPhoto } from '../types';
 import { ImageWithFallback } from './ImageWithFallback';
 import { formatThaiDate } from '../utils/helpers';
+import { dataService } from '../services/dataService';
 import { X, Trash2, Calendar, Tag, ExternalLink } from 'lucide-react';
 
 interface LightboxModalProps {
@@ -50,10 +51,18 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({ photo, onClose, is
             {isAdmin && onDelete && (
               <button
                 onClick={() => {
-                  if (confirm(`คุณต้องการลบรูปภาพ "${photo.title}" ใช่หรือไม่?`)) {
-                    onDelete(photo.id);
-                    onClose();
-                  }
+                  dataService.showAlert({
+                    type: 'warning',
+                    title: 'ยืนยันการลบรูปภาพ?',
+                    text: `คุณต้องการลบรูปภาพ "${photo.title}" ใช่หรือไม่?`,
+                    showCancelButton: true,
+                    confirmButtonText: 'ลบรูปภาพ',
+                    cancelButtonText: 'ยกเลิก',
+                    onConfirm: () => {
+                      onDelete(photo.id);
+                      onClose();
+                    },
+                  });
                 }}
                 className="p-2 text-rose-400 hover:text-rose-300 rounded-xl hover:bg-rose-950/50 transition-colors cursor-pointer"
                 title="ลบรูปภาพนี้ (แอดมิน)"

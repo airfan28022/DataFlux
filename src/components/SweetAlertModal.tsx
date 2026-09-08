@@ -29,27 +29,27 @@ export const SweetAlertModal: React.FC = () => {
     switch (options.type) {
       case 'success':
         return (
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 animate-bounce">
-            <CheckCircle2 className="w-10 h-10" />
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+            <CheckCircle2 className="w-7 h-7" />
           </div>
         );
       case 'warning':
       case 'question':
         return (
-          <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle className="w-10 h-10" />
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+            <AlertTriangle className="w-7 h-7" />
           </div>
         );
       case 'error':
         return (
-          <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4">
-            <AlertCircle className="w-10 h-10" />
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+            <AlertCircle className="w-7 h-7" />
           </div>
         );
       default:
         return (
-          <div className="w-16 h-16 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center mx-auto mb-4">
-            <Info className="w-10 h-10" />
+          <div className="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+            <Info className="w-7 h-7" />
           </div>
         );
     }
@@ -57,24 +57,25 @@ export const SweetAlertModal: React.FC = () => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 15 }}
+          initial={{ opacity: 0, scale: 0.92, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 15 }}
-          className="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center"
+          exit={{ opacity: 0, scale: 0.92, y: 10 }}
+          transition={{ duration: 0.18 }}
+          className="bg-white rounded-2xl p-6 md:p-7 max-w-sm w-full shadow-2xl border border-slate-100 text-center"
         >
           {renderIcon()}
 
-          <h3 className="text-xl font-bold text-slate-800 mb-2">{options.title}</h3>
-          {options.text && <p className="text-slate-600 text-sm mb-6 leading-relaxed">{options.text}</p>}
+          <h3 className="text-lg font-bold text-slate-800 mb-1.5">{options.title}</h3>
+          {options.text && <p className="text-slate-600 text-xs sm:text-sm mb-5 leading-relaxed">{options.text}</p>}
 
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center gap-2.5">
             {options.showCancelButton && (
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors cursor-pointer"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 {options.cancelButtonText || 'ยกเลิก'}
               </button>
@@ -82,11 +83,11 @@ export const SweetAlertModal: React.FC = () => {
             <button
               type="button"
               onClick={handleConfirm}
-              className={`px-6 py-2.5 rounded-xl text-white font-medium text-sm transition-all shadow-sm cursor-pointer ${
-                options.type === 'error'
-                  ? 'bg-rose-600 hover:bg-rose-700'
+              className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm transition-all shadow-sm cursor-pointer ${
+                options.type === 'error' || options.confirmButtonText?.includes('ลบ')
+                  ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-200'
                   : options.type === 'warning'
-                  ? 'bg-amber-600 hover:bg-amber-700'
+                  ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-200'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
               }`}
             >
