@@ -87,9 +87,9 @@ export interface WithdrawalPendingDay {
   studentId: string;
   studentName: string;
   date: string; // YYYY-MM-DD
-  amount: number; // Deposit amount on that day to be zeroed
+  amount: number; // Deposit/deducted amount on that day
   reason: string; // Withdrawal reason
-  status: 'pending' | 'cleared'; // 'pending' shows blue dot; 'cleared' means cleared to 0
+  status: 'pending' | 'cleared' | 'deducted'; // 'deducted' or 'pending' shows blue dot in calendar
   createdAt: string;
 }
 

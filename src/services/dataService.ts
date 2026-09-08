@@ -515,28 +515,8 @@ class DataService {
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const logId = `w-${Date.now()}`;
-    const log: WithdrawalLog = {
-      id: logId,
-      studentId,
-      studentName: `${student.prefix}${student.firstName} ${student.lastName}`,
-      date: now.toISOString().slice(0, 10),
-      time: timeStr,
-      amount,
-      reason,
-      adminName: this.getProfile().teacherName || 'ครูประจำชั้น',
-      createdAt: now.toISOString(),
-    };
+    const studentFullName = `${student.prefix}${student.firstName} ${student.lastName}`;
 
-    const logs = this.getWithdrawalLogs();
-    logs.unshift(log);
-    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
-
-    // Deduct student's current savings
-    student.currentSavings -= amount;
-    this.saveStudent(student);
-
-    // Requirement 4: Find deposit days for this student that match the withdrawal amount.
-    // E.g. deposit 20 baht/day for 10 days = 200 baht; withdrawing 100 baht -> 5 days get marked with blue dots!
     const allBank = this.getAllAttendanceAndBank();
     const depositDates: { date: string; amount: number }[] = [];
 
@@ -556,10 +536,8 @@ class DataService {
     }
 
     // If there aren't enough recorded dates in allBank to cover the withdrawal amount,
-    // generate/ensure past school days so the teacher sees exactly the expected number of blue dots!
+    // ensure past school days so the withdrawal can be deducted accurately from real dates!
     let accumulated = depositDates.reduce((sum, item) => sum + item.amount, 0);
-    const affectedDates: string[] = [];
-
     if (accumulated < amount) {
       let needed = amount - accumulated;
       let checkDate = new Date();
@@ -569,55 +547,121 @@ class DataService {
         if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip Saturday & Sunday
 
         const dStr = checkDate.toISOString().slice(0, 10);
+        const amtToAdd = Math.min(needed, Math.max(unitDeposit, 20));
         if (!allBank[dStr]) {
           allBank[dStr] = {
             date: dStr,
             attendance: { [studentId]: 'present' },
-            deposits: { [studentId]: unitDeposit },
+            deposits: { [studentId]: amtToAdd },
             note: '',
             updatedAt: new Date().toISOString()
           };
-          depositDates.push({ date: dStr, amount: unitDeposit });
-          needed -= unitDeposit;
-        } else if (!allBank[dStr].deposits?.[studentId]) {
+          depositDates.push({ date: dStr, amount: amtToAdd });
+          needed -= amtToAdd;
+        } else {
+          const cur = allBank[dStr].deposits?.[studentId] || 0;
           if (!allBank[dStr].deposits) allBank[dStr].deposits = {};
-          allBank[dStr].deposits[studentId] = unitDeposit;
-          depositDates.push({ date: dStr, amount: unitDeposit });
-          needed -= unitDeposit;
+          allBank[dStr].deposits[studentId] = cur + amtToAdd;
+          const existingIdx = depositDates.findIndex(item => item.date === dStr);
+          if (existingIdx >= 0) {
+            depositDates[existingIdx].amount += amtToAdd;
+          } else {
+            depositDates.push({ date: dStr, amount: cur + amtToAdd });
+          }
+          needed -= amtToAdd;
         }
       }
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
     }
 
-    // Now select dates up to the withdrawal amount
+    // Sort deposit dates descending so we deduct from the most recent deposit days first
+    depositDates.sort((a, b) => b.date.localeCompare(a.date));
+
+    // Automatically deduct from past deposit dates until the withdrawal amount is fully covered
     let remainingToCover = amount;
-    const pendingDaysList = this.getWithdrawalPendingDays();
+    const affectedDates: string[] = [];
+    const newDeductions: WithdrawalPendingDay[] = [];
 
     for (const item of depositDates) {
       if (remainingToCover <= 0) break;
       const deductFromThisDay = Math.min(item.amount, remainingToCover);
-      affectedDates.push(item.date);
+      if (deductFromThisDay <= 0) continue;
+
+      const dStr = item.date;
+      const dayData = allBank[dStr] || {
+        date: dStr,
+        attendance: {},
+        deposits: {},
+        note: '',
+        updatedAt: new Date().toISOString()
+      };
+
+      if (!dayData.deposits) dayData.deposits = {};
+      const currentDep = dayData.deposits[studentId] || 0;
+      dayData.deposits[studentId] = Math.max(0, currentDep - deductFromThisDay);
+
+      // Add reason to the daily remarks (หมายเหตุประจำวัน)
+      const noteEntry = `ถอนเงิน ${deductFromThisDay} บาท (${studentFullName}) เหตุผล: ${reason}`;
+      const currentNote = dayData.note?.trim() || '';
+      if (currentNote) {
+        if (!currentNote.includes(noteEntry)) {
+          dayData.note = `${currentNote} [${noteEntry}]`;
+        }
+      } else {
+        dayData.note = `[${noteEntry}]`;
+      }
+      dayData.updatedAt = new Date().toISOString();
+      allBank[dStr] = dayData;
+
+      affectedDates.push(dStr);
       remainingToCover -= deductFromThisDay;
 
-      pendingDaysList.push({
+      newDeductions.push({
         id: `wpd-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         withdrawalLogId: logId,
         studentId,
-        studentName: `${student.prefix}${student.firstName} ${student.lastName}`,
-        date: item.date,
+        studentName: studentFullName,
+        date: dStr,
         amount: deductFromThisDay,
         reason,
-        status: 'pending',
+        status: 'deducted',
         createdAt: now.toISOString(),
       });
     }
 
-    this.saveWithdrawalPendingDays(pendingDaysList);
+    // Save updated allBank with deducted deposits and updated notes
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+
+    // Deduct student's current savings
+    student.currentSavings = Math.max(0, student.currentSavings - amount);
+    this.saveStudent(student);
+
+    // Save deduction records (for blue dots in calendar)
+    const currentPending = this.getWithdrawalPendingDays();
+    this.saveWithdrawalPendingDays([...currentPending, ...newDeductions]);
+
+    // Save withdrawal log
+    const log: WithdrawalLog = {
+      id: logId,
+      studentId,
+      studentName: studentFullName,
+      date: now.toISOString().slice(0, 10),
+      time: timeStr,
+      amount,
+      reason,
+      adminName: this.getProfile().teacherName || 'ครูประจำชั้น',
+      createdAt: now.toISOString(),
+    };
+    const logs = this.getWithdrawalLogs();
+    logs.unshift(log);
+    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
+
+    // Recalculate savings to ensure total consistency
+    this.recalculateAllSavings();
 
     this.notifyToast(
       'success',
-      'ถอนเงินสำเร็จ',
-      `บันทึกรายการถอนเงิน ${amount} บาท ของ ${student.firstName} แล้ว ระบบแสดงจุดสีน้ำเงินในปฏิทิน ${affectedDates.length} วัน เพื่อให้คลิกตัดยอดเป็น 0`
+      'ถอนเงินสำเร็จและหักยอดเรียบร้อย',
+      `หักเงินถอน ${amount.toLocaleString()} บาท ของ ${student.firstName} จากวันที่เคยฝาก ${affectedDates.length} วันแล้ว พร้อมบันทึกเหตุผลในหมายเหตุประจำวัน และแสดงจุดสีน้ำเงินในปฏิทิน`
     );
     this.notifyChanges();
     return { success: true, affectedDates };
