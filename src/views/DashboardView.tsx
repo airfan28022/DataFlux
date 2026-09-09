@@ -5,7 +5,7 @@ import {
   TeacherProfile
 } from '../types';
 import { dataService } from '../services/dataService';
-import { formatThaiDate, formatThaiDateTime, DEFAULT_DRIVE_FOLDER_ID } from '../utils/helpers';
+import { formatThaiDate, formatThaiDateTime } from '../utils/helpers';
 import {
   Activity,
   Users,

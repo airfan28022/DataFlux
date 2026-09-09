@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
+import { DEFAULT_DRIVE_FOLDER_ID, getDriveFolderUrl } from '../utils/helpers';
 import {
   Settings,
   KeyRound,
@@ -8,7 +9,10 @@ import {
   X,
   CheckCircle2,
   ShieldCheck,
-  CloudCheck
+  FolderOpen,
+  ExternalLink,
+  Save,
+  HardDrive
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -23,7 +27,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'storage'>('profile');
+  const [driveFolderIdInput, setDriveFolderIdInput] = useState(profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID);
+  const [driveSavedMsg, setDriveSavedMsg] = useState(false);
 
   if (!isOpen) return null;
 
@@ -31,6 +37,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     dataService.saveProfile(profile);
     onClose();
+  };
+
+  const handleDriveSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updated = { ...profile, driveFolderId: driveFolderIdInput.trim() || DEFAULT_DRIVE_FOLDER_ID };
+    setProfile(updated);
+    dataService.saveProfile(updated);
+    setDriveSavedMsg(true);
+    setTimeout(() => setDriveSavedMsg(false), 2500);
   };
 
   const handlePasswordChange = (e: React.FormEvent) => {
@@ -62,6 +77,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }, 200);
   };
 
+  const currentFolderId = profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden">
@@ -73,7 +90,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-lg">ตั้งค่าระบบและบัญชีครู</h3>
-              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้นและรหัสผ่านผู้ดูแลระบบ</p>
+              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น รหัสผ่าน และระบบจัดเก็บไฟล์หลังบ้าน</p>
             </div>
           </div>
           <button
@@ -85,7 +102,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 text-xs font-medium">
+        <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 text-xs font-medium overflow-x-auto">
           <button
             onClick={() => setActiveTab('profile')}
             className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
@@ -105,6 +122,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <KeyRound className="w-4 h-4" /> เปลี่ยนรหัสผ่าน Admin
+          </button>
+          <button
+            onClick={() => setActiveTab('storage')}
+            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'storage'
+                ? 'border-emerald-600 text-emerald-700 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <FolderOpen className="w-4 h-4" /> คลังไฟล์ Google Drive
           </button>
         </div>
 
@@ -233,6 +260,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </form>
           )}
+
+          {/* TAB 3: Google Drive Storage */}
+          {activeTab === 'storage' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl flex items-start gap-3">
+                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-2xs shrink-0 mt-0.5">
+                  <HardDrive className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-slate-800 text-sm">
+                    คลังจัดเก็บไฟล์ Google Drive (ระบบหลังบ้าน)
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    ไฟล์รูปภาพนักเรียนและเอกสารที่อัปโหลดผ่านระบบ จะถูกจัดเก็บลงในโฟลเดอร์ Google Drive นี้โดยอัตโนมัติ เพื่อความปลอดภัยและสะดวกในการจัดการ
+                  </p>
+                </div>
+              </div>
+
+              {/* Direct Open Button */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700">เข้าถึงคลังไฟล์ใน Google Drive</span>
+                  <span className="text-[11px] text-emerald-700 font-mono bg-emerald-100/60 px-2 py-0.5 rounded-md">
+                    Cloud Storage
+                  </span>
+                </div>
+
+                <a
+                  href={getDriveFolderUrl(currentFolderId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm shadow-emerald-200 cursor-pointer"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>เปิดโฟลเดอร์ Google Drive</span>
+                  <ExternalLink className="w-4 h-4 opacity-80" />
+                </a>
+              </div>
+
+              {/* Folder ID Settings */}
+              <form onSubmit={handleDriveSave} className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Google Drive Folder ID
+                  </label>
+                  <input
+                    type="text"
+                    value={driveFolderIdInput}
+                    onChange={(e) => setDriveFolderIdInput(e.target.value)}
+                    placeholder="เช่น 1nymxjSukQ_exIWuN6HRehXRTFrPrfekP"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-xs font-mono outline-hidden"
+                    required
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    โฟลเดอร์จัดเก็บเริ่มต้น: {DEFAULT_DRIVE_FOLDER_ID}
+                  </p>
+                </div>
+
+                {driveSavedMsg && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>บันทึกการตั้งค่า Google Drive เรียบร้อยแล้ว</span>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>บันทึกรหัสโฟลเดอร์</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
 
         {/* Clean Background Services Indicator */}
@@ -241,7 +345,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>ระบบหลังบ้านเชื่อมต่อ Google Sheets และ Drive ทำงานอัตโนมัติ</span>
           </div>
-          <span className="text-[11px] text-slate-400">Security Encrypted</span>
+          <a
+            href={getDriveFolderUrl(currentFolderId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1 hover:underline text-xs"
+          >
+            <span>เปิดโฟลเดอร์ Drive</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
     </div>
