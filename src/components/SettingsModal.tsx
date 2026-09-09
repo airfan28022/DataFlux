@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
-import { DEFAULT_DRIVE_FOLDER_ID, getDriveFolderUrl } from '../utils/helpers';
 import { PWAInstallButton } from './PWAInstallButton';
 import {
   Settings,
@@ -9,13 +8,7 @@ import {
   User,
   X,
   CheckCircle2,
-  ShieldCheck,
-  FolderOpen,
-  ExternalLink,
-  Save,
-  HardDrive,
-  Smartphone,
-  Cloud
+  Smartphone
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -30,9 +23,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'storage' | 'app'>('profile');
-  const [driveFolderIdInput, setDriveFolderIdInput] = useState(profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID);
-  const [driveSavedMsg, setDriveSavedMsg] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'app'>('profile');
 
   if (!isOpen) return null;
 
@@ -40,15 +31,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     dataService.saveProfile(profile);
     onClose();
-  };
-
-  const handleDriveSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    const updated = { ...profile, driveFolderId: driveFolderIdInput.trim() || DEFAULT_DRIVE_FOLDER_ID };
-    setProfile(updated);
-    dataService.saveProfile(updated);
-    setDriveSavedMsg(true);
-    setTimeout(() => setDriveSavedMsg(false), 2500);
   };
 
   const handlePasswordChange = (e: React.FormEvent) => {
@@ -65,7 +47,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       return;
     }
 
-    if (!newPasswordInput !== !confirmPasswordInput && newPasswordInput !== confirmPasswordInput) {
+    if (newPasswordInput !== confirmPasswordInput) {
       setPasswordMsg({ text: 'รหัสผ่านใหม่และการยืนยันไม่ตรงกัน', isError: true });
       return;
     }
@@ -80,8 +62,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }, 200);
   };
 
-  const currentFolderId = profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden">
@@ -93,7 +73,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-lg">ตั้งค่าระบบและบัญชีครู</h3>
-              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น รหัสผ่าน และระบบจัดเก็บไฟล์หลังบ้าน</p>
+              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น รหัสผ่าน และระบบหลังบ้าน</p>
             </div>
           </div>
           <button
@@ -127,16 +107,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <KeyRound className="w-4 h-4" /> เปลี่ยนรหัสผ่าน Admin
           </button>
           <button
-            onClick={() => setActiveTab('storage')}
-            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'storage'
-                ? 'border-emerald-600 text-emerald-700 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <FolderOpen className="w-4 h-4" /> คลังไฟล์ Google Drive
-          </button>
-          <button
             onClick={() => setActiveTab('app')}
             className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'app'
@@ -144,7 +114,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Smartphone className="w-4 h-4" /> ดาวน์โหลดแอป & Cloudflare
+            <Smartphone className="w-4 h-4" /> ติดตั้งแอปพลิเคชัน
           </button>
         </div>
 
@@ -165,23 +135,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อโรงเรียน</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ตำแหน่ง</label>
+                  <input
+                    type="text"
+                    value={profile.position}
+                    onChange={(e) => setProfile({ ...profile, position: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">โรงเรียน</label>
                   <input
                     type="text"
                     value={profile.schoolName}
                     onChange={(e) => setProfile({ ...profile, schoolName: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
-                    required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชั้น / ห้องเรียน</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">สังกัด (สพป./สพม.)</label>
+                  <input
+                    type="text"
+                    value={profile.affiliation}
+                    onChange={(e) => setProfile({ ...profile, affiliation: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชั้นเรียนประจำ</label>
                   <input
                     type="text"
                     value={profile.classroomName}
                     onChange={(e) => setProfile({ ...profile, classroomName: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
-                    required
+                    placeholder="เช่น ประถมศึกษาปีที่ 6/1"
                   />
                 </div>
                 <div>
@@ -191,36 +184,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     value={profile.academicYear}
                     onChange={(e) => setProfile({ ...profile, academicYear: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
-                    required
+                    placeholder="เช่น 2567"
                   />
                 </div>
               </div>
 
-              <div className="pt-3 flex justify-end">
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-medium transition-colors cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors cursor-pointer"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors cursor-pointer"
                 >
-                  บันทึกข้อมูล
+                  บันทึกข้อมูลครู
                 </button>
               </div>
             </form>
           )}
 
-          {/* TAB 2: Password Change */}
+          {/* TAB 2: Change Password */}
           {activeTab === 'password' && (
             <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md mx-auto">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>รหัสผ่านเริ่มต้นสำหรับ Admin คือ <strong className="text-emerald-700">456789</strong></span>
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <KeyRound className="w-4 h-4 text-amber-600" />
+                  รหัสผ่าน Admin สำหรับการจัดการระบบ
+                </p>
+                <p>
+                  ใช้สำหรับเข้าถึงสิทธิ์ Admin เพื่อการลบหรือแก้ไขข้อมูลสำคัญ (รหัสผ่านเริ่มต้นคือ: <strong>admin1234</strong>)
+                </p>
               </div>
 
               {passwordMsg && (
                 <div
-                  className={`p-3 rounded-xl text-xs border ${
+                  className={`p-3 rounded-xl text-xs font-medium ${
                     passwordMsg.isError
-                      ? 'bg-rose-50 border-rose-200 text-rose-700'
-                      : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   }`}
                 >
                   {passwordMsg.text}
@@ -233,19 +238,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   type="password"
                   value={currentPasswordInput}
                   onChange={(e) => setCurrentPasswordInput(e.target.value)}
-                  placeholder="กรอกรหัสผ่านปัจจุบัน (เริ่มต้น 456789)"
+                  placeholder="กรอกรหัสผ่านปัจจุบัน"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่านใหม่ (New Password)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">รหัสผ่านใหม่</label>
                 <input
                   type="password"
                   value={newPasswordInput}
                   onChange={(e) => setNewPasswordInput(e.target.value)}
-                  placeholder="อย่างน้อย 4 ตัวอักษร"
+                  placeholder="กรอกรหัสผ่านใหม่อย่างน้อย 4 ตัวอักษร"
                   className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
                   required
                 />
@@ -274,114 +279,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </form>
           )}
 
-          {/* TAB 3: Google Drive Storage */}
-          {activeTab === 'storage' && (
-            <div className="space-y-4">
-              <div className="p-4 bg-emerald-50/60 border border-emerald-200/80 rounded-2xl flex items-start gap-3">
-                <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-2xs shrink-0 mt-0.5">
-                  <HardDrive className="w-5 h-5" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="font-bold text-slate-800 text-sm">
-                    คลังจัดเก็บไฟล์ Google Drive (ระบบหลังบ้าน)
-                  </h4>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    ไฟล์รูปภาพนักเรียนและเอกสารที่อัปโหลดผ่านระบบ จะถูกจัดเก็บลงในโฟลเดอร์ Google Drive นี้โดยอัตโนมัติ เพื่อความปลอดภัยและสะดวกในการจัดการ
-                  </p>
-                </div>
-              </div>
-
-              {/* Direct Open Button */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700">เข้าถึงคลังไฟล์ใน Google Drive</span>
-                  <span className="text-[11px] text-emerald-700 font-mono bg-emerald-100/60 px-2 py-0.5 rounded-md">
-                    Cloud Storage
-                  </span>
-                </div>
-
-                <a
-                  href={getDriveFolderUrl(currentFolderId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm shadow-emerald-200 cursor-pointer"
-                >
-                  <FolderOpen className="w-4 h-4" />
-                  <span>เปิดโฟลเดอร์ Google Drive</span>
-                  <ExternalLink className="w-4 h-4 opacity-80" />
-                </a>
-              </div>
-
-              {/* Folder ID Settings */}
-              <form onSubmit={handleDriveSave} className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Google Drive Folder ID
-                  </label>
-                  <input
-                    type="text"
-                    value={driveFolderIdInput}
-                    onChange={(e) => setDriveFolderIdInput(e.target.value)}
-                    placeholder="เช่น 1nymxjSukQ_exIWuN6HRehXRTFrPrfekP"
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-xs font-mono outline-hidden"
-                    required
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    โฟลเดอร์จัดเก็บเริ่มต้น: {DEFAULT_DRIVE_FOLDER_ID}
-                  </p>
-                </div>
-
-                {driveSavedMsg && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>บันทึกการตั้งค่า Google Drive เรียบร้อยแล้ว</span>
-                  </div>
-                )}
-
-                <div className="flex justify-end pt-1">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>บันทึกรหัสโฟลเดอร์</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* TAB 4: PWA Mobile/Tablet App & Cloudflare */}
+          {/* TAB 3: PWA Mobile / Tablet App */}
           {activeTab === 'app' && (
             <div className="space-y-4">
               <PWAInstallButton variant="settings" />
-
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex items-center gap-2">
-                  <Cloud className="w-5 h-5 text-amber-500" />
-                  <h4 className="font-bold text-slate-800 text-sm">
-                    แนวทางการเผยแพร่ผ่าน Cloudflare Pages (ฟรี 100%)
-                  </h4>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  เพื่อให้ทุกคนสามารถเปิดลิงก์และกด <strong>"ติดตั้งเป็นแอป"</strong> บนโทรศัพท์มือถือหรือแท็บเล็ตได้ทันที แนะนำให้นำขึ้นผ่าน <strong>Cloudflare Pages</strong> เพราะมีข้อดีคือ:
-                </p>
-
-                <ul className="space-y-2 text-xs text-slate-600 list-disc list-inside">
-                  <li>
-                    <strong>มี HTTPS (SSL) ฟรีอัตโนมัติ:</strong> PWA บังคับให้ใช้ HTTPS เสมอ Cloudflare จัดการให้ทันที ไม่ต้องซื้อใบรับรอง
-                  </li>
-                  <li>
-                    <strong>ความเร็วสูงระดับ Global CDN:</strong> โหลดเร็วทันทีทั้งในและต่างประเทศ มีแคชอัจฉริยะ
-                  </li>
-                  <li>
-                    <strong>มีไฟล์ _redirects รองรับแล้ว:</strong> โฟลเดอร์ public มีการกำหนด Routing สำหรับ SPA และ Vite ไว้พร้อมแล้ว
-                  </li>
-                  <li>
-                    <strong>ผูก Custom Domain ได้ฟรี:</strong> เช่น <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded font-mono">class.school.ac.th</code>
-                  </li>
-                </ul>
-              </div>
             </div>
           )}
         </div>
@@ -392,15 +293,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>ระบบหลังบ้านเชื่อมต่อ Google Sheets และ Drive ทำงานอัตโนมัติ</span>
           </div>
-          <a
-            href={getDriveFolderUrl(currentFolderId)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1 hover:underline text-xs"
-          >
-            <span>เปิดโฟลเดอร์ Drive</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          <span className="text-[11px] text-slate-400 font-mono">Cloud Sync Active</span>
         </div>
       </div>
     </div>

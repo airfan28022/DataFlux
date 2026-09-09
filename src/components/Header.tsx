@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { formatThaiDate } from '../utils/helpers';
 import { dataService } from '../services/dataService';
 import { TeacherProfile } from '../types';
-import { PWAInstallButton } from './PWAInstallButton';
 import {
   GraduationCap,
   Settings,
@@ -102,9 +101,6 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right side: Auto-sync indicator, Clock, Admin user pill, Logout, Settings */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* PWA Install Button */}
-        <PWAInstallButton variant="header" />
-
         {/* Automatic Google Sheets Sync Status (No manual button) */}
         <div
           className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-xl border transition-all select-none ${
