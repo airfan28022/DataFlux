@@ -41,6 +41,13 @@ export function getDriveDirectImageUrl(urlOrId: string): string {
 }
 
 /**
+ * Returns direct URL to the Google Drive Folder
+ */
+export function getDriveFolderUrl(folderId = DEFAULT_DRIVE_FOLDER_ID): string {
+  return `https://drive.google.com/drive/folders/${folderId}`;
+}
+
+/**
  * Default fallback image placeholder SVG
  */
 export const DEFAULT_AVATAR_PLACEHOLDER =

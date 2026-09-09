@@ -58,30 +58,35 @@ export const Navigation: React.FC<NavigationProps> = ({
     {
       id: 'dashboard',
       label: 'แดชบอร์ดหลัก',
+      shortLabel: 'แดชบอร์ด',
       icon: LayoutDashboard,
       desc: 'ภาพรวม & ปฏิทินกิจกรรม',
     },
     {
       id: 'weight-height',
       label: 'น้ำหนัก - ส่วนสูง',
+      shortLabel: 'น้ำหนัก/สูง',
       icon: Activity,
       desc: 'ตรวจวัด & วิเคราะห์ BMI',
     },
     {
       id: 'bank-attendance',
       label: 'เงินฝาก & เช็คชื่อ',
+      shortLabel: 'เงินฝาก/ชื่อ',
       icon: PiggyBank,
       desc: 'ธนาคาร & เช็คชื่อประจำวัน',
     },
     {
       id: 'scores',
       label: 'กรอกคะแนน & ตัดเกรด',
+      shortLabel: 'ตัดเกรด',
       icon: FileSpreadsheet,
       desc: 'ประเมินตัวชี้วัด & GPA',
     },
     {
       id: 'students',
       label: 'ข้อมูลนักเรียน',
+      shortLabel: 'ข้อมูล นร.',
       icon: Users,
       desc: 'ทะเบียน & บันทึกสุขภาพ',
     },
@@ -97,7 +102,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   };
 
   return (
-    <aside className="w-full md:w-64 lg:w-72 xl:w-80 shrink-0 bg-gradient-to-b from-emerald-900 via-[#064E3B] to-[#022c22] text-white border-r border-emerald-700/50 shadow-xl md:sticky md:top-0 md:h-screen flex flex-col justify-between z-40 overflow-y-auto scrollbar-none select-none">
+    <>
+      {/* Left Sidebar Navigation (Tablet & Desktop only: md:flex, sticky h-screen) */}
+      <aside className="hidden md:flex md:w-64 lg:w-72 xl:w-80 shrink-0 bg-gradient-to-b from-emerald-900 via-[#064E3B] to-[#022c22] text-white border-r border-emerald-700/50 shadow-xl md:sticky md:top-0 md:h-screen flex-col justify-between z-30 overflow-y-auto scrollbar-none select-none">
       {/* Top Branding Section */}
       <div className="p-4 sm:p-5 border-b border-emerald-700/40 bg-emerald-950/40">
         <div className="flex items-center gap-3">
@@ -264,5 +271,48 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
       </div>
     </aside>
+
+    {/* Mobile Bottom Navigation Bar (Mobile only: < md, fixed at bottom, persists and does not scroll away) */}
+    <nav
+      aria-label="เมนูหลักสำหรับมือถือ"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-emerald-100/90 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] px-1.5 pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom,0.45rem))] select-none"
+    >
+      <div className="grid grid-cols-5 gap-1 max-w-lg mx-auto">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleTabClick(item.id)}
+              className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer relative active:scale-95 ${
+                isActive
+                  ? 'text-emerald-700 font-bold'
+                  : 'text-slate-500 hover:text-emerald-600 font-medium'
+              }`}
+            >
+              {/* Active top pill indicator */}
+              {isActive && (
+                <span className="absolute -top-1.5 w-8 h-1 bg-emerald-600 rounded-full shadow-xs" />
+              )}
+              <div
+                className={`w-9 h-7 rounded-lg flex items-center justify-center transition-all ${
+                  isActive
+                    ? 'bg-emerald-100/80 text-emerald-700 shadow-2xs'
+                    : 'text-slate-500'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
+                {item.shortLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  </>
   );
 };

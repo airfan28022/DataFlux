@@ -154,7 +154,7 @@ export default function App() {
         />
 
         {/* Content Body */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24 md:pb-5">
           {activeTab === 'dashboard' && (
             <DashboardView onNavigate={setActiveTab} isAdmin={isAdmin} />
           )}
@@ -173,7 +173,7 @@ export default function App() {
         </main>
 
         {/* High Density Footer */}
-        <footer className="h-10 sm:h-11 bg-white border-t border-emerald-100 flex flex-wrap items-center justify-between px-4 sm:px-8 text-[10px] sm:text-[11px] text-gray-400 shrink-0 mt-auto gap-2">
+        <footer className="h-10 sm:h-11 bg-white border-t border-emerald-100 flex flex-wrap items-center justify-between px-4 sm:px-8 text-[10px] sm:text-[11px] text-gray-400 shrink-0 mt-auto gap-2 mb-16 md:mb-0">
           <div className="flex items-center gap-2">
             <span>ระบบหลังบ้านเชื่อมต่อ Google Drive & Sheets อัตโนมัติ</span>
             <span className="font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] border border-emerald-100">

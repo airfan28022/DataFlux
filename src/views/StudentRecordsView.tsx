@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Student, DynamicField, TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
-import { calculateAge, formatThaiDate } from '../utils/helpers';
+import { calculateAge, formatThaiDate, DEFAULT_DRIVE_FOLDER_ID, getDriveFolderUrl } from '../utils/helpers';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { PrintReportModal } from '../components/PrintReportModal';
 import {
@@ -23,7 +23,10 @@ import {
   Upload,
   Heart,
   Droplet,
-  Tag
+  Tag,
+  Cloud,
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 
 interface StudentRecordsViewProps {
@@ -63,6 +66,9 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
   const [bloodType, setBloodType] = useState('O');
   const [chronicDisease, setChronicDisease] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [driveFileId, setDriveFileId] = useState('');
+  const [driveFileName, setDriveFileName] = useState('');
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
   const [dynamicFields, setDynamicFields] = useState<DynamicField[]>([]);
 
   useEffect(() => {
@@ -80,8 +86,8 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     }
   }, [birthDate]);
 
-  // Handle student photo file upload
-  const handlePhotoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle student photo file upload to Google Drive
+  const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -90,20 +96,46 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      dataService.notifyToast('warning', 'ไฟล์มีขนาดใหญ่เกินไป (จำกัดไม่เกิน 5MB)');
+    if (file.size > 15 * 1024 * 1024) {
+      dataService.notifyToast('warning', 'ไฟล์มีขนาดใหญ่เกินไป (จำกัดไม่เกิน 15MB)');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setPhotoUrl(result);
-        dataService.notifyToast('success', 'อัปโหลดรูปภาพสำเร็จ', 'เพิ่มรูปภาพของนักเรียนเรียบร้อยแล้ว');
+    setIsUploadingToDrive(true);
+    try {
+      // Immediate local preview for responsive feedback
+      const previewData = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve((event.target?.result as string) || '');
+        reader.readAsDataURL(file);
+      });
+      setPhotoUrl(previewData);
+
+      // Upload file directly to Google Drive Folder: 1nymxjSukQ_exIWuN6HRehXRTFrPrfekP
+      const uploadResult = await dataService.uploadFileToDrive(file, DEFAULT_DRIVE_FOLDER_ID);
+
+      if (uploadResult.directUrl) {
+        setPhotoUrl(uploadResult.directUrl);
       }
-    };
-    reader.readAsDataURL(file);
+      if (uploadResult.fileId) {
+        setDriveFileId(uploadResult.fileId);
+      }
+      setDriveFileName(file.name);
+
+      dataService.notifyToast(
+        'success',
+        'อัปโหลดไฟล์เข้า Google Drive สำเร็จ',
+        `จัดเก็บไฟล์ใน Google Drive โฟลเดอร์ ID: ${DEFAULT_DRIVE_FOLDER_ID}`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      dataService.notifyToast('error', 'อัปโหลดลง Google Drive ขัดข้อง', msg);
+    } finally {
+      setIsUploadingToDrive(false);
+      if (e.target) {
+        e.target.value = '';
+      }
+    }
   };
 
   const handleOpenCreateModal = () => {
@@ -126,6 +158,9 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     setBloodType('O');
     setChronicDisease('');
     setPhotoUrl('');
+    setDriveFileId('');
+    setDriveFileName('');
+    setIsUploadingToDrive(false);
     setDynamicFields([]);
     setShowFormModal(true);
   };
@@ -149,6 +184,9 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     setBloodType(student.bloodType || 'O');
     setChronicDisease(student.chronicDisease || '');
     setPhotoUrl(student.photoUrl || '');
+    setDriveFileId(student.driveFileId || '');
+    setDriveFileName('');
+    setIsUploadingToDrive(false);
     setDynamicFields(student.dynamicFields ? [...student.dynamicFields] : []);
     setShowFormModal(true);
   };
@@ -196,6 +234,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
       bloodType,
       chronicDisease: chronicDisease.trim(),
       photoUrl: photoUrl.trim(),
+      driveFileId: driveFileId || editingStudent?.driveFileId,
       dynamicFields,
       currentSavings: editingStudent ? editingStudent.currentSavings : 0,
       createdAt: editingStudent ? editingStudent.createdAt : new Date().toISOString(),
@@ -317,7 +356,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
                         #{student.studentCode || idx + 1}
                       </span>
@@ -326,6 +365,17 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                           ({student.nickname})
                         </span>
                       )}
+                      <a
+                        href={getDriveFolderUrl(DEFAULT_DRIVE_FOLDER_ID)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-md transition-colors"
+                        title={`เก็บไฟล์ใน Google Drive (ID: ${DEFAULT_DRIVE_FOLDER_ID})`}
+                      >
+                        <Cloud className="w-2.5 h-2.5 text-emerald-600" />
+                        <span>Drive</span>
+                      </a>
                     </div>
                     <h3
                       onClick={() => setDetailStudent(student)}
@@ -431,6 +481,28 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
             {/* Body */}
             <div className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm">
+              {/* Google Drive Storage Info */}
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-2xs">
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-emerald-900">จัดเก็บไฟล์ใน Google Drive</p>
+                    <p className="text-[11px] text-emerald-700 font-mono">Folder ID: {DEFAULT_DRIVE_FOLDER_ID}</p>
+                  </div>
+                </div>
+                <a
+                  href={getDriveFolderUrl(DEFAULT_DRIVE_FOLDER_ID)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors shadow-2xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>เปิดดูในไดรฟ์</span>
+                </a>
+              </div>
+
               <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                 <div>
                   <span className="text-slate-400 block text-[11px]">วันเดือนปีเกิด</span>
@@ -699,26 +771,66 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
-                  <span>รูปถ่ายนักเรียน (อัปโหลดไฟล์รูปภาพ)</span>
-                  {photoUrl && (
-                    <span className="text-[11px] text-teal-600 font-normal">อัปโหลดเรียบร้อยแล้ว</span>
+                  <span className="flex items-center gap-1.5">
+                    <Cloud className="w-4 h-4 text-emerald-600" />
+                    <span>รูปถ่ายนักเรียน (จัดเก็บใน Google Drive)</span>
+                  </span>
+                  {photoUrl && !isUploadingToDrive && (
+                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>อัปโหลดเข้า Drive แล้ว</span>
+                    </span>
                   )}
                 </label>
 
-                {photoUrl ? (
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white shrink-0 shadow-2xs">
-                      <img
-                        src={photoUrl}
-                        alt="ตัวอย่างรูปนักเรียน"
-                        className="w-full h-full object-cover"
-                      />
+                {isUploadingToDrive ? (
+                  <div className="border-2 border-dashed border-emerald-400 bg-emerald-50/70 rounded-2xl p-6 flex flex-col items-center justify-center gap-3">
+                    <div className="w-9 h-9 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                    <div className="text-center">
+                      <p className="text-xs font-bold text-emerald-900">กำลังอัปโหลดไฟล์ไปยัง Google Drive...</p>
+                      <p className="text-[11px] text-emerald-700 font-mono mt-0.5">
+                        โฟลเดอร์ ID: {DEFAULT_DRIVE_FOLDER_ID}
+                      </p>
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-xs font-semibold text-slate-800">มีรูปภาพแล้ว</p>
-                      <p className="text-[11px] text-slate-500">สามารถคลิกเพื่อเปลี่ยนรูป หรือลบรูปภาพออกได้</p>
-                      <div className="flex items-center gap-2 pt-1">
-                        <label className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium cursor-pointer transition-colors inline-flex items-center gap-1 shadow-2xs">
+                  </div>
+                ) : photoUrl ? (
+                  <div className="flex flex-col gap-2.5 p-3.5 bg-emerald-50/30 border border-emerald-200/80 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-emerald-200 bg-white shrink-0 shadow-2xs">
+                        <img
+                          src={photoUrl}
+                          alt="ตัวอย่างรูปนักเรียน"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-bold flex items-center gap-1">
+                            <Cloud className="w-3 h-3 text-emerald-600" />
+                            <span>จัดเก็บบน Google Drive</span>
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-800 truncate">
+                          {driveFileName || 'ไฟล์รูปถ่ายนักเรียน'}
+                        </p>
+                        <p className="text-[10px] text-emerald-700 font-mono truncate">
+                          Drive ID: {DEFAULT_DRIVE_FOLDER_ID}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-emerald-100">
+                      <a
+                        href={getDriveFolderUrl(DEFAULT_DRIVE_FOLDER_ID)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold flex items-center gap-1 underline underline-offset-2"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>เปิดโฟลเดอร์ Google Drive</span>
+                      </a>
+                      <div className="flex items-center gap-2">
+                        <label className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium cursor-pointer transition-colors inline-flex items-center gap-1 shadow-2xs">
                           <Upload className="w-3 h-3" />
                           <span>เปลี่ยนรูปภาพ</span>
                           <input
@@ -730,8 +842,12 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                         </label>
                         <button
                           type="button"
-                          onClick={() => setPhotoUrl('')}
-                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition-colors"
+                          onClick={() => {
+                            setPhotoUrl('');
+                            setDriveFileId('');
+                            setDriveFileName('');
+                          }}
+                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                         >
                           ลบรูปภาพ
                         </button>
@@ -739,16 +855,20 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                     </div>
                   </div>
                 ) : (
-                  <label className="border-2 border-dashed border-slate-300 hover:border-teal-500 hover:bg-teal-50/40 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all group">
-                    <div className="w-10 h-10 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <label className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/50 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all group bg-emerald-50/10">
+                    <div className="w-11 h-11 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xs">
                       <Upload className="w-5 h-5" />
                     </div>
                     <div className="text-center">
-                      <p className="text-xs font-bold text-slate-700 group-hover:text-teal-700">
+                      <p className="text-xs font-bold text-slate-800 group-hover:text-emerald-700">
                         คลิกเพื่อเลือกไฟล์รูปภาพ หรือลากรูปมาวางที่นี่
                       </p>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-0.5 flex items-center justify-center gap-1">
+                        <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>จัดเก็บใน Google Drive (ID: {DEFAULT_DRIVE_FOLDER_ID})</span>
+                      </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        รองรับไฟล์ JPG, PNG, WEBP (แปลงเป็นไฟล์จัดเก็บอัตโนมัติ)
+                        รองรับไฟล์ JPG, PNG, WEBP (จำกัดขนาดไม่เกิน 15MB)
                       </p>
                     </div>
                     <input

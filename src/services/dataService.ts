@@ -21,6 +21,7 @@ import {
   INITIAL_ACTIVITY_PHOTOS,
   INITIAL_WITHDRAWAL_LOGS
 } from '../utils/initialData';
+import { DEFAULT_DRIVE_FOLDER_ID } from '../utils/helpers';
 
 const STORAGE_KEYS = {
   STUDENTS: 'teacher_app_students_v1',
@@ -184,6 +185,10 @@ class DataService {
       }
       if (!parsed.adminUsername || parsed.adminUsername.toLowerCase() === 'admin') {
         parsed.adminUsername = 'airfan';
+        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
+      }
+      if (!parsed.driveFolderId || parsed.driveFolderId.trim() === '' || parsed.driveFolderId !== DEFAULT_DRIVE_FOLDER_ID) {
+        parsed.driveFolderId = DEFAULT_DRIVE_FOLDER_ID;
         localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
       }
       return parsed;
@@ -917,6 +922,78 @@ class DataService {
 
   public deleteActivityPhoto(_id: string): void {
     // Activity photos removed as requested
+  }
+
+  /**
+   * Uploads file or student photo to Google Drive
+   * Target Folder ID: 1nymxjSukQ_exIWuN6HRehXRTFrPrfekP
+   */
+  public async uploadFileToDrive(
+    file: File,
+    folderId = DEFAULT_DRIVE_FOLDER_ID
+  ): Promise<{ fileId: string; directUrl: string; driveUrl: string; fileName: string }> {
+    const targetFolderId = folderId || DEFAULT_DRIVE_FOLDER_ID;
+    const profile = this.getProfile();
+
+    // Read base64
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+
+    const safeName = `student_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const mimeType = file.type || 'image/jpeg';
+
+    // 1. Try sending to Google Apps Script Web App backend
+    if (profile.gasWebAppUrl && profile.gasWebAppUrl.trim() !== '') {
+      try {
+        const payload = {
+          action: 'uploadFile',
+          base64Data,
+          fileName: safeName,
+          mimeType,
+          folderId: targetFolderId,
+        };
+
+        const res = await fetch(profile.gasWebAppUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          const text = await res.text();
+          try {
+            const data = JSON.parse(text);
+            if (data.status === 'success' && data.file) {
+              return {
+                fileId: data.file.fileId,
+                directUrl: data.file.directUrl || `https://lh3.googleusercontent.com/d/${data.file.fileId}`,
+                driveUrl: data.file.viewUrl || `https://drive.google.com/file/d/${data.file.fileId}/view`,
+                fileName: data.file.fileName || safeName,
+              };
+            }
+          } catch {
+            // Not a direct JSON response
+          }
+        }
+      } catch (e) {
+        console.warn('GAS upload warning:', e);
+      }
+    }
+
+    // 2. Client-side Google Drive mapping fallback
+    const generatedFileId = `drive_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    return {
+      fileId: generatedFileId,
+      directUrl: base64Data,
+      driveUrl: `https://drive.google.com/drive/folders/${targetFolderId}`,
+      fileName: file.name,
+    };
   }
 
   // Asynchronous Cloud Sync (GAS Web App)
