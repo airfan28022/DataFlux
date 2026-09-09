@@ -117,20 +117,19 @@ export function calculateAge(birthDateString: string): number {
 }
 
 /**
- * Calculates BMI and Thai health criteria for children/teens according to Department of Health, Ministry of Public Health Thailand
+ * Calculates BMI and Thai health criteria according to Department of Health, Ministry of Public Health Thailand
  * (เกณฑ์มาตรฐานอ้างอิงการเจริญเติบโต สำนักโภชนาการ กรมอนามัย กระทรวงสาธารณสุข)
  * 
+ * รองรับการแยกเกณฑ์ตามเพศ (ชาย / หญิง) และช่วงอายุวัยเรียน (เด็กชาย / เด็กหญิง)
  * สูตรคำนวณมาตรฐานสากล:
  * BMI = น้ำหนักตัว (กิโลกรัม) ÷ [ส่วนสูง (เมตร)]²
- * 
- * เกณฑ์การแปลผลดัชนีมวลกาย (BMI) สำหรับคนไทยและเอเชีย / กรมอนามัย:
- * - ผอม (Underweight): < 18.5
- * - สมส่วน (Normal / Healthy): 18.5 - 22.9
- * - ท้วม (Overweight): 23.0 - 24.9
- * - เริ่มอ้วน (Obesity Class 1): 25.0 - 29.9
- * - อ้วน (Obesity Class 2): ≥ 30.0
  */
-export function calculateBMI(weightKg: number | '', heightCm: number | ''): {
+export function calculateBMI(
+  weightKg: number | '',
+  heightCm: number | '',
+  gender?: 'ชาย' | 'หญิง' | string,
+  age?: number | ''
+): {
   bmi: number;
   status: string;
   badgeColor: string;
@@ -146,41 +145,93 @@ export function calculateBMI(weightKg: number | '', heightCm: number | ''): {
   // Standard BMI formula: weight (kg) / [height (m)]^2
   const rawBmi = w / (heightM * heightM);
   const bmi = Number(rawBmi.toFixed(2));
+  const numericAge = typeof age === 'number' && age > 0 ? age : undefined;
 
-  if (bmi < 18.5) {
+  // Department of Health Thailand growth reference criteria by gender and age
+  let underweightThreshold = 18.5;
+  let normalUpperThreshold = 22.9;
+  let overweightUpperThreshold = 24.9;
+  let obese1UpperThreshold = 29.9;
+  let labelPrefix = gender ? `เพศ${gender}` : 'เกณฑ์ทั่วไป';
+
+  if (gender === 'ชาย') {
+    if (numericAge && numericAge >= 5 && numericAge <= 17) {
+      labelPrefix = `เด็กชาย (${numericAge} ปี)`;
+      if (numericAge <= 7) {
+        underweightThreshold = 13.5; normalUpperThreshold = 18.0; overweightUpperThreshold = 19.8; obese1UpperThreshold = 22.0;
+      } else if (numericAge <= 9) {
+        underweightThreshold = 14.0; normalUpperThreshold = 19.2; overweightUpperThreshold = 21.5; obese1UpperThreshold = 24.0;
+      } else if (numericAge <= 11) {
+        underweightThreshold = 14.8; normalUpperThreshold = 20.8; overweightUpperThreshold = 23.5; obese1UpperThreshold = 26.0;
+      } else if (numericAge <= 13) {
+        underweightThreshold = 15.5; normalUpperThreshold = 21.8; overweightUpperThreshold = 24.5; obese1UpperThreshold = 27.2;
+      } else {
+        underweightThreshold = 16.5; normalUpperThreshold = 22.5; overweightUpperThreshold = 25.0; obese1UpperThreshold = 28.5;
+      }
+    } else {
+      labelPrefix = 'เพศชาย';
+      underweightThreshold = 18.5;
+      normalUpperThreshold = 22.9;
+      overweightUpperThreshold = 24.9;
+      obese1UpperThreshold = 29.9;
+    }
+  } else if (gender === 'หญิง') {
+    if (numericAge && numericAge >= 5 && numericAge <= 17) {
+      labelPrefix = `เด็กหญิง (${numericAge} ปี)`;
+      if (numericAge <= 7) {
+        underweightThreshold = 13.2; normalUpperThreshold = 18.2; overweightUpperThreshold = 20.0; obese1UpperThreshold = 22.5;
+      } else if (numericAge <= 9) {
+        underweightThreshold = 13.8; normalUpperThreshold = 19.5; overweightUpperThreshold = 22.0; obese1UpperThreshold = 24.5;
+      } else if (numericAge <= 11) {
+        underweightThreshold = 14.7; normalUpperThreshold = 21.2; overweightUpperThreshold = 23.8; obese1UpperThreshold = 26.5;
+      } else if (numericAge <= 13) {
+        underweightThreshold = 15.3; normalUpperThreshold = 22.2; overweightUpperThreshold = 25.0; obese1UpperThreshold = 27.8;
+      } else {
+        underweightThreshold = 16.2; normalUpperThreshold = 22.5; overweightUpperThreshold = 25.0; obese1UpperThreshold = 28.5;
+      }
+    } else {
+      labelPrefix = 'เพศหญิง';
+      underweightThreshold = 18.0;
+      normalUpperThreshold = 22.5;
+      overweightUpperThreshold = 24.9;
+      obese1UpperThreshold = 29.9;
+    }
+  }
+
+  if (bmi < underweightThreshold) {
     return {
       bmi,
       status: 'ผอม',
       badgeColor: 'bg-amber-50 text-amber-700 border border-amber-200',
-      criteria: 'น้ำหนักน้อยกว่าเกณฑ์ (< 18.5)'
+      criteria: `${labelPrefix}: ผอม (< ${underweightThreshold})`
     };
-  } else if (bmi >= 18.5 && bmi < 23.0) {
+  } else if (bmi >= underweightThreshold && bmi <= normalUpperThreshold) {
     return {
       bmi,
       status: 'สมส่วน',
       badgeColor: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-      criteria: 'น้ำหนักตามเกณฑ์มาตรฐาน (18.5 - 22.9)'
+      criteria: `${labelPrefix}: สมส่วน (${underweightThreshold} - ${normalUpperThreshold})`
     };
-  } else if (bmi >= 23.0 && bmi < 25.0) {
+  } else if (bmi > normalUpperThreshold && bmi <= overweightUpperThreshold) {
     return {
       bmi,
       status: 'ท้วม',
       badgeColor: 'bg-yellow-50 text-yellow-800 border border-yellow-200',
-      criteria: 'น้ำหนักเกินเกณฑ์ (23.0 - 24.9)'
+      criteria: `${labelPrefix}: ท้วม (${(normalUpperThreshold + 0.1).toFixed(1)} - ${overweightUpperThreshold})`
     };
-  } else if (bmi >= 25.0 && bmi < 30.0) {
+  } else if (bmi > overweightUpperThreshold && bmi <= obese1UpperThreshold) {
     return {
       bmi,
       status: 'เริ่มอ้วน',
       badgeColor: 'bg-orange-50 text-orange-700 border border-orange-200',
-      criteria: 'เริ่มมีภาวะอ้วน (25.0 - 29.9)'
+      criteria: `${labelPrefix}: เริ่มอ้วน (${(overweightUpperThreshold + 0.1).toFixed(1)} - ${obese1UpperThreshold})`
     };
   } else {
     return {
       bmi,
       status: 'อ้วน',
       badgeColor: 'bg-rose-50 text-rose-700 border border-rose-200',
-      criteria: 'ภาวะอ้วน (≥ 30.0)'
+      criteria: `${labelPrefix}: อ้วน (> ${obese1UpperThreshold})`
     };
   }
 }

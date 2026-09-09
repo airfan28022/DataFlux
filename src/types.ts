@@ -37,11 +37,12 @@ export interface WeightHeightRow {
   order: number;
   studentId?: string;
   studentName: string;
+  gender?: 'ชาย' | 'หญิง';
   age: number | '';
   weight: number | ''; // กก.
   height: number | ''; // ซม.
   bmi?: number;
-  status?: string; // ผอม, สมส่วน, ท้วม, อ้วน
+  status?: string; // ผอม, สมส่วน, ท้วม, เริ่มอ้วน, อ้วน
 }
 
 export interface WeightHeightRecord {

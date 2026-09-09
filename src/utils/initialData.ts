@@ -417,21 +417,21 @@ export const INITIAL_WEIGHT_HEIGHT: WeightHeightRecord = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   rows: [
-    { id: 'r1', order: 1, studentId: 'std-01', studentName: 'เด็กชายกิตติศักดิ์ รักษ์ความดี', age: 12, weight: 38, height: 146, bmi: 17.8, status: 'ผอม/น้ำหนักน้อย' },
-    { id: 'r2', order: 2, studentId: 'std-02', studentName: 'เด็กหญิงณัชชา เจริญสุข', age: 12, weight: 41, height: 148, bmi: 18.7, status: 'สมส่วน' },
-    { id: 'r3', order: 3, studentId: 'std-03', studentName: 'เด็กชายธนกฤต ศิริรัตน์', age: 12, weight: 44, height: 151, bmi: 19.3, status: 'สมส่วน' },
-    { id: 'r4', order: 4, studentId: 'std-04', studentName: 'เด็กหญิงปภาพินท์ คงมั่น', age: 11, weight: 39, height: 145, bmi: 18.5, status: 'สมส่วน' },
-    { id: 'r5', order: 5, studentId: 'std-05', studentName: 'เด็กชายภัทรพล วงศ์สุวรรณ', age: 12, weight: 52, height: 149, bmi: 23.4, status: 'ท้วม/น้ำหนักเกิน' },
-    { id: 'r6', order: 6, studentId: 'std-06', studentName: 'เด็กหญิงวรัญญา วิริยะกุล', age: 12, weight: 37, height: 144, bmi: 17.8, status: 'ผอม/น้ำหนักน้อย' },
-    { id: 'r7', order: 7, studentId: 'std-07', studentName: 'เด็กชายศุภวิชญ์ ทองดี', age: 11, weight: 43, height: 150, bmi: 19.1, status: 'สมส่วน' },
-    { id: 'r8', order: 8, studentId: 'std-08', studentName: 'เด็กหญิงสิริกร มณีรัตน์', age: 12, weight: 42, height: 147, bmi: 19.4, status: 'สมส่วน' },
-    { id: 'r9', order: 9, studentId: 'std-09', studentName: 'เด็กชายอัครเดช ปัญญาวงศ์', age: 12, weight: 58, height: 153, bmi: 24.8, status: 'ท้วม/น้ำหนักเกิน' },
-    { id: 'r10', order: 10, studentId: 'std-10', studentName: 'เด็กหญิงอนัญญา พูลผล', age: 11, weight: 36, height: 143, bmi: 17.6, status: 'ผอม/น้ำหนักน้อย' },
-    { id: 'r11', order: 11, studentId: 'std-11', studentName: 'เด็กชายจิรายุ ตั้งใจมั่น', age: 12, weight: 45, height: 152, bmi: 19.5, status: 'สมส่วน' },
-    { id: 'r12', order: 12, studentId: 'std-12', studentName: 'เด็กหญิงพิมพ์มาดา โสภณวิวัฒน์', age: 11, weight: 40, height: 147, bmi: 18.5, status: 'สมส่วน' },
-    { id: 'r13', order: 13, studentId: 'std-13', studentName: 'เด็กชายชยพล แสงสุริยา', age: 12, weight: 46, height: 151, bmi: 20.2, status: 'สมส่วน' },
-    { id: 'r14', order: 14, studentId: 'std-14', studentName: 'เด็กหญิงธนิดา เกียรติขจร', age: 12, weight: 43, height: 149, bmi: 19.4, status: 'สมส่วน' },
-    { id: 'r15', order: 15, studentId: 'std-15', studentName: 'เด็กชายพงศกร รุ่งโรจน์สกุล', age: 11, weight: 64, height: 154, bmi: 27.0, status: 'เริ่มอ้วน' }
+    { id: 'r1', order: 1, studentId: 'std-01', studentName: 'เด็กชายกิตติศักดิ์ รักษ์ความดี', gender: 'ชาย', age: 12, weight: 38, height: 146, bmi: 17.8, status: 'สมส่วน' },
+    { id: 'r2', order: 2, studentId: 'std-02', studentName: 'เด็กหญิงณัชชา เจริญสุข', gender: 'หญิง', age: 12, weight: 41, height: 148, bmi: 18.7, status: 'สมส่วน' },
+    { id: 'r3', order: 3, studentId: 'std-03', studentName: 'เด็กชายธนกฤต ศิริรัตน์', gender: 'ชาย', age: 12, weight: 44, height: 151, bmi: 19.3, status: 'สมส่วน' },
+    { id: 'r4', order: 4, studentId: 'std-04', studentName: 'เด็กหญิงปภาพินท์ คงมั่น', gender: 'หญิง', age: 11, weight: 39, height: 145, bmi: 18.5, status: 'สมส่วน' },
+    { id: 'r5', order: 5, studentId: 'std-05', studentName: 'เด็กชายภัทรพล วงศ์สุวรรณ', gender: 'ชาย', age: 12, weight: 52, height: 149, bmi: 23.4, status: 'ท้วม' },
+    { id: 'r6', order: 6, studentId: 'std-06', studentName: 'เด็กหญิงวรัญญา วิริยะกุล', gender: 'หญิง', age: 12, weight: 37, height: 144, bmi: 17.8, status: 'สมส่วน' },
+    { id: 'r7', order: 7, studentId: 'std-07', studentName: 'เด็กชายศุภวิชญ์ ทองดี', gender: 'ชาย', age: 11, weight: 43, height: 150, bmi: 19.1, status: 'สมส่วน' },
+    { id: 'r8', order: 8, studentId: 'std-08', studentName: 'เด็กหญิงสิริกร มณีรัตน์', gender: 'หญิง', age: 12, weight: 42, height: 147, bmi: 19.4, status: 'สมส่วน' },
+    { id: 'r9', order: 9, studentId: 'std-09', studentName: 'เด็กชายอัครเดช ปัญญาวงศ์', gender: 'ชาย', age: 12, weight: 58, height: 153, bmi: 24.8, status: 'เริ่มอ้วน' },
+    { id: 'r10', order: 10, studentId: 'std-10', studentName: 'เด็กหญิงอนัญญา พูลผล', gender: 'หญิง', age: 11, weight: 36, height: 143, bmi: 17.6, status: 'สมส่วน' },
+    { id: 'r11', order: 11, studentId: 'std-11', studentName: 'เด็กชายจิรายุ ตั้งใจมั่น', gender: 'ชาย', age: 12, weight: 45, height: 152, bmi: 19.5, status: 'สมส่วน' },
+    { id: 'r12', order: 12, studentId: 'std-12', studentName: 'เด็กหญิงพิมพ์มาดา โสภณวิวัฒน์', gender: 'หญิง', age: 11, weight: 40, height: 147, bmi: 18.5, status: 'สมส่วน' },
+    { id: 'r13', order: 13, studentId: 'std-13', studentName: 'เด็กชายชยพล แสงสุริยา', gender: 'ชาย', age: 12, weight: 46, height: 151, bmi: 20.2, status: 'สมส่วน' },
+    { id: 'r14', order: 14, studentId: 'std-14', studentName: 'เด็กหญิงธนิดา เกียรติขจร', gender: 'หญิง', age: 12, weight: 43, height: 149, bmi: 19.4, status: 'สมส่วน' },
+    { id: 'r15', order: 15, studentId: 'std-15', studentName: 'เด็กชายพงศกร รุ่งโรจน์สกุล', gender: 'ชาย', age: 11, weight: 64, height: 154, bmi: 27.0, status: 'อ้วน' }
   ]
 };
 

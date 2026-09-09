@@ -69,11 +69,21 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
 
     for (let i = 0; i < 15; i++) {
       const student = currentStudents[i];
+      let initialGender: 'ชาย' | 'หญิง' | undefined = undefined;
+      if (student) {
+        if (student.prefix === 'เด็กชาย' || student.prefix === 'นาย' || student.gender === 'male') {
+          initialGender = 'ชาย';
+        } else if (student.prefix === 'เด็กหญิง' || student.prefix === 'นางสาว' || student.gender === 'female') {
+          initialGender = 'หญิง';
+        }
+      }
+
       initialRows.push({
         id: `row-${i + 1}`,
         order: i + 1,
         studentId: student?.id,
         studentName: student ? `${student.prefix}${student.firstName} ${student.lastName}` : '',
+        gender: initialGender,
         age: student ? student.age : '',
         weight: '',
         height: '',
@@ -114,12 +124,21 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
     const nextOrder = tableRows.length + 1;
     const currentStudents = dataService.getStudents();
     const nextStudent = currentStudents[tableRows.length];
+    let nextGender: 'ชาย' | 'หญิง' | undefined = undefined;
+    if (nextStudent) {
+      if (nextStudent.prefix === 'เด็กชาย' || nextStudent.prefix === 'นาย' || nextStudent.gender === 'male') {
+        nextGender = 'ชาย';
+      } else if (nextStudent.prefix === 'เด็กหญิง' || nextStudent.prefix === 'นางสาว' || nextStudent.gender === 'female') {
+        nextGender = 'หญิง';
+      }
+    }
 
     const newRow: WeightHeightRow = {
       id: `row-${Date.now()}`,
       order: nextOrder,
       studentId: nextStudent?.id,
       studentName: nextStudent ? `${nextStudent.prefix}${nextStudent.firstName} ${nextStudent.lastName}` : '',
+      gender: nextGender,
       age: nextStudent ? nextStudent.age : '',
       weight: '',
       height: '',
@@ -134,18 +153,47 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
     const updated = [...tableRows];
     const row = { ...updated[index], [field]: value };
 
-    // Calculate BMI and status if weight or height changed
-    if (field === 'weight' || field === 'height') {
-      const w = field === 'weight' ? Number(value) : Number(row.weight);
-      const h = field === 'height' ? Number(value) : Number(row.height);
-      if (w > 0 && h > 0) {
-        const result = calculateBMI(w, h);
-        row.bmi = result.bmi;
-        row.status = result.status;
-      } else {
-        row.bmi = undefined;
-        row.status = undefined;
+    // Auto-detect gender when studentName changes (เด็กชาย=ชาย, เด็กหญิง=หญิง)
+    if (field === 'studentName') {
+      const name = String(value || '').trim();
+      if (
+        name.startsWith('เด็กชาย') ||
+        name.includes('เด็กชาย') ||
+        name.startsWith('ด.ช.') ||
+        name.includes('ด.ช.') ||
+        name.startsWith('นาย ') ||
+        name.startsWith('นาย')
+      ) {
+        row.gender = 'ชาย';
+      } else if (
+        name.startsWith('เด็กหญิง') ||
+        name.includes('เด็กหญิง') ||
+        name.startsWith('ด.ญ.') ||
+        name.includes('ด.ญ.') ||
+        name.startsWith('นางสาว') ||
+        name.startsWith('น.ส.')
+      ) {
+        row.gender = 'หญิง';
       }
+    }
+
+    // Calculate BMI and status based on weight, height, gender and age
+    const w = field === 'weight' ? (value === '' ? '' : Number(value)) : row.weight;
+    const h = field === 'height' ? (value === '' ? '' : Number(value)) : row.height;
+    const g = field === 'gender' ? value : row.gender;
+    const a = field === 'age' ? (value === '' ? '' : Number(value)) : row.age;
+
+    const numW = Number(w);
+    const numH = Number(h);
+    const numA = typeof a === 'number' && a > 0 ? a : undefined;
+
+    if (numW > 0 && numH > 0) {
+      const result = calculateBMI(numW, numH, g, numA);
+      row.bmi = result.bmi;
+      row.status = result.status;
+    } else {
+      row.bmi = undefined;
+      row.status = undefined;
     }
 
     updated[index] = row;
@@ -325,20 +373,21 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
             </div>
           </div>
 
-          {/* 5 Columns Table */}
+          {/* 6 Columns Table with Gender Column */}
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
-                  <th className="py-3 px-3 w-14 text-center">ลำดับ</th>
-                  <th className="py-3 px-3 min-w-[220px]">ชื่อ-สกุล นักเรียน</th>
-                  <th className="py-3 px-3 w-20 text-center">อายุ (ปี)</th>
-                  <th className="py-3 px-3 w-32 text-center">น้ำหนัก (กก.)</th>
-                  <th className="py-3 px-3 w-32 text-center">ส่วนสูง (ซม.)</th>
+                  <th className="py-3 px-3 w-12 text-center">ลำดับ</th>
+                  <th className="py-3 px-3 min-w-[210px]">ชื่อ-สกุล นักเรียน</th>
+                  <th className="py-3 px-2 w-28 text-center">เพศ (ชาย/หญิง)</th>
+                  <th className="py-3 px-2 w-16 text-center">อายุ (ปี)</th>
+                  <th className="py-3 px-2 w-28 text-center">น้ำหนัก (กก.)</th>
+                  <th className="py-3 px-2 w-28 text-center">ส่วนสูง (ซม.)</th>
                   <th className="py-3 px-3 min-w-[130px] text-center bg-emerald-50/50 text-emerald-800">
                     BMI / ภาวะโภชนาการ
                   </th>
-                  <th className="py-3 px-3 w-14 text-center">ลบ</th>
+                  <th className="py-3 px-2 w-12 text-center">ลบ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -354,7 +403,35 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                         className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 focus:bg-white text-xs outline-hidden"
                       />
                     </td>
-                    <td className="py-2.5 px-3 text-center">
+                    <td className="py-2.5 px-2 text-center">
+                      <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => handleRowChange(index, 'gender', 'ชาย')}
+                          className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                            row.gender === 'ชาย'
+                              ? 'bg-sky-600 text-white shadow-xs'
+                              : 'text-slate-500 hover:text-sky-700'
+                          }`}
+                          title="กำหนดเป็นเพศชาย (เด็กชาย / นาย)"
+                        >
+                          👦 ชาย
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRowChange(index, 'gender', 'หญิง')}
+                          className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                            row.gender === 'หญิง'
+                              ? 'bg-rose-500 text-white shadow-xs'
+                              : 'text-slate-500 hover:text-rose-700'
+                          }`}
+                          title="กำหนดเป็นเพศหญิง (เด็กหญิง / นางสาว)"
+                        >
+                          👧 หญิง
+                        </button>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
                       <input
                         type="number"
                         min="3"
@@ -364,10 +441,10 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                           handleRowChange(index, 'age', e.target.value ? Number(e.target.value) : '')
                         }
                         placeholder="12"
-                        className="w-16 mx-auto text-center px-2 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs outline-hidden"
+                        className="w-14 mx-auto text-center px-1.5 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs outline-hidden"
                       />
                     </td>
-                    <td className="py-2.5 px-3 text-center">
+                    <td className="py-2.5 px-2 text-center">
                       <input
                         type="number"
                         step="0.1"
@@ -378,10 +455,10 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                           handleRowChange(index, 'weight', e.target.value ? Number(e.target.value) : '')
                         }
                         placeholder="กก."
-                        className="w-24 mx-auto text-center font-semibold text-slate-800 px-2 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs outline-hidden"
+                        className="w-20 mx-auto text-center font-semibold text-slate-800 px-1.5 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs outline-hidden"
                       />
                     </td>
-                    <td className="py-2.5 px-3 text-center">
+                    <td className="py-2.5 px-2 text-center">
                       <input
                         type="number"
                         step="0.5"
@@ -392,7 +469,7 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                           handleRowChange(index, 'height', e.target.value ? Number(e.target.value) : '')
                         }
                         placeholder="ซม."
-                        className="w-24 mx-auto text-center font-semibold text-slate-800 px-2 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs outline-hidden"
+                        className="w-20 mx-auto text-center font-semibold text-slate-800 px-1.5 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs outline-hidden"
                       />
                     </td>
                     <td className="py-2.5 px-3 text-center bg-emerald-50/20">
@@ -557,6 +634,7 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
               <tr className="bg-slate-100 border-b border-slate-400 font-bold">
                 <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
                 <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
+                <th className="border border-slate-400 p-2 text-center w-16">เพศ</th>
                 <th className="border border-slate-400 p-2 text-center w-16">อายุ (ปี)</th>
                 <th className="border border-slate-400 p-2 text-center w-24">น้ำหนัก (กก.)</th>
                 <th className="border border-slate-400 p-2 text-center w-24">ส่วนสูง (ซม.)</th>
@@ -569,6 +647,7 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                 <tr key={row.id} className="border-b border-slate-300">
                   <td className="border border-slate-300 p-1.5 text-center">{i + 1}</td>
                   <td className="border border-slate-300 p-1.5 font-medium">{row.studentName || '-'}</td>
+                  <td className="border border-slate-300 p-1.5 text-center">{row.gender || '-'}</td>
                   <td className="border border-slate-300 p-1.5 text-center">{row.age || '-'}</td>
                   <td className="border border-slate-300 p-1.5 text-center font-semibold">{row.weight || '-'}</td>
                   <td className="border border-slate-300 p-1.5 text-center font-semibold">{row.height || '-'}</td>
