@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
 import { DEFAULT_DRIVE_FOLDER_ID, getDriveFolderUrl } from '../utils/helpers';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   Settings,
   KeyRound,
@@ -12,7 +13,9 @@ import {
   FolderOpen,
   ExternalLink,
   Save,
-  HardDrive
+  HardDrive,
+  Smartphone,
+  Cloud
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -27,7 +30,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'storage'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'storage' | 'app'>('profile');
   const [driveFolderIdInput, setDriveFolderIdInput] = useState(profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID);
   const [driveSavedMsg, setDriveSavedMsg] = useState(false);
 
@@ -132,6 +135,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <FolderOpen className="w-4 h-4" /> คลังไฟล์ Google Drive
+          </button>
+          <button
+            onClick={() => setActiveTab('app')}
+            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'app'
+                ? 'border-emerald-600 text-emerald-700 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Smartphone className="w-4 h-4" /> ดาวน์โหลดแอป & Cloudflare
           </button>
         </div>
 
@@ -335,6 +348,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* TAB 4: PWA Mobile/Tablet App & Cloudflare */}
+          {activeTab === 'app' && (
+            <div className="space-y-4">
+              <PWAInstallButton variant="settings" />
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-5 h-5 text-amber-500" />
+                  <h4 className="font-bold text-slate-800 text-sm">
+                    แนวทางการเผยแพร่ผ่าน Cloudflare Pages (ฟรี 100%)
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  เพื่อให้ทุกคนสามารถเปิดลิงก์และกด <strong>"ติดตั้งเป็นแอป"</strong> บนโทรศัพท์มือถือหรือแท็บเล็ตได้ทันที แนะนำให้นำขึ้นผ่าน <strong>Cloudflare Pages</strong> เพราะมีข้อดีคือ:
+                </p>
+
+                <ul className="space-y-2 text-xs text-slate-600 list-disc list-inside">
+                  <li>
+                    <strong>มี HTTPS (SSL) ฟรีอัตโนมัติ:</strong> PWA บังคับให้ใช้ HTTPS เสมอ Cloudflare จัดการให้ทันที ไม่ต้องซื้อใบรับรอง
+                  </li>
+                  <li>
+                    <strong>ความเร็วสูงระดับ Global CDN:</strong> โหลดเร็วทันทีทั้งในและต่างประเทศ มีแคชอัจฉริยะ
+                  </li>
+                  <li>
+                    <strong>มีไฟล์ _redirects รองรับแล้ว:</strong> โฟลเดอร์ public มีการกำหนด Routing สำหรับ SPA และ Vite ไว้พร้อมแล้ว
+                  </li>
+                  <li>
+                    <strong>ผูก Custom Domain ได้ฟรี:</strong> เช่น <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded font-mono">class.school.ac.th</code>
+                  </li>
+                </ul>
+              </div>
             </div>
           )}
         </div>

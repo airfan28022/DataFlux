@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { TeacherProfile, Student } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavigationProps {
   activeTab: string;
@@ -175,6 +176,9 @@ export const Navigation: React.FC<NavigationProps> = ({
             })}
           </div>
         </div>
+
+        {/* PWA App Download Button */}
+        <PWAInstallButton variant="sidebar" />
 
         {/* Summary Card Box (Req: ใส่ข้อความสรุปๆ เพื่อให้หน้าเต็มและสวยงาม) */}
         <div className="bg-emerald-950/60 border border-emerald-700/50 rounded-2xl p-3.5 space-y-3 shadow-inner">

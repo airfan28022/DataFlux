@@ -4,6 +4,7 @@ import { Navigation } from './components/Navigation';
 import { ToastContainer } from './components/ToastContainer';
 import { SweetAlertModal } from './components/SweetAlertModal';
 import { SettingsModal } from './components/SettingsModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { DashboardView } from './views/DashboardView';
 import { WeightHeightView } from './views/WeightHeightView';
 import { StudentRecordsView } from './views/StudentRecordsView';
@@ -197,6 +198,7 @@ export default function App() {
         onClose={() => setShowSettings(false)}
       />
 
+      <OfflineIndicator />
       <ToastContainer />
       <SweetAlertModal />
     </div>
