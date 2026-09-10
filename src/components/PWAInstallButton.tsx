@@ -74,9 +74,14 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
       {variant === 'settings' && (
         <div className="p-4 bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border border-emerald-200/80 rounded-2xl space-y-3">
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
-                <Smartphone className="w-5 h-5" />
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-sm border border-emerald-200 bg-[#A8CBAB] shrink-0">
+                <img
+                  src="/app-logo.png"
+                  alt="ครู"
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">ดาวน์โหลดและติดตั้งเป็น Application</h4>
@@ -112,9 +117,14 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
           <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden">
             {/* Header */}
             <div className="p-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center text-white backdrop-blur-xs">
-                  <Smartphone className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-md border border-white/40 bg-[#A8CBAB] shrink-0">
+                  <img
+                    src="/app-logo.png"
+                    alt="ครู"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div>
                   <h3 className="font-bold text-base leading-tight">

@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "entities": {
+    "student": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentCode": { "type": "string" },
+        "prefix": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "nickname": { "type": "string" },
+        "gender": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "age": { "type": "number" },
+        "livesWith": { "type": "string" },
+        "commuteMethod": { "type": "string" },
+        "dailyAllowance": { "type": "number" },
+        "parentOccupation": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "currentSavings": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "studentCode", "firstName", "lastName"]
+    },
+    "attendanceBank": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "attendance": { "type": "object" },
+        "deposits": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["date"]
+    },
+    "weightHeight": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "term": { "type": "string" },
+        "rows": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "date"]
+    },
+    "scoreSheet": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "term": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "subjectName"]
+    },
+    "withdrawalLog": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "studentId", "amount"]
+    },
+    "calendarEvent": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "title", "date"]
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "teacherName": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "classroomName": { "type": "string" },
+        "academicYear": { "type": "string" }
+      },
+      "required": ["teacherName", "classroomName"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "student",
+      "description": "Student records for the classroom"
+    },
+    "/attendanceBank/{date}": {
+      "schema": "attendanceBank",
+      "description": "Daily attendance and deposit records"
+    },
+    "/weightHeight/{recordId}": {
+      "schema": "weightHeight",
+      "description": "Physical measurement records (weight/height)"
+    },
+    "/scoreSheets/{sheetId}": {
+      "schema": "scoreSheet",
+      "description": "Student academic scores"
+    },
+    "/withdrawalLogs/{logId}": {
+      "schema": "withdrawalLog",
+      "description": "Student savings withdrawal records"
+    },
+    "/calendarEvents/{eventId}": {
+      "schema": "calendarEvent",
+      "description": "Classroom calendar events"
+    },
+    "/settings/{settingId}": {
+      "schema": "profile",
+      "description": "Teacher profile and classroom metadata"
+    }
+  }
+}

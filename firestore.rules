@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Enable cross-device real-time sync for classroom data across all browsers and devices
+    match /students/{studentId} {
+      allow read, write: if true;
+    }
+    match /attendanceBank/{date} {
+      allow read, write: if true;
+    }
+    match /weightHeight/{recordId} {
+      allow read, write: if true;
+    }
+    match /scoreSheets/{sheetId} {
+      allow read, write: if true;
+    }
+    match /withdrawalLogs/{logId} {
+      allow read, write: if true;
+    }
+    match /withdrawalPendingDays/{pendingId} {
+      allow read, write: if true;
+    }
+    match /calendarEvents/{eventId} {
+      allow read, write: if true;
+    }
+    match /activityPhotos/{photoId} {
+      allow read, write: if true;
+    }
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

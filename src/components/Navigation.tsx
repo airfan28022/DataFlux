@@ -108,8 +108,13 @@ export const Navigation: React.FC<NavigationProps> = ({
       {/* Top Branding Section */}
       <div className="p-4 sm:p-5 border-b border-emerald-700/40 bg-emerald-950/40">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-gradient-to-tr from-emerald-500 to-teal-400 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-950/50 shrink-0 border border-emerald-300/40">
-            <GraduationCap className="w-6 h-6" />
+          <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-lg shadow-emerald-950/50 shrink-0 border border-emerald-300/40 bg-[#A8CBAB]">
+            <img
+              src="/app-logo.png"
+              alt="ครู"
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div className="min-w-0">
             <h1 className="text-sm sm:text-base font-black text-white tracking-tight leading-tight truncate">

@@ -86,8 +86,13 @@ export const Header: React.FC<HeaderProps> = ({
         className="flex items-center gap-3 cursor-pointer"
         onClick={() => setActiveTab && setActiveTab('dashboard')}
       >
-        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xs shrink-0">
-          <GraduationCap className="w-6 h-6" />
+        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-xs shrink-0 border border-emerald-200/80 bg-[#A8CBAB]">
+          <img
+            src="/app-logo.png"
+            alt="ครู"
+            className="w-full h-full object-cover"
+            referrerPolicy="no-referrer"
+          />
         </div>
         <div>
           <h1 className="text-base sm:text-lg font-bold text-gray-900 leading-tight truncate max-w-[200px] sm:max-w-md">
@@ -101,26 +106,14 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right side: Auto-sync indicator, Clock, Admin user pill, Logout, Settings */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Automatic Google Sheets Sync Status (No manual button) */}
+        {/* Real-time Cloud Sync Badge across all devices */}
         <div
-          className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-xl border transition-all select-none ${
-            syncStatus === 'syncing'
-              ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-          }`}
-          title="ระบบซิงค์ข้อมูลกับ Google Sheets อัตโนมัติเมื่อมีการเพิ่ม แก้ไข หรือลบข้อมูล"
+          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-xl border bg-emerald-50 text-emerald-800 border-emerald-200/80 select-none shadow-2xs"
+          title="ข้อมูลเชื่อมต่อกันแบบเรียลไทม์ ลบหรือแก้ไขบน Laptop จะอัปเดตบน iPad ทันที"
         >
-          {syncStatus === 'syncing' ? (
-            <>
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
-              <span className="hidden md:inline">กำลังซิงค์ Sheets...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden md:inline">ซิงค์ Sheets อัตโนมัติ</span>
-            </>
-          )}
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+          <span className="hidden md:inline font-semibold">ซิงค์เรียลไทม์ทุกอุปกรณ์</span>
+          <span className="md:hidden font-semibold">ซิงค์สด</span>
         </div>
 
         {/* Real-time Clock */}

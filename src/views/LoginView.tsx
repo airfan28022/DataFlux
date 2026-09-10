@@ -84,10 +84,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
 
       {/* Main Login Card */}
       <div className="w-full max-w-md bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/20 text-slate-800 relative z-10 transition-all">
-        {/* Header Branding */}
+        {/* Header Branding with Official Kru Logo */}
         <div className="text-center mb-6">
-          <div className="w-14 h-14 mx-auto mb-3.5 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/30">
-            <GraduationCap className="w-7 h-7" />
+          <div className="w-24 h-24 mx-auto mb-4 rounded-3xl overflow-hidden shadow-xl shadow-emerald-950/20 border-2 border-emerald-100/70 p-1 bg-[#A8CBAB] transition-transform hover:scale-105 duration-200">
+            <img
+              src="/app-logo.png"
+              alt="ครู"
+              className="w-full h-full object-cover rounded-2xl"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
             ระบบบริหารข้อมูลครูประจำชั้น
