@@ -1031,135 +1031,104 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             isTableFullscreen ? 'w-full h-full shadow-2xl' : ''
           }`}
         >
-          {/* TOP ATTACHED BAR: Chapter Selector & Navigation (ติดกันกับหน้าใส่คะแนน) */}
-          <div className="p-3.5 sm:p-4 bg-slate-50/75 border-b border-slate-200 space-y-3 shrink-0">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black text-slate-700 mr-1 flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-sky-600" />
-                  เลือกบทเรียน:
-                </span>
-
-                {/* Circular buttons for Chapter 1, 2, 3... */}
-                {currentChapters.map((ch) => {
-                  const isSelected = activeChapterTab === ch.chapterNumber;
-                  return (
-                    <button
-                      key={`tab-circle-${ch.chapterNumber}`}
-                      type="button"
-                      onClick={() => setActiveChapterTab(ch.chapterNumber)}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full font-black text-xs sm:text-sm transition-all flex items-center justify-center cursor-pointer ${
-                        isSelected
-                          ? 'bg-sky-600 text-white shadow-md ring-3 ring-sky-200 scale-105'
-                          : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-700 border border-slate-200 shadow-2xs'
-                      }`}
-                      title={`${ch.title} (คะแนนเก็บเต็ม ${ch.maxScore || 15} คะแนน)`}
-                    >
-                      {ch.chapterNumber}
-                    </button>
-                  );
-                })}
-
-                <div className="h-6 w-px bg-slate-200 mx-1" />
-
-                {/* Final Exam Button */}
-                <button
-                  type="button"
-                  onClick={() => setActiveChapterTab('final')}
-                  className={`px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeChapterTab === 'final'
-                      ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-200'
-                      : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 shadow-2xs'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>📝 สอบ</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
-                      activeChapterTab === 'final' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-900'
-                    }`}
-                  >
-                    เต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}
-                  </span>
-                </button>
-
-                {/* Overall Summary Tab Button */}
-                <button
-                  type="button"
-                  onClick={() => setActiveChapterTab('summary')}
-                  className={`px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeChapterTab === 'summary'
-                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-200'
-                      : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300 shadow-2xs'
-                  }`}
-                >
-                  <Award className="w-3.5 h-3.5" />
-                  <span>📊 รวมทุกบท</span>
-                </button>
-              </div>
-
-              {/* Action Buttons & Fullscreen Toggle / Close Button */}
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {/* Quick Stats Pill */}
-                <div className="text-xs text-slate-500 hidden sm:flex items-center gap-3">
-                  <span>
-                    วิชา: <strong className="text-slate-800">{activeSheet?.subjectName}</strong>
-                  </span>
-                  <span>
-                    ภาคเรียนที่: <strong>{activeSheet?.term || 1}</strong>
-                  </span>
-                  <span>
-                    คะแนนเฉลี่ย: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
+          {/* TOP ATTACHED BAR: Chapter Selector & Navigation (เน้น Tablet View สะอาดตา บรรทัดเดียว) */}
+          <div className="px-3.5 py-2.5 bg-slate-50/75 border-b border-slate-200 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              {/* Left Side: Chapter Title in front, followed by small circular buttons */}
+              <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none min-w-0 py-0.5">
+                {/* ชื่อบท / ชื่อแท็บที่เลือกอยู่ด้านหน้าสุด */}
+                <div className="flex items-center gap-1.5 shrink-0 pr-1 border-r border-slate-200">
+                  <BookOpen className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                  <span className="text-xs font-bold text-slate-800 whitespace-nowrap max-w-[130px] sm:max-w-[200px] md:max-w-xs truncate">
+                    {typeof activeChapterTab === 'number' && currentActiveChapter
+                      ? `บทที่ ${currentActiveChapter.chapterNumber}: ${currentActiveChapter.title}`
+                      : activeChapterTab === 'final'
+                      ? 'คะแนนสอบปลายภาค'
+                      : 'สรุปรวมทุกบทเรียน'}
                   </span>
                 </div>
 
-                {/* Fullscreen Expand / Close Button */}
+                {/* Circular buttons for Chapter 1, 2, 3... ขนาดเล็ก */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {currentChapters.map((ch) => {
+                    const isSelected = activeChapterTab === ch.chapterNumber;
+                    return (
+                      <button
+                        key={`tab-circle-${ch.chapterNumber}`}
+                        type="button"
+                        onClick={() => setActiveChapterTab(ch.chapterNumber)}
+                        className={`w-7 h-7 rounded-full font-bold text-xs transition-all flex items-center justify-center cursor-pointer ${
+                          isSelected
+                            ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-300 scale-105'
+                            : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-700 border border-slate-200'
+                        }`}
+                        title={`บทที่ ${ch.chapterNumber}: ${ch.title} (เต็ม ${ch.maxScore || 15} คะแนน)`}
+                        aria-label={`บทที่ ${ch.chapterNumber}`}
+                      >
+                        {ch.chapterNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="h-4 w-px bg-slate-200 shrink-0 mx-0.5" />
+
+                {/* แก้2: ปุ่มสอบ ปรับเป็นวงกลมแล้วเป็นตัวอักษร "ส" */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChapterTab('final')}
+                  className={`w-7 h-7 rounded-full font-black text-xs transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                    activeChapterTab === 'final'
+                      ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-300 scale-105'
+                      : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-300'
+                  }`}
+                  title={`สอบปลายภาค (เต็ม ${activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30} คะแนน)`}
+                  aria-label="สอบปลายภาค"
+                >
+                  ส
+                </button>
+
+                {/* แก้3: ปุ่มรวมทุกบท ปรับเป็นวงกลมคำว่า "All" */}
+                <button
+                  type="button"
+                  onClick={() => setActiveChapterTab('summary')}
+                  className={`w-7 h-7 rounded-full font-bold text-[11px] transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                    activeChapterTab === 'summary'
+                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300 scale-105'
+                      : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300'
+                  }`}
+                  title="รวมทุกบทเรียน และสรุปเกรด"
+                  aria-label="รวมทุกบทเรียน"
+                >
+                  All
+                </button>
+              </div>
+
+              {/* Right Side: แก้6 ปุ่มขยาย/ย่อ ไม่ต้องมีข้อความ แสดงสัญลักษณ์พอ */}
+              <div className="flex items-center gap-1.5 shrink-0 pl-1">
                 {isTableFullscreen ? (
                   <button
                     type="button"
                     onClick={() => setIsTableFullscreen(false)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-rose-200 cursor-pointer active:scale-95"
-                    title="ปิดหน้าต่างขยายเต็ม (หรือกด Esc)"
+                    className="w-8 h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                    title="ย่อหน้าต่างกลับ (Esc)"
+                    aria-label="ย่อหน้าต่าง"
                   >
                     <Minimize2 className="w-4 h-4" />
-                    <span>ปิดหน้าต่าง</span>
-                    <span className="text-[10px] bg-rose-700 px-1.5 py-0.5 rounded font-normal">Esc</span>
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setIsTableFullscreen(true)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-sky-200 cursor-pointer active:scale-95"
-                    title="ขยายตารางเต็มหน้าต่างเพื่อกรอกคะแนนได้อย่างจุใจ"
+                    className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer active:scale-95"
+                    title="ขยายตารางเต็มหน้าต่าง"
+                    aria-label="ขยายตารางเต็มหน้าต่าง"
                   >
-                    <Maximize2 className="w-4 h-4" />
-                    <span>ขยายเต็ม</span>
+                    <Maximize2 className="w-4 h-4 text-slate-600" />
                   </button>
                 )}
               </div>
             </div>
-
-            {/* Selected Chapter Detail Badge */}
-            {typeof activeChapterTab === 'number' && currentActiveChapter && (
-              <div className="bg-sky-50/90 border border-sky-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                    {currentActiveChapter.chapterNumber}
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                      บทที่ {currentActiveChapter.chapterNumber}: {currentActiveChapter.title}
-                    </span>
-                    <span className="text-[11px] text-slate-500 ml-2">
-                      (มีชื่อเรื่องคิดคะแนน {currentActiveChapter.topics.filter((t) => t?.trim()).length}/{currentActiveChapter.topics.length} เรื่อง)
-                    </span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-sky-800 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-lg">
-                  คะแนนเก็บประจำบท: เต็ม <strong>{currentActiveChapter.maxScore || 15}</strong> คะแนน
-                </span>
-              </div>
-            )}
           </div>
 
           {/* WORKSPACE CONTENT: DIRECTLY ATTACHED */}
