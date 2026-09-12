@@ -849,55 +849,50 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   return (
     <div className="space-y-4 pb-12">
-      {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-            <FileSpreadsheet className="w-5 h-5" />
+      {/* Top Header Card - Single row compact bar for tablet & clean layout */}
+      <div className="flex items-center justify-between gap-2.5 bg-white px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+            <FileSpreadsheet className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-gray-900">
-                กรอกคะแนน & ตัดเกรด (Grade Tracker)
-              </h2>
-            </div>
-            <p className="text-xs text-gray-500">
-              สร้างวิชา กำหนด 1-8 บทเรียน บันทึกคะแนนรายเรื่อง เพิ่มเรื่องได้ไม่จำกัด สอบปลายภาค และสรุปตัดเกรดอัตโนมัติ
-            </p>
-          </div>
+          <h2 className="text-sm sm:text-base font-bold text-gray-900 truncate">
+            กรอกคะแนน & ตัดเกรด (Grade Tracker)
+          </h2>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Main "+" Button for Pop-up Modal */}
+        {/* 3 Action Buttons on the exact same line: "+" create, edit icon, printer icon */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* 1. ปุ่มสร้างใหม่: สัญลักษณ์ "+" */}
           <button
             type="button"
             onClick={handleOpenCreateModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer"
-            title="กดเพื่อสร้างรายวิชาใหม่และกำหนดบทเรียน"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+            title="สร้างวิชาใหม่ (+)"
+            aria-label="สร้างวิชาใหม่"
           >
-            <Plus className="w-4 h-4" />
-            <span>+ สร้างวิชาใหม่</span>
+            <Plus className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
           </button>
 
-          {/* "แก้ไขข้อมูล" Button (Req 1) */}
+          {/* 2. ปุ่มแก้ไขข้อมูล: สัญลักษณ์ Sliders/Edit ไม่มีข้อความ */}
           <button
             type="button"
             onClick={handleOpenEditModal}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            title="แก้ไขข้อมูลวิชา/จำนวนบทเรียน/คะแนนเก็บ/สอบปลายภาค"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200/80 rounded-xl transition-all cursor-pointer"
+            title="แก้ไขข้อมูลวิชา / บทเรียน / คะแนนเก็บ"
+            aria-label="แก้ไขข้อมูลวิชา"
           >
-            <Sliders className="w-3.5 h-3.5 text-slate-500" />
-            <span>แก้ไขข้อมูล</span>
+            <Sliders className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-600" />
           </button>
 
+          {/* 3. ปุ่มดาวน์โหลด: สัญลักษณ์เครื่องปริ้น */}
           <button
             type="button"
             onClick={() => setShowPrintModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-            title="พิมพ์ / บันทึกรายงานผลการเรียนเป็น PDF"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-200 rounded-xl transition-all cursor-pointer"
+            title="พิมพ์ / ดาวน์โหลดรายงานผลการเรียนเป็น PDF"
+            aria-label="พิมพ์หรือดาวน์โหลดรายงานผลการเรียน"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span>ดาวน์โหลด PDF</span>
+            <Printer className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </button>
         </div>
       </div>
