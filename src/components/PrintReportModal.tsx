@@ -9,6 +9,7 @@ interface PrintReportModalProps {
   title: string;
   subtitle?: string;
   profile: TeacherProfile;
+  customHeader?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -18,6 +19,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   title,
   subtitle,
   profile,
+  customHeader,
   children,
 }) => {
   if (!isOpen) return null;
@@ -69,15 +71,22 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             style={{ fontFamily: "'Sarabun', 'Kanit', sans-serif" }}
           >
             {/* School Official Header */}
-            <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-wide">{profile.schoolName}</h2>
-              <p className="text-sm font-semibold text-slate-700 mt-1">
-                {profile.classroomName} ปีการศึกษา {profile.academicYear}
-              </p>
-              <h3 className="text-base sm:text-lg font-bold text-emerald-800 mt-2">{title}</h3>
-              {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
-              <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>
-            </div>
+            {customHeader ? (
+              <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
+                {customHeader}
+                <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>
+              </div>
+            ) : (
+              <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-wide">{profile.schoolName}</h2>
+                <p className="text-sm font-semibold text-slate-700 mt-1">
+                  {profile.classroomName} ปีการศึกษา {profile.academicYear}
+                </p>
+                <h3 className="text-base sm:text-lg font-bold text-emerald-800 mt-2">{title}</h3>
+                {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
+                <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>
+              </div>
+            )}
 
             {/* Document Content */}
             <div className="my-4">{children}</div>

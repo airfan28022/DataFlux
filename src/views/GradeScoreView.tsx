@@ -2220,57 +2220,85 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
       )}
 
-      {/* PRINT REPORT MODAL (Req 6: มีคอลัมน์สอบปลายภาคและคะแนนรวมสุทธิ) */}
-      <PrintReportModal
-        isOpen={showPrintModal}
-        onClose={() => setShowPrintModal(false)}
-        title={`แบบบันทึกผลการประเมินและสรุปผลการเรียน วิชา ${activeSheet?.subjectName || ''} (${activeSheet?.subjectCode || '-'})`}
-        subtitle={`ภาคเรียนที่ ${activeSheet?.term || '1'} / ${profile.academicYear} • จำนวน ${currentChapters.length} บทเรียน`}
-        profile={profile}
-      >
-        <table className="w-full border-collapse border border-slate-400 text-xs">
-          <thead>
-            <tr className="bg-slate-100 border-b border-slate-400 font-bold">
-              <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
-              <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
-              {currentChapters.map((ch) => (
-                <th key={`p-head-${ch.chapterNumber}`} className="border border-slate-400 p-1 text-center">
-                  {ch.title}
-                  <span className="block text-[10px] font-normal">(เต็ม {ch.maxScore || 15})</span>
-                </th>
-              ))}
-              <th className="border border-slate-400 p-2 text-center w-16">รวมคะแนนเก็บ</th>
-              <th className="border border-slate-400 p-2 text-center w-16">
-                สอบ
-                <span className="block text-[10px] font-normal">({activeSheet?.finalExamMaxScore || 30})</span>
-              </th>
-              <th className="border border-slate-400 p-2 text-center w-16">คะแนนรวม</th>
-              <th className="border border-slate-400 p-2 text-center w-14">%</th>
-              <th className="border border-slate-400 p-2 text-center w-14">เกรด</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allStudentsSummary.map((row) => (
-              <tr key={row.studentId} className="border-b border-slate-300">
-                <td className="border border-slate-300 p-1.5 text-center">{row.order}</td>
-                <td className="border border-slate-300 p-1.5 font-medium">{row.studentName}</td>
-                {currentChapters.map((ch) => (
-                  <td key={`p-cell-${ch.chapterNumber}`} className="border border-slate-300 p-1.5 text-center">
-                    {row.chapterScaledScores[ch.chapterNumber] !== undefined
-                      ? row.chapterScaledScores[ch.chapterNumber]
-                      : '-'}
-                  </td>
+      {/* PRINT REPORT MODAL (แบบสรุปผลการเรียน) */}
+      {(() => {
+        const rawSubj = activeSheet?.subjectName?.trim() || '';
+        const subjText = rawSubj.startsWith('วิชา') ? rawSubj : `วิชา ${rawSubj || 'วิทยาศาสตร์และเทคโนโลยี'}`;
+        const subjCodeText = activeSheet?.subjectCode?.trim() ? ` (${activeSheet.subjectCode.trim()})` : '';
+        const line1 = `แบบสรุปผลการเรียน ${subjText}${subjCodeText}`;
+
+        const classroomText = (profile.classroomName && !profile.classroomName.includes('6/1'))
+          ? profile.classroomName
+          : 'ชั้นประถมศึกษาปีที่ 5';
+        const termText = activeSheet?.term || '1';
+        const yearText = profile.academicYear || '2569';
+        const line2 = `${classroomText} ภาคเรียนที่ ${termText} ปีการศึกษา ${yearText}`;
+
+        return (
+          <PrintReportModal
+            isOpen={showPrintModal}
+            onClose={() => setShowPrintModal(false)}
+            title={line1}
+            subtitle={line2}
+            profile={profile}
+            customHeader={
+              <div className="space-y-1.5 text-center">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-normal">
+                  {line1}
+                </h2>
+                <p className="text-sm sm:text-base font-semibold text-slate-700">
+                  {line2}
+                </p>
+              </div>
+            }
+          >
+            <table className="w-full border-collapse border border-slate-400 text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-400 font-bold">
+                  <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
+                  <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
+                  {currentChapters.map((ch) => (
+                    <th key={`p-head-${ch.chapterNumber}`} className="border border-slate-400 p-1.5 text-center">
+                      {ch.title}
+                      <span className="block text-[10px] font-normal text-slate-600">(เต็ม {ch.maxScore || 15})</span>
+                    </th>
+                  ))}
+                  <th className="border border-slate-400 p-2 text-center w-24">
+                    รวมคะแนนเก็บ
+                    <span className="block text-[10px] font-normal text-slate-600">(เต็ม {activeSheet?.collectMaxScore || 70})</span>
+                  </th>
+                  <th className="border border-slate-400 p-2 text-center w-20">
+                    สอบปลายภาค
+                    <span className="block text-[10px] font-normal text-slate-600">(เต็ม {activeSheet?.finalExamMaxScore || 30})</span>
+                  </th>
+                  <th className="border border-slate-400 p-2 text-center w-20 bg-slate-200/70 font-black">
+                    คะแนนรวม
+                    <span className="block text-[10px] font-bold text-slate-700">(เต็ม 100)</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {allStudentsSummary.map((row) => (
+                  <tr key={row.studentId} className="border-b border-slate-300 hover:bg-slate-50/50">
+                    <td className="border border-slate-300 p-2 text-center font-medium">{row.order}</td>
+                    <td className="border border-slate-300 p-2 font-medium">{row.studentName}</td>
+                    {currentChapters.map((ch) => (
+                      <td key={`p-cell-${ch.chapterNumber}`} className="border border-slate-300 p-2 text-center">
+                        {row.chapterScaledScores[ch.chapterNumber] !== undefined
+                          ? row.chapterScaledScores[ch.chapterNumber]
+                          : '-'}
+                      </td>
+                    ))}
+                    <td className="border border-slate-300 p-2 text-center font-bold text-slate-800">{row.totalChapterScaled}</td>
+                    <td className="border border-slate-300 p-2 text-center font-bold text-slate-800">{row.finalExamScore}</td>
+                    <td className="border border-slate-300 p-2 text-center font-black text-slate-900 bg-slate-100/50">{row.totalScore}</td>
+                  </tr>
                 ))}
-                <td className="border border-slate-300 p-1.5 text-center font-bold">{row.totalChapterScaled}</td>
-                <td className="border border-slate-300 p-1.5 text-center font-bold">{row.finalExamScore}</td>
-                <td className="border border-slate-300 p-1.5 text-center font-black">{row.totalScore}</td>
-                <td className="border border-slate-300 p-1.5 text-center font-bold">{row.percentage}%</td>
-                <td className="border border-slate-300 p-1.5 text-center font-black">{row.grade}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </PrintReportModal>
+              </tbody>
+            </table>
+          </PrintReportModal>
+        );
+      })()}
     </div>
   );
 };

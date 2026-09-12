@@ -352,7 +352,7 @@ export const INITIAL_STUDENTS: Student[] = [
 export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
   teacherName: 'ครูสมศรี ใจดีงาม',
   schoolName: 'โรงเรียนอนุบาลและประถมศึกษาสาธิต',
-  classroomName: 'ชั้นประถมศึกษาปีที่ 6/1',
+  classroomName: 'ชั้นประถมศึกษาปีที่ 5',
   academicYear: '2569',
   adminUsername: 'airfan',
   adminPasswordHash: '456789',
@@ -440,7 +440,7 @@ export const INITIAL_SCORE_SHEET: ScoreSheet = {
   title: 'วิชาคณิตศาสตร์พื้นฐาน (ค16101)',
   subjectName: 'คณิตศาสตร์พื้นฐาน',
   subjectCode: 'ค16101',
-  classroom: 'ชั้นประถมศึกษาปีที่ 6/1',
+  classroom: 'ชั้นประถมศึกษาปีที่ 5',
   term: '1',
   academicYear: '2569',
   chapterCount: 4,
