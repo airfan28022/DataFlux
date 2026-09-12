@@ -606,12 +606,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   <th className="py-2.5 px-3 min-w-[200px]">รูป / ชื่อ-สกุล นักเรียน</th>
                   <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
                   <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม (ม)</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม (ป)</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/40">ลากิจรวม (ล)</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/40">ขาดรวม (ข)</th>
-                  <th className="py-2.5 px-3 w-32 text-right bg-emerald-100/40 text-emerald-900 font-bold">
-                    ยอดออมสะสม
+                  <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/40">ลารวม</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/40">ขาดรวม</th>
+                  <th className="py-2.5 px-3 w-28 text-right bg-emerald-100/40 text-emerald-900 font-bold">
+                    ยอดรวม
                   </th>
                 </tr>
               </thead>
@@ -1259,121 +1259,101 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       )}
 
       {/* PRINT / DOWNLOAD PDF REPORT MODAL */}
-      <PrintReportModal
-        isOpen={showPrintModal}
-        onClose={() => setShowPrintModal(false)}
-        title="รายงานข้อมูลการออมทรัพย์และสถิติการมาเรียนนักเรียน"
-        subtitle={`ข้อมูล ณ ${formatThaiDate(selectedDate, true)} • ห้องเรียน ${profile.classroomName}`}
-        profile={profile}
-      >
-        <div className="mb-4 grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
-          <div className="p-2 border border-amber-300 rounded-lg bg-amber-50/70 text-amber-900">
-            <span className="block text-[10px] text-amber-700 font-medium">ยอดฝากวันนี้</span>
-            <span className="font-bold text-sm text-amber-800">{currentDayStats.totalDeposit.toLocaleString()} ฿</span>
-          </div>
-          <div className="p-2 border border-emerald-300 rounded-lg bg-emerald-50/70 text-emerald-900">
-            <span className="block text-[10px] text-emerald-700 font-medium">มาเรียน (ม) วันนี้ / สะสม</span>
-            <span className="font-bold text-sm text-emerald-800">{currentDayStats.present} / {classroomCumulativeStats.totalPresent} วัน</span>
-          </div>
-          <div className="p-2 border border-orange-300 rounded-lg bg-orange-50/70 text-orange-900">
-            <span className="block text-[10px] text-orange-700 font-medium">ป่วย (ป) วันนี้ / สะสม</span>
-            <span className="font-bold text-sm text-orange-800">{currentDayStats.sick} / {classroomCumulativeStats.totalSick} ครั้ง</span>
-          </div>
-          <div className="p-2 border border-blue-300 rounded-lg bg-blue-50/70 text-blue-900">
-            <span className="block text-[10px] text-blue-700 font-medium">ลากิจ (ล) วันนี้ / สะสม</span>
-            <span className="font-bold text-sm text-blue-800">{currentDayStats.personal} / {classroomCumulativeStats.totalPersonal} ครั้ง</span>
-          </div>
-          <div className="p-2 border border-rose-300 rounded-lg bg-rose-50/70 text-rose-900">
-            <span className="block text-[10px] text-rose-700 font-medium">ขาด (ข) วันนี้ / สะสม</span>
-            <span className="font-bold text-sm text-rose-800">{currentDayStats.absent} / {classroomCumulativeStats.totalAbsent} ครั้ง</span>
-          </div>
-        </div>
+      {(() => {
+        const line1 = 'รายงานออมทรัพย์และสถิติมาเรียน';
+        const classroomText = (profile.classroomName && !profile.classroomName.includes('6/1'))
+          ? profile.classroomName
+          : 'ชั้นประถมศึกษาปีที่ 5';
+        const yearText = profile.academicYear || '2569';
+        const line2 = `${classroomText} ภาคเรียนที่ 1 ปีการศึกษา ${yearText}`;
 
-        <table className="w-full border-collapse border border-slate-400 text-xs">
-          <thead>
-            <tr className="bg-slate-100 border-b border-slate-400 font-bold">
-              <th className="border border-slate-400 p-2 text-center w-10">ลำดับ</th>
-              <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
-              <th className="border border-slate-400 p-2 text-center w-20">สถานะวันนี้</th>
-              <th className="border border-slate-400 p-2 text-right w-24">ฝากวันนี้</th>
-              <th className="border border-slate-400 p-2 text-center w-16">มารวม (ม)</th>
-              <th className="border border-slate-400 p-2 text-center w-16">ป่วยรวม (ป)</th>
-              <th className="border border-slate-400 p-2 text-center w-16">ลารวม (ล)</th>
-              <th className="border border-slate-400 p-2 text-center w-16">ขาดรวม (ข)</th>
-              <th className="border border-slate-400 p-2 text-right w-28">ยอดออมสะสม</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((s, idx) => {
-              const currentStatus = attendanceMap[s.id] || 'present';
-              const currentDep = depositsMap[s.id] || 0;
-              const stats = studentCumulativeStats[s.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
-              const totalSavings = studentCumulativeSavings[s.id] || 0;
-              const statusLabel =
-                currentStatus === 'present'
-                  ? 'มา (ม)'
-                  : currentStatus === 'sick'
-                  ? 'ป่วย (ป)'
-                  : currentStatus === 'personal'
-                  ? 'ลา (ล)'
-                  : 'ขาด (ข)';
+        return (
+          <PrintReportModal
+            isOpen={showPrintModal}
+            onClose={() => setShowPrintModal(false)}
+            title={line1}
+            subtitle={line2}
+            profile={profile}
+            hidePrintDate={true}
+            customHeader={
+              <div className="space-y-1.5 text-center">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-normal">
+                  {line1}
+                </h2>
+                <p className="text-sm sm:text-base font-semibold text-slate-700">
+                  {line2}
+                </p>
+              </div>
+            }
+          >
+            <table className="w-full border-collapse border border-slate-400 text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-400 font-bold">
+                  <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
+                  <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
+                  <th className="border border-slate-400 p-2 text-center w-20">มารวม</th>
+                  <th className="border border-slate-400 p-2 text-center w-20">ป่วยรวม</th>
+                  <th className="border border-slate-400 p-2 text-center w-20">ลารวม</th>
+                  <th className="border border-slate-400 p-2 text-center w-20">ขาดรวม</th>
+                  <th className="border border-slate-400 p-2 text-right w-28">ยอดรวม</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((s, idx) => {
+                  const stats = studentCumulativeStats[s.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
+                  const totalSavings = studentCumulativeSavings[s.id] || 0;
 
-              return (
-                <tr key={s.id} className="border-b border-slate-300">
-                  <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
-                  <td className="border border-slate-300 p-1.5 font-medium">
-                    {s.prefix}{s.firstName} {s.lastName}
+                  return (
+                    <tr key={s.id} className="border-b border-slate-300">
+                      <td className="border border-slate-300 p-2 text-center font-medium">{idx + 1}</td>
+                      <td className="border border-slate-300 p-2 font-medium">
+                        {s.prefix}{s.firstName} {s.lastName}
+                      </td>
+                      <td className="border border-slate-300 p-2 text-center font-semibold text-emerald-800">
+                        {stats.present}
+                      </td>
+                      <td className="border border-slate-300 p-2 text-center font-semibold text-amber-800">
+                        {stats.sick}
+                      </td>
+                      <td className="border border-slate-300 p-2 text-center font-semibold text-blue-800">
+                        {stats.personal}
+                      </td>
+                      <td className="border border-slate-300 p-2 text-center font-semibold text-rose-800">
+                        {stats.absent}
+                      </td>
+                      <td className="border border-slate-300 p-2 text-right font-bold text-emerald-800">
+                        {totalSavings.toLocaleString()} ฿
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-100 font-bold border-t-2 border-slate-400">
+                  <td colSpan={2} className="border border-slate-400 p-2.5 text-right">
+                    รวมทั้งหมด ({students.length} คน):
                   </td>
-                  <td className="border border-slate-300 p-1.5 text-center">{statusLabel}</td>
-                  <td className="border border-slate-300 p-1.5 text-right font-medium">
-                    {currentDep > 0 ? `${currentDep.toLocaleString()} ฿` : '-'}
+                  <td className="border border-slate-400 p-2.5 text-center text-emerald-900 font-bold">
+                    {classroomCumulativeStats.totalPresent}
                   </td>
-                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-emerald-800">
-                    {stats.present}
+                  <td className="border border-slate-400 p-2.5 text-center text-amber-900 font-bold">
+                    {classroomCumulativeStats.totalSick}
                   </td>
-                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-amber-800">
-                    {stats.sick}
+                  <td className="border border-slate-400 p-2.5 text-center text-blue-900 font-bold">
+                    {classroomCumulativeStats.totalPersonal}
                   </td>
-                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-blue-800">
-                    {stats.personal}
+                  <td className="border border-slate-400 p-2.5 text-center text-rose-900 font-bold">
+                    {classroomCumulativeStats.totalAbsent}
                   </td>
-                  <td className="border border-slate-300 p-1.5 text-center font-semibold text-rose-800">
-                    {stats.absent}
-                  </td>
-                  <td className="border border-slate-300 p-1.5 text-right font-bold text-emerald-800">
-                    {totalSavings.toLocaleString()} ฿
+                  <td className="border border-slate-400 p-2.5 text-right font-black text-emerald-900">
+                    {classroomAllSavings.toLocaleString()} ฿
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="bg-slate-100 font-bold border-t-2 border-slate-400">
-              <td colSpan={3} className="border border-slate-400 p-2 text-right">
-                รวมทั้งหมด ({students.length} คน):
-              </td>
-              <td className="border border-slate-400 p-2 text-right text-amber-900">
-                {currentDayStats.totalDeposit.toLocaleString()} ฿
-              </td>
-              <td className="border border-slate-400 p-2 text-center text-emerald-900">
-                {classroomCumulativeStats.totalPresent}
-              </td>
-              <td className="border border-slate-400 p-2 text-center text-amber-900">
-                {classroomCumulativeStats.totalSick}
-              </td>
-              <td className="border border-slate-400 p-2 text-center text-blue-900">
-                {classroomCumulativeStats.totalPersonal}
-              </td>
-              <td className="border border-slate-400 p-2 text-center text-rose-900">
-                {classroomCumulativeStats.totalAbsent}
-              </td>
-              <td className="border border-slate-400 p-2 text-right font-black text-emerald-900">
-                {classroomAllSavings.toLocaleString()} ฿
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </PrintReportModal>
+              </tfoot>
+            </table>
+          </PrintReportModal>
+        );
+      })()}
 
       {/* RESET ALL SAVINGS CONFIRMATION MODAL (Req 4: ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ ยืนยันด้วย Password) */}
       {showResetModal && (

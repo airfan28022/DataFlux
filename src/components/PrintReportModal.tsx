@@ -10,6 +10,7 @@ interface PrintReportModalProps {
   subtitle?: string;
   profile: TeacherProfile;
   customHeader?: React.ReactNode;
+  hidePrintDate?: boolean;
   children: React.ReactNode;
 }
 
@@ -20,6 +21,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   subtitle,
   profile,
   customHeader,
+  hidePrintDate = false,
   children,
 }) => {
   if (!isOpen) return null;
@@ -74,7 +76,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             {customHeader ? (
               <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
                 {customHeader}
-                <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>
+                {!hidePrintDate && <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>}
               </div>
             ) : (
               <div className="text-center border-b-2 border-slate-800 pb-4 mb-6">
@@ -84,7 +86,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 </p>
                 <h3 className="text-base sm:text-lg font-bold text-emerald-800 mt-2">{title}</h3>
                 {subtitle && <p className="text-xs text-slate-600 mt-0.5">{subtitle}</p>}
-                <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>
+                {!hidePrintDate && <p className="text-[11px] text-slate-500 mt-2">พิมพ์ออก ณ {todayThai}</p>}
               </div>
             )}
 
