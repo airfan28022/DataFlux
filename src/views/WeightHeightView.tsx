@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   WeightHeightRecord,
   WeightHeightRow,
@@ -17,6 +17,7 @@ import {
   Calendar,
   Save,
   Printer,
+  Download,
   CheckCircle2,
   Users,
   ChevronDown,
@@ -45,6 +46,18 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
   // View / Print Modal state
   const [printRecord, setPrintRecord] = useState<WeightHeightRecord | null>(null);
   const [viewRecord, setViewRecord] = useState<WeightHeightRecord | null>(null);
+
+  // เรียงลำดับวันที่เป็นปัจจุบันก่อนอยู่ด้านบน (descending)
+  const sortedRecords = useMemo(() => {
+    return [...records].sort((a, b) => {
+      const dateA = new Date(a.date).getTime() || 0;
+      const dateB = new Date(b.date).getTime() || 0;
+      if (dateB !== dateA) {
+        return dateB - dateA;
+      }
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
+  }, [records]);
 
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
@@ -329,7 +342,7 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
               </div>
 
               <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-bold text-slate-700 mb-1">บันทึกเพิ่มเติม (ถ้ามี)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">บันทึกเพิ่มเติม</label>
                 <input
                   type="text"
                   value={recordNote}
@@ -354,22 +367,6 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                   บันทึกอัตโนมัติแล้ว (Auto-Saved)
                 </span>
               )}
-            </div>
-          </div>
-
-          {/* Official BMI Criteria Guide Bar */}
-          <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-700">
-            <div className="flex items-center gap-1.5 font-medium">
-              <span className="font-bold text-emerald-800">สูตรคำนวณมาตรฐาน:</span>
-              <span>BMI = น้ำหนัก (กก.) ÷ [ส่วนสูง (ม.)]²</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-              <span className="font-semibold text-gray-500">เกณฑ์อ้างอิงกรมอนามัย กระทรวงสาธารณสุข:</span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">ผอม (&lt;18.5)</span>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">สมส่วน (18.5-22.9)</span>
-              <span className="px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-800 border border-yellow-200">ท้วม (23.0-24.9)</span>
-              <span className="px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">เริ่มอ้วน (25.0-29.9)</span>
-              <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">อ้วน (≥30.0)</span>
             </div>
           </div>
 
@@ -533,89 +530,86 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
         </div>
       )}
 
-      {/* Saved Records Cards List (แยกตามวันที่ พร้อมปุ่ม ดู/แก้ไข/ลบ/PDF) */}
-      <div className="space-y-4">
+      {/* Saved Records List (แถวรายการ สะอาด เรียบง่าย เรียงวันปัจจุบันอยู่ด้านบน) */}
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-emerald-600" />
-            <span>ประวัติการบันทึกน้ำหนัก-ส่วนสูง (แยกตามวันที่)</span>
+            <span>ประวัติการบันทึกน้ำหนัก-ส่วนสูง</span>
           </h3>
-          <span className="text-xs text-slate-500">บันทึกไว้แล้ว {records.length} ครั้ง</span>
+          <span className="text-xs text-slate-500">บันทึกไว้แล้ว {records.length} รายการ</span>
         </div>
 
         {records.length === 0 ? (
-          <div className="bg-white rounded-3xl p-10 text-center border border-dashed border-slate-300 text-slate-400">
-            <Activity className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="text-sm">ยังไม่มีรายการบันทึกน้ำหนัก-ส่วนสูง</p>
+          <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-slate-300 text-slate-400">
+            <Activity className="w-9 h-9 mx-auto text-slate-300 mb-2" />
+            <p className="text-xs">ยังไม่มีรายการบันทึกน้ำหนัก-ส่วนสูง</p>
             <button
               onClick={handleStartNewRecord}
-              className="mt-3 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors"
+              className="mt-3 px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors"
             >
               + บันทึกครั้งแรก
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {records.map((rec) => {
-              const totalRecorded = rec.rows.filter((r) => r.weight && r.height).length;
-              return (
-                <div
-                  key={rec.id}
-                  className="bg-white rounded-2xl p-5 border border-slate-200/90 hover:border-emerald-300 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
-                        ภาคเรียนที่ {rec.term} / {rec.academicYear}
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        บันทึก {totalRecorded} / {rec.rows.length} คน
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {sortedRecords.map((rec) => {
+                // ข้อมูลแสดงผล: ภาคเรียนที่ ปีการศึกษา วันที่ เดือน ปี บันทึกเท่านั้น
+                const dateText = formatThaiDate(rec.date);
+                const infoText = `ภาคเรียนที่ ${rec.term} ปีการศึกษา ${rec.academicYear} ${dateText}${rec.note ? ` (${rec.note})` : ''}`;
+
+                return (
+                  <div
+                    key={rec.id}
+                    className="p-3 sm:px-4 sm:py-3 flex items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors"
+                  >
+                    {/* ข้อความข้อมูลรายการ */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                        <Calendar className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs sm:text-sm font-medium text-slate-800 truncate" title={infoText}>
+                        {infoText}
                       </span>
                     </div>
 
-                    <h4 className="text-base font-bold text-slate-800 flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-emerald-600" />
-                      <span>{formatThaiDate(rec.date, true)}</span>
-                    </h4>
+                    {/* สัญลักษณ์: ดาวน์โหลด, แก้ไข, ลบ */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPrintRecord(rec)}
+                        className="w-8 h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-200 rounded-xl transition-all cursor-pointer"
+                        title="ดาวน์โหลด / พิมพ์รายงาน PDF"
+                        aria-label="ดาวน์โหลดรายงาน"
+                      >
+                        <Download className="w-4 h-4 text-emerald-700" />
+                      </button>
 
-                    {rec.note && (
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-2 italic">"{rec.note}"</p>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setPrintRecord(rec)}
-                      className="flex items-center gap-1 text-xs text-slate-600 hover:text-emerald-700 font-medium py-1 px-2 rounded-lg hover:bg-slate-100 transition-colors"
-                      title="ดาวน์โหลด PDF / พิมพ์รายงาน"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>ดาวน์โหลด PDF</span>
-                    </button>
-
-                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleEditRecord(rec)}
-                        className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                        title="ดู / แก้ไขข้อมูล"
+                        className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                        title="แก้ไขข้อมูล"
+                        aria-label="แก้ไขข้อมูล"
                       >
-                        <Edit className="w-4 h-4" />
+                        <Edit className="w-4 h-4 text-slate-600" />
                       </button>
+
                       <button
                         type="button"
                         onClick={() => handleDeleteRecord(rec.id, rec.date)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="ลบชุดบันทึกนี้"
+                        className="w-8 h-8 flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
+                        title="ลบข้อมูล"
+                        aria-label="ลบข้อมูล"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4 text-rose-600" />
                       </button>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
