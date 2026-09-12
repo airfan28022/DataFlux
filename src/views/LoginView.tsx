@@ -84,12 +84,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
 
       {/* Main Login Card */}
       <div className="w-full max-w-md bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/20 text-slate-800 relative z-10 transition-all">
-        {/* Header Branding with Official Kru Logo */}
+        {/* Header Branding with Minimal Educational Logo */}
         <div className="text-center mb-6">
-          <div className="w-24 h-24 mx-auto mb-4 rounded-3xl overflow-hidden shadow-xl shadow-emerald-950/20 border-2 border-emerald-100/70 p-1 bg-[#A8CBAB] transition-transform hover:scale-105 duration-200">
+          <div className="w-24 h-24 mx-auto mb-4 rounded-3xl overflow-hidden shadow-xl shadow-emerald-950/20 border-2 border-emerald-100/70 p-1 bg-white transition-transform hover:scale-105 duration-200">
             <img
               src="/app-logo.png"
-              alt="ครู"
+              alt="Logo"
               className="w-full h-full object-cover rounded-2xl"
               referrerPolicy="no-referrer"
             />

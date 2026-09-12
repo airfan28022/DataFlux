@@ -86,10 +86,10 @@ export const Header: React.FC<HeaderProps> = ({
         className="flex items-center gap-3 cursor-pointer"
         onClick={() => setActiveTab && setActiveTab('dashboard')}
       >
-        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-xs shrink-0 border border-emerald-200/80 bg-[#A8CBAB]">
+        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-xs shrink-0 border border-emerald-200/80 bg-white">
           <img
             src="/app-logo.png"
-            alt="ครู"
+            alt="Logo"
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
