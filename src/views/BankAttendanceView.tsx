@@ -83,6 +83,9 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   const [isNoteFullscreen, setIsNoteFullscreen] = useState(false);
   const [copiedNote, setCopiedNote] = useState(false);
 
+  // Table Fullscreen Pop-up State
+  const [isTableFullscreen, setIsTableFullscreen] = useState(false);
+
   // Load data for the selected date (Req 7: ให้ขึ้นสถานะมาเรียน ม อัตโนมัติเองเลย)
   const loadDayData = (date: string) => {
     const dayData = dataService.getDayAttendanceAndBank(date);
@@ -403,26 +406,19 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   return (
     <div className="space-y-4 pb-12">
-      {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <PiggyBank className="w-5 h-5" />
+      {/* Top Header Card - Single-row compact bar for tablet view */}
+      <div className="flex items-center justify-between gap-2.5 bg-white px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <PiggyBank className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-gray-900">
-                เงินฝาก & เช็คชื่อ (Bank & Attendance)
-              </h2>
-            </div>
-            <p className="text-xs text-gray-500">
-              บันทึกการมาเรียนและการออมเงิน พร้อมสรุปรายวันและประวัติการถอน
-            </p>
-          </div>
+          <h2 className="text-sm sm:text-base font-bold text-gray-900 truncate">
+            เงินฝาก & เช็คชื่อ (Bank & Attendance)
+          </h2>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Req 4: Button to delete all students' savings to start fresh with password */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* แก้2: ปุ่มลบ ให้มีเฉพาะสัญลักษณ์ เอาออกข้อความเพื่อให้ปุ่มแคบ */}
           <button
             type="button"
             onClick={() => {
@@ -430,336 +426,354 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               setResetError('');
               setShowResetModal(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
             title="ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ (ต้องยืนยันด้วย Password)"
+            aria-label="ลบเงินฝากทั้งหมด"
           >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>ลบเงินฝากทั้งหมด</span>
+            <Trash2 className="w-4 h-4 text-rose-600" />
           </button>
 
+          {/* แก้3: ปุ่มประวัติ ให้มีเฉพาะสัญลักษณ์ เอาออกข้อความเพื่อให้ปุ่มแคบ */}
           <button
             type="button"
             onClick={() => setShowHistoryModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200/80 rounded-xl transition-all cursor-pointer relative"
+            title={`ประวัติการถอน (${withdrawalLogs.length})`}
+            aria-label="ประวัติการถอนเงิน"
           >
-            <History className="w-3.5 h-3.5 text-slate-500" />
-            <span>ประวัติการถอน ({withdrawalLogs.length})</span>
+            <History className="w-4 h-4 text-slate-600" />
+            {withdrawalLogs.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                {withdrawalLogs.length > 9 ? '9+' : withdrawalLogs.length}
+              </span>
+            )}
           </button>
 
+          {/* แก้4: ปุ่มถอนเงิน ให้มีแค่คำว่า "ถอน" */}
           <button
             type="button"
             onClick={() => setShowWithdrawModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer"
+            className="h-8 sm:h-9 px-2.5 sm:px-3 flex items-center justify-center gap-1 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="ทำรายการถอนเงินฝากของนักเรียน"
           >
-            <ArrowDownRight className="w-3.5 h-3.5" />
-            <span>ถอนเงิน</span>
+            <ArrowDownRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>ถอน</span>
           </button>
 
+          {/* แก้5: ปุ่มดาวน์โหลด ให้มีแค่สัญลักษณ์เครื่องปริ้น */}
           <button
             type="button"
             onClick={() => setShowPrintModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-            title="ดาวน์โหลดรายงานหรือบันทึกเป็นไฟล์ PDF"
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+            title="พิมพ์ / บันทึกรายงานเป็น PDF"
+            aria-label="พิมพ์รายงานเป็นไฟล์ PDF"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>ดาวน์โหลดไฟล์ PDF</span>
+            <Printer className="w-4 h-4 text-white" />
           </button>
         </div>
       </div>
 
-      {/* COMPACT CALENDAR TRIGGER & DATE SELECTION BAR */}
-      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Left: Compact Date Selector Button with pop-up trigger */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setShowCalendarModal(true)}
-              className="flex items-center gap-2.5 px-3.5 py-2 bg-emerald-50/60 hover:bg-emerald-100/70 border border-emerald-300/80 rounded-xl transition-all shadow-2xs text-left group cursor-pointer"
-              title="คลิกเพื่อเปิดปฏิทินบันทึกเงินฝาก & เช็คชื่อ"
-            >
-              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-2xs">
-                <Calendar className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="text-[10px] text-emerald-800 font-medium block leading-tight">
-                  วันที่เลือกบันทึก (คลิกเพื่อเปิดปฏิทิน)
-                </span>
-                <span className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-800">
-                  {formatThaiDate(selectedDate, true)}
-                </span>
-              </div>
-              <span className="text-[11px] bg-white text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-semibold ml-1">
-                ปฏิทิน ▾
-              </span>
-            </button>
-
-            {/* Prev / Today / Next Quick Buttons (Req 8: เลื่อนไปวันอื่นเป็นการเลื่อนเปล่าๆ ไม่มีข้อความ) */}
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={handlePrevDay}
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg text-xs transition-all cursor-pointer"
-                title="วันก่อนหน้า"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleToday}
-                className="px-2 py-1 text-slate-700 hover:text-emerald-700 font-bold text-xs hover:bg-white rounded-lg transition-all cursor-pointer"
-              >
-                วันนี้
-              </button>
-              <button
-                type="button"
-                onClick={handleNextDay}
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg text-xs transition-all cursor-pointer"
-                title="วันถัดไป"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Right: Auto-save & Status indicator (Req 6 & 7: เอาออกคำว่า บันทึกข้อมูล และ เช็คมาทุกคน จัดให้เรียบร้อย) */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 shadow-2xs">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>บันทึกข้อมูลอัตโนมัติ</span>
-            </span>
-          </div>
-        </div>
-
+      {/* COMPACT NOTE BAR */}
+      <div className="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs">
         {/* Daily Note Input with Expand Pop-up Button */}
-        <div className="flex items-center gap-2.5 bg-amber-50/70 border border-amber-200/90 rounded-xl px-3.5 py-2 transition-all focus-within:border-amber-400 focus-within:bg-amber-50 shadow-2xs">
-          <MessageSquare className="w-4 h-4 text-amber-600 shrink-0" />
+        <div className="flex items-center gap-2 bg-amber-50/70 border border-amber-200/90 rounded-xl px-3 py-1.5 transition-all focus-within:border-amber-400 focus-within:bg-amber-50 shadow-2xs">
+          <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" />
           <div className="flex-1 flex items-center gap-2 min-w-0">
-            <span className="text-[11px] font-bold text-amber-900 shrink-0 whitespace-nowrap">
-              หมายเหตุประจำวัน / เหตุผลที่ไม่ฝากเงิน:
+            <span className="text-[11px] font-bold text-amber-900 shrink-0 whitespace-nowrap hidden sm:inline">
+              หมายเหตุประจำวัน:
             </span>
             <input
               type="text"
               value={dayNote}
               onChange={(e) => handleNoteChange(e.target.value)}
-              placeholder="เช่น วันนี้มีกิจกรรมทัศนศึกษา ไม่ได้เก็บเงินออม, วันหยุดโรงเรียน, วันสอบปลายภาค..."
+              placeholder="เช่น วันนี้มีกิจกรรมทัศนศึกษา ไม่ได้เก็บเงินออม, วันหยุดโรงเรียน..."
               className="w-full bg-transparent text-xs text-slate-800 placeholder:text-amber-700/40 outline-hidden font-medium truncate"
             />
           </div>
           {dayNote && (
-            <span className="text-[10px] bg-amber-200/70 text-amber-800 px-2 py-0.5 rounded-md font-semibold shrink-0">
+            <span className="text-[10px] bg-amber-200/70 text-amber-800 px-1.5 py-0.5 rounded-md font-semibold shrink-0">
               บันทึกแล้ว
             </span>
           )}
           <button
             type="button"
             onClick={() => setShowNoteModal(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer border border-amber-300 shrink-0"
-            title="กดเพื่อเปิดหน้าต่างบันทึกรายละเอียดหมายเหตุแบบเต็มหน้าจอ"
+            className="w-7 h-7 flex items-center justify-center bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg transition-all shadow-2xs cursor-pointer border border-amber-300 shrink-0"
+            title="บันทึกรายละเอียดหมายเหตุแบบเต็มหน้าจอ"
+            aria-label="ขยายหน้าต่างหมายเหตุ"
           >
             <Maximize2 className="w-3.5 h-3.5 text-amber-800" />
-            <span className="hidden sm:inline">ขยายเต็มหน้า</span>
-            <span className="sm:hidden">เต็มหน้า</span>
           </button>
         </div>
       </div>
 
-      {/* Main Attendance & Deposit Table (จัดหน้าให้เรียบร้อยสบายตา) */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <CheckSquare className="w-4 h-4 text-emerald-600" />
-            <span>บัญชีเช็คชื่อและการฝากเงิน: {formatThaiDate(selectedDate)}</span>
-          </h3>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 font-medium">นักเรียนทั้งหมด {students.length} คน</span>
-            <button
-              type="button"
-              onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-              title="ดาวน์โหลดรายงานเป็นไฟล์ PDF"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>ดาวน์โหลด PDF</span>
-            </button>
+      {/* Main Attendance & Deposit Table Workspace with Fullscreen Pop-up (แก้8) */}
+      <div
+        className={
+          isTableFullscreen
+            ? 'fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs p-2 sm:p-4 flex flex-col animate-in fade-in duration-150'
+            : 'contents'
+        }
+      >
+        <div
+          className={`bg-white rounded-2xl border border-slate-200/90 shadow-2xs flex flex-col overflow-hidden ${
+            isTableFullscreen ? 'w-full h-full shadow-2xl' : 'p-3.5 sm:p-4'
+          }`}
+        >
+          {/* Header row inside table container */}
+          <div
+            className={`flex items-center justify-between gap-2 shrink-0 ${
+              isTableFullscreen ? 'p-3.5 bg-slate-50/90 border-b border-slate-200' : 'pb-3'
+            }`}
+          >
+            {/* แก้6 & แก้7: บัญชีเช็คชื่อ-และฝากเงิน ร่วมกับปฏิทินที่แสดงเฉพาะสัญลักษณ์เท่านั้น ไม่มีข้อความใดๆ ทั้งสิ้น */}
+            <div className="flex items-center gap-2 min-w-0">
+              <CheckSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+              <h3 className="text-xs sm:text-sm font-bold text-slate-800 truncate">
+                บัญชีเช็คชื่อและการฝากเงิน: {formatThaiDate(selectedDate)}
+              </h3>
+
+              {/* ปฏิทินแสดงเฉพาะสัญลักษณ์เท่านั้น (แก้6) */}
+              <button
+                type="button"
+                onClick={() => setShowCalendarModal(true)}
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all cursor-pointer shrink-0"
+                title="เปิดปฏิทินเลือกวัน"
+                aria-label="เปิดปฏิทิน"
+              >
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700" />
+              </button>
+            </div>
+
+            {/* Right side controls: เลื่อนวัน ซ้าย-ขวา (ไม่มีคำว่าวันนี้), จำนวนนักเรียน, ปุ่มขยายตารางเฉพาะไอคอน (แก้8) */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* เลื่อนวัน ซ้าย-ขวา เท่านั้น ไม่มีคำว่าวันนี้ (แก้7) */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={handlePrevDay}
+                  className="p-1 sm:p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-all cursor-pointer"
+                  title="วันก่อนหน้า"
+                  aria-label="วันก่อนหน้า"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextDay}
+                  className="p-1 sm:p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-all cursor-pointer"
+                  title="วันถัดไป"
+                  aria-label="วันถัดไป"
+                >
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              </div>
+
+              <span className="text-[11px] sm:text-xs text-slate-500 font-medium hidden md:inline">
+                {students.length} คน
+              </span>
+
+              {/* แก้8: ปุ่มขยายตรงตารางเงินฝากเป็น pop-up ให้มีแค่สัญลักษณ์ขยายไม่ต้องมีข้อความใดๆทั้งสิ้น */}
+              {isTableFullscreen ? (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(false)}
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl shadow-xs transition-all cursor-pointer"
+                  title="ย่อหน้าต่างกลับ"
+                  aria-label="ย่อหน้าต่าง"
+                >
+                  <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsTableFullscreen(true)}
+                  className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                  title="ขยายตารางเต็มหน้าจอ (Pop-up)"
+                  aria-label="ขยายตาราง"
+                >
+                  <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-semibold">
-                <th className="py-2.5 px-2.5 w-12 text-center">ลำดับ</th>
-                <th className="py-2.5 px-3 min-w-[200px]">รูป / ชื่อ-สกุล นักเรียน</th>
-                <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
-                <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
-                <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม (ม)</th>
-                <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม (ป)</th>
-                <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/40">ลากิจรวม (ล)</th>
-                <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/40">ขาดรวม (ข)</th>
-                <th className="py-2.5 px-3 w-32 text-right bg-emerald-100/40 text-emerald-900 font-bold">
-                  ยอดออมสะสม
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {students.map((student, index) => {
-                const currentStatus = attendanceMap[student.id] || 'present';
-                const currentDeposit = depositsMap[student.id] || 0;
-                const stats = studentCumulativeStats[student.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-semibold sticky top-0 bg-slate-50 z-10">
+                  <th className="py-2.5 px-2.5 w-12 text-center">ลำดับ</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">รูป / ชื่อ-สกุล นักเรียน</th>
+                  <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
+                  <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม (ม)</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม (ป)</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/40">ลากิจรวม (ล)</th>
+                  <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/40">ขาดรวม (ข)</th>
+                  <th className="py-2.5 px-3 w-32 text-right bg-emerald-100/40 text-emerald-900 font-bold">
+                    ยอดออมสะสม
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {students.map((student, index) => {
+                  const currentStatus = attendanceMap[student.id] || 'present';
+                  const currentDeposit = depositsMap[student.id] || 0;
+                  const stats = studentCumulativeStats[student.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
 
-                return (
-                  <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-2 px-2.5 text-center text-slate-500 font-medium">{index + 1}</td>
-                    <td className="py-2 px-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                          <ImageWithFallback
-                            src={student.photoUrl}
-                            alt={student.firstName}
-                            isAvatar={true}
-                            className="w-full h-full object-cover"
-                          />
+                  return (
+                    <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-2 px-2.5 text-center text-slate-500 font-medium">{index + 1}</td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                            <ImageWithFallback
+                              src={student.photoUrl}
+                              alt={student.firstName}
+                              isAvatar={true}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-800 text-xs">
+                              {student.prefix}{student.firstName} {student.lastName}
+                            </span>
+                            {student.nickname && (
+                              <span className="text-[10px] text-slate-500 ml-1">({student.nickname})</span>
+                            )}
+                            <span className="block text-[9px] text-slate-400">#{student.studentCode}</span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-semibold text-slate-800 text-xs">
-                            {student.prefix}{student.firstName} {student.lastName}
-                          </span>
-                          {student.nickname && (
-                            <span className="text-[10px] text-slate-500 ml-1">({student.nickname})</span>
-                          )}
-                          <span className="block text-[9px] text-slate-400">#{student.studentCode}</span>
+                      </td>
+
+                      {/* Attendance Status Selector (ม, ป, ล, ข) */}
+                      <td className="py-2 px-2 text-center">
+                        <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => handleAttendanceChange(student.id, 'present')}
+                            className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
+                              currentStatus === 'present'
+                                ? 'bg-emerald-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                            title="มาเรียน (ม)"
+                          >
+                            ม
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAttendanceChange(student.id, 'sick')}
+                            className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
+                              currentStatus === 'sick'
+                                ? 'bg-amber-500 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
+                            }`}
+                            title="ป่วย (ป)"
+                          >
+                            ป
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAttendanceChange(student.id, 'personal')}
+                            className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
+                              currentStatus === 'personal'
+                                ? 'bg-blue-500 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50'
+                            }`}
+                            title="ลากิจ (ล)"
+                          >
+                            ล
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAttendanceChange(student.id, 'absent')}
+                            className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
+                              currentStatus === 'absent'
+                                ? 'bg-rose-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50'
+                            }`}
+                            title="ขาดเรียน (ข)"
+                          >
+                            ข
+                          </button>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Attendance Status Selector (ม, ป, ล, ข) */}
-                    <td className="py-2 px-2 text-center">
-                      <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
-                        <button
-                          type="button"
-                          onClick={() => handleAttendanceChange(student.id, 'present')}
-                          className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
-                            currentStatus === 'present'
-                              ? 'bg-emerald-600 text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                          title="มาเรียน (ม)"
-                        >
-                          ม
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAttendanceChange(student.id, 'sick')}
-                          className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
-                            currentStatus === 'sick'
-                              ? 'bg-amber-500 text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
-                          }`}
-                          title="ป่วย (ป)"
-                        >
-                          ป
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAttendanceChange(student.id, 'personal')}
-                          className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
-                            currentStatus === 'personal'
-                              ? 'bg-blue-500 text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50'
-                          }`}
-                          title="ลากิจ (ล)"
-                        >
-                          ล
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAttendanceChange(student.id, 'absent')}
-                          className={`w-7 h-6 rounded text-xs font-bold transition-all cursor-pointer ${
-                            currentStatus === 'absent'
-                              ? 'bg-rose-600 text-white shadow-2xs'
-                              : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50'
-                          }`}
-                          title="ขาดเรียน (ข)"
-                        >
-                          ข
-                        </button>
-                      </div>
-                    </td>
+                      {/* Deposit input / Auto display "ป, ล, ข" when marked absent/sick/leave */}
+                      <td className="py-2 px-2 text-center">
+                        {currentStatus === 'sick' ? (
+                          <div className="w-20 mx-auto py-1 px-2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded-lg text-xs text-center">
+                            ป
+                          </div>
+                        ) : currentStatus === 'personal' ? (
+                          <div className="w-20 mx-auto py-1 px-2 bg-blue-50 text-blue-700 font-bold border border-blue-200 rounded-lg text-xs text-center">
+                            ล
+                          </div>
+                        ) : currentStatus === 'absent' ? (
+                          <div className="w-20 mx-auto py-1 px-2 bg-rose-50 text-rose-700 font-bold border border-rose-200 rounded-lg text-xs text-center">
+                            ข
+                          </div>
+                        ) : (
+                          <div className="relative w-22 mx-auto">
+                            <input
+                              type="number"
+                              min="0"
+                              step="5"
+                              value={currentDeposit || ''}
+                              onChange={(e) =>
+                                handleDepositChange(student.id, e.target.value ? Number(e.target.value) : 0)
+                              }
+                              placeholder="0"
+                              className="w-full pl-2 pr-6 py-1 text-center font-bold text-slate-800 rounded-lg border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-100 text-xs outline-hidden"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
+                              ฿
+                            </span>
+                          </div>
+                        )}
+                      </td>
 
-                    {/* Deposit input / Auto display "ป, ล, ข" when marked absent/sick/leave */}
-                    <td className="py-2 px-2 text-center">
-                      {currentStatus === 'sick' ? (
-                        <div className="w-20 mx-auto py-1 px-2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded-lg text-xs text-center">
-                          ป
-                        </div>
-                      ) : currentStatus === 'personal' ? (
-                        <div className="w-20 mx-auto py-1 px-2 bg-blue-50 text-blue-700 font-bold border border-blue-200 rounded-lg text-xs text-center">
-                          ล
-                        </div>
-                      ) : currentStatus === 'absent' ? (
-                        <div className="w-20 mx-auto py-1 px-2 bg-rose-50 text-rose-700 font-bold border border-rose-200 rounded-lg text-xs text-center">
-                          ข
-                        </div>
-                      ) : (
-                        <div className="relative w-22 mx-auto">
-                          <input
-                            type="number"
-                            min="0"
-                            step="5"
-                            value={currentDeposit || ''}
-                            onChange={(e) =>
-                              handleDepositChange(student.id, e.target.value ? Number(e.target.value) : 0)
-                            }
-                            placeholder="0"
-                            className="w-full pl-2 pr-6 py-1 text-center font-bold text-slate-800 rounded-lg border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-100 text-xs outline-hidden"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
-                            ฿
-                          </span>
-                        </div>
-                      )}
-                    </td>
+                      {/* Cumulative Present Total (ม) */}
+                      <td className="py-2 px-2 text-center bg-emerald-50/20">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60" title={`มาเรียนสะสม ${stats.present} วัน`}>
+                          {stats.present}
+                        </span>
+                      </td>
 
-                    {/* Cumulative Present Total (ม) */}
-                    <td className="py-2 px-2 text-center bg-emerald-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60" title={`มาเรียนสะสม ${stats.present} วัน`}>
-                        {stats.present}
-                      </span>
-                    </td>
+                      {/* Cumulative Sick Total (ป) */}
+                      <td className="py-2 px-2 text-center bg-amber-50/20">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60" title={`ป่วยสะสม ${stats.sick} วัน`}>
+                          {stats.sick}
+                        </span>
+                      </td>
 
-                    {/* Cumulative Sick Total (ป) */}
-                    <td className="py-2 px-2 text-center bg-amber-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60" title={`ป่วยสะสม ${stats.sick} วัน`}>
-                        {stats.sick}
-                      </span>
-                    </td>
+                      {/* Cumulative Personal Leave Total (ล) */}
+                      <td className="py-2 px-2 text-center bg-blue-50/20">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60" title={`ลากิจสะสม ${stats.personal} วัน`}>
+                          {stats.personal}
+                        </span>
+                      </td>
 
-                    {/* Cumulative Personal Leave Total (ล) */}
-                    <td className="py-2 px-2 text-center bg-blue-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60" title={`ลากิจสะสม ${stats.personal} วัน`}>
-                        {stats.personal}
-                      </span>
-                    </td>
+                      {/* Cumulative Absent Total (ข) */}
+                      <td className="py-2 px-2 text-center bg-rose-50/20">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200/60" title={`ขาดเรียนสะสม ${stats.absent} วัน`}>
+                          {stats.absent}
+                        </span>
+                      </td>
 
-                    {/* Cumulative Absent Total (ข) */}
-                    <td className="py-2 px-2 text-center bg-rose-50/20">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200/60" title={`ขาดเรียนสะสม ${stats.absent} วัน`}>
-                        {stats.absent}
-                      </span>
-                    </td>
-
-                    {/* Cumulative Savings */}
-                    <td className="py-2 px-3 text-right bg-emerald-50/30">
-                      <span className="font-bold text-emerald-800 text-xs sm:text-sm">
-                        {(studentCumulativeSavings[student.id] || 0).toLocaleString()} ฿
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      {/* Cumulative Savings */}
+                      <td className="py-2 px-3 text-right bg-emerald-50/30">
+                        <span className="font-bold text-emerald-800 text-xs sm:text-sm">
+                          {(studentCumulativeSavings[student.id] || 0).toLocaleString()} ฿
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
