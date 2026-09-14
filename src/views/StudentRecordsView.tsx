@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Student, DynamicField, TeacherProfile } from '../types';
+import { Student, DynamicField, TeacherProfile, GradeLevel } from '../types';
 import { dataService } from '../services/dataService';
 import { calculateAge, formatThaiDate } from '../utils/helpers';
 import { ImageWithFallback } from '../components/ImageWithFallback';
@@ -24,7 +24,9 @@ import {
   Heart,
   Droplet,
   Tag,
-  CheckCircle2
+  CheckCircle2,
+  Filter,
+  GraduationCap
 } from 'lucide-react';
 
 interface StudentRecordsViewProps {
@@ -35,6 +37,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
   const [students, setStudents] = useState<Student[]>(dataService.getStudents());
   const [profile, setProfile] = useState<TeacherProfile>(dataService.getProfile());
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<'all' | GradeLevel>('all');
 
   // Form modal state
   const [showFormModal, setShowFormModal] = useState(false);
@@ -47,6 +50,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
   const [showPrintModal, setShowPrintModal] = useState(false);
 
   // Form Fields
+  const [gradeLevel, setGradeLevel] = useState<GradeLevel>('ป.1');
   const [prefix, setPrefix] = useState<Student['prefix']>('เด็กชาย');
   const [studentCode, setStudentCode] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -140,6 +144,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     setEditingStudent(null);
     const nextCode = `501${String(students.length + 1).padStart(2, '0')}`;
     setStudentCode(nextCode);
+    setGradeLevel(selectedGradeFilter !== 'all' ? selectedGradeFilter : 'ป.1');
     setPrefix('เด็กชาย');
     setFirstName('');
     setLastName('');
@@ -166,6 +171,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
   const handleOpenEditModal = (student: Student) => {
     setEditingStudent(student);
     setStudentCode(student.studentCode || '');
+    setGradeLevel(student.gradeLevel || 'ป.1');
     setPrefix(student.prefix);
     setFirstName(student.firstName);
     setLastName(student.lastName);
@@ -216,6 +222,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     const payload: Student = {
       id: editingStudent ? editingStudent.id : `std-${Date.now()}`,
       studentCode: studentCode || `501${String(students.length + 1).padStart(2, '0')}`,
+      gradeLevel: gradeLevel || 'ป.1',
       prefix,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -260,21 +267,25 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     });
   };
 
-  // Search filter
+  // Filter by search query and grade
   const filteredStudents = students.filter((s) => {
+    if (selectedGradeFilter !== 'all' && (s.gradeLevel || 'ป.1') !== selectedGradeFilter) {
+      return false;
+    }
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
     return (
       s.firstName.toLowerCase().includes(q) ||
       s.lastName.toLowerCase().includes(q) ||
-      s.nickname.toLowerCase().includes(q) ||
+      s.nickname?.toLowerCase().includes(q) ||
       s.studentCode.toLowerCase().includes(q) ||
+      s.gradeLevel?.toLowerCase().includes(q) ||
       s.parentOccupation?.toLowerCase().includes(q)
     );
   });
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 pb-12">
       {/* Action header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-emerald-50 shadow-xs">
         <div className="flex items-center gap-3">
@@ -284,9 +295,12 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold text-gray-900">ข้อมูลนักเรียน (Student Records)</h2>
+              <span className="text-xs bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-full">
+                {filteredStudents.length} คน
+              </span>
             </div>
             <p className="text-xs text-gray-500">
-              ทะเบียนประวัตินักเรียน การติดต่อ ผู้ปกครอง การเดินทาง ค่าขนม และฟิลด์กำหนดเอง
+              ทะเบียนประวัตินักเรียน แยกตามระดับชั้นประถมศึกษา 1 - 6
             </p>
           </div>
         </div>
@@ -299,51 +313,93 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
             title="พิมพ์บัญชีรายชื่อนักเรียน"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>ดาวน์โหลด PDF</span>
+            <span className="hidden sm:inline">ดาวน์โหลด PDF</span>
           </button>
 
+          {/* ปุ่มเพิ่มข้อมูลนักเรียนแบบ "+" ตามที่ผู้ใช้ระบุ (แก้2) */}
           <button
             type="button"
             onClick={handleOpenCreateModal}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-all shadow-2xs cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg flex items-center justify-center font-bold text-lg transition-all shadow-xs cursor-pointer"
+            title="เพิ่มข้อมูลนักเรียน (+)"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ เพิ่มข้อมูลนักเรียน</span>
+            <Plus className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="ค้นหาด้วยชื่อ, นามสกุล, ชื่อเล่น หรือรหัสนักเรียน..."
-          className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border border-slate-200/90 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 text-sm outline-hidden shadow-2xs"
-        />
+      {/* Filter and Search Bar Row */}
+      <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center">
+        {/* เลือกระดับชั้น ป.1 - ป.6 (แก้4) */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 bg-white p-1.5 rounded-xl border border-slate-200/90 shadow-2xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setSelectedGradeFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+              selectedGradeFilter === 'all'
+                ? 'bg-blue-600 text-white shadow-2xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            ทั้งหมด ({students.length})
+          </button>
+          {(['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'] as GradeLevel[]).map((g) => {
+            const count = students.filter((s) => (s.gradeLevel || 'ป.1') === g).length;
+            const isSelected = selectedGradeFilter === g;
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() => setSelectedGradeFilter(g)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>ชั้น {g}</span>
+                <span className={`text-[10px] px-1 py-0.2 rounded-full ${isSelected ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search input */}
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ค้นหาชื่อ, นามสกุล, ชื่อเล่น หรือรหัสนักเรียน..."
+            className="w-full pl-10 pr-4 py-2 bg-white rounded-xl border border-slate-200/90 focus:border-blue-500 focus:ring-1 focus:ring-blue-100 text-xs sm:text-sm outline-hidden shadow-2xs"
+          />
+        </div>
       </div>
 
-      {/* Students Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* Compact List/Row-based Layout (แก้1: ให้แสดงผลเป็นรายการแบบแถวขนาดเล็ก) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
         {filteredStudents.length === 0 ? (
-          <div className="col-span-full bg-white rounded-3xl p-12 text-center border border-dashed border-slate-300 text-slate-400">
-            <Users className="w-12 h-12 mx-auto text-slate-300 mb-2" />
-            <p className="text-sm font-medium">ไม่พบข้อมูลนักเรียนที่ค้นหา</p>
+          <div className="p-10 text-center text-slate-400">
+            <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+            <p className="text-xs sm:text-sm font-medium">ไม่พบข้อมูลนักเรียน</p>
           </div>
         ) : (
-          filteredStudents.map((student, idx) => (
-            <div
-              key={student.id}
-              className="bg-white rounded-3xl p-5 border border-slate-200/80 hover:border-teal-400 hover:shadow-md transition-all flex flex-col justify-between group shadow-2xs"
-            >
-              <div>
-                <div className="flex items-start gap-4">
-                  {/* Avatar Photo with Google Drive Fallback */}
+          <div className="divide-y divide-slate-100">
+            {filteredStudents.map((student, idx) => (
+              <div
+                key={student.id}
+                className="px-3.5 py-2.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 text-xs"
+              >
+                {/* Left: Avatar + Identity + Grade */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {/* Avatar Photo */}
                   <div
                     onClick={() => setDetailStudent(student)}
-                    className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border-2 border-teal-100 bg-slate-50 cursor-pointer shadow-xs group-hover:scale-105 transition-transform"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50 cursor-pointer shadow-2xs"
+                    title="คลิกเพื่อดูรายละเอียด"
                   >
                     <ImageWithFallback
                       src={student.photoUrl}
@@ -353,66 +409,56 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                     />
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  {/* Name and Basic Data */}
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">
+                      <span className="font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded text-[11px] border border-purple-100 shrink-0">
+                        {student.gradeLevel || 'ป.1'}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">
                         #{student.studentCode || idx + 1}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => setDetailStudent(student)}
+                        className="font-bold text-slate-800 hover:text-blue-600 truncate cursor-pointer text-left text-xs sm:text-sm"
+                      >
+                        {student.prefix}{student.firstName} {student.lastName}
+                      </button>
                       {student.nickname && (
-                        <span className="text-xs font-semibold text-slate-500">
+                        <span className="text-slate-400 font-normal">
                           ({student.nickname})
                         </span>
                       )}
                     </div>
-                    <h3
-                      onClick={() => setDetailStudent(student)}
-                      className="text-base font-bold text-slate-800 truncate hover:text-teal-700 cursor-pointer transition-colors mt-0.5"
-                    >
-                      {student.prefix}{student.firstName} {student.lastName}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      อายุ {student.age} ปี • เพศ {student.gender === 'male' ? 'ชาย' : 'หญิง'}
-                    </p>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 truncate">
+                      <span>{student.gender === 'male' ? 'ชาย' : 'หญิง'}</span>
+                      <span>•</span>
+                      <span>อายุ {student.age} ปี</span>
+                      {student.parentPhone && (
+                        <>
+                          <span>•</span>
+                          <span className="hidden sm:inline text-slate-400">โทร {student.parentPhone}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Quick Info Tags */}
-                <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Home className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">อยู่กับ: {student.livesWith || '-'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Bus className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">เดินทาง: {student.commuteMethod || '-'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Coins className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>ค่าขนม {student.dailyAllowance} ฿</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Briefcase className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{student.parentOccupation || 'ไม่ระบุ'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Card Controls */}
-              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setDetailStudent(student)}
-                  className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-800 py-1 px-2 rounded-lg hover:bg-teal-50 transition-colors cursor-pointer"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>ดูรายละเอียด</span>
-                </button>
-
-                <div className="flex items-center gap-1">
+                {/* Right: Quick actions */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDetailStudent(student)}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                    title="ดูรายละเอียด"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleOpenEditModal(student)}
-                    className="p-1.5 text-slate-400 hover:text-teal-700 hover:bg-teal-50 rounded-xl transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
                     title="แก้ไขข้อมูลนักเรียน"
                   >
                     <Edit className="w-4 h-4" />
@@ -420,15 +466,15 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   <button
                     type="button"
                     onClick={() => handleDeleteStudent(student)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                     title="ลบข้อมูลนักเรียน"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
@@ -437,7 +483,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
             {/* Header */}
-            <div className="p-6 bg-gradient-to-r from-teal-600 to-emerald-600 text-white flex items-start justify-between">
+            <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex items-start justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-white/80 bg-white/20 shrink-0 shadow-md">
                   <ImageWithFallback
@@ -448,13 +494,18 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   />
                 </div>
                 <div>
-                  <span className="text-xs font-semibold bg-white/20 px-2.5 py-0.5 rounded-full">
-                    รหัสนักเรียน #{detailStudent.studentCode}
-                  </span>
-                  <h3 className="text-xl font-bold mt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-white/25 px-2.5 py-0.5 rounded-full">
+                      ชั้น {detailStudent.gradeLevel || 'ป.1'}
+                    </span>
+                    <span className="text-xs font-semibold bg-white/20 px-2.5 py-0.5 rounded-full">
+                      #{detailStudent.studentCode}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold mt-1.5">
                     {detailStudent.prefix}{detailStudent.firstName} {detailStudent.lastName}
                   </h3>
-                  <p className="text-xs text-teal-100">ชื่อเล่น: {detailStudent.nickname || '-'}</p>
+                  <p className="text-xs text-blue-100">ชื่อเล่น: {detailStudent.nickname || '-'}</p>
                 </div>
               </div>
 
@@ -598,7 +649,26 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
             {/* Form Fields */}
             <form onSubmit={handleSaveStudent} className="p-6 overflow-y-auto flex-1 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    ชั้นประถมศึกษา <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={gradeLevel}
+                    onChange={(e) => setGradeLevel(e.target.value as GradeLevel)}
+                    className="w-full px-3 py-2 rounded-xl border border-purple-300 focus:border-purple-500 text-xs outline-hidden bg-purple-50/50 font-bold text-purple-900"
+                    required
+                  >
+                    <option value="ป.1">ชั้น ป.1</option>
+                    <option value="ป.2">ชั้น ป.2</option>
+                    <option value="ป.3">ชั้น ป.3</option>
+                    <option value="ป.4">ชั้น ป.4</option>
+                    <option value="ป.5">ชั้น ป.5</option>
+                    <option value="ป.6">ชั้น ป.6</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">คำนำหน้า</label>
                   <select

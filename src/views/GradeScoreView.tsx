@@ -9,6 +9,7 @@ import {
 import { dataService } from '../services/dataService';
 import { calculateGradeFromPercent } from '../utils/helpers';
 import { PrintReportModal } from '../components/PrintReportModal';
+import { CopyStudentModal } from '../components/CopyStudentModal';
 import confetti from 'canvas-confetti';
 import {
   FileSpreadsheet,
@@ -26,7 +27,9 @@ import {
   Download,
   UserPlus,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Copy,
+  Users
 } from 'lucide-react';
 
 interface GradeScoreViewProps {
@@ -116,6 +119,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   // Print PDF Modal State
   const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // Copy Student Modal State (แก้5: คัดลอก/ดึงข้อมูลนักเรียนจากทะเบียนนักเรียน)
+  const [showCopyStudentModal, setShowCopyStudentModal] = useState(false);
+  const [targetStudentRowId, setTargetStudentRowId] = useState<string | null>(null);
 
   // Auto-Save Status (Req 4: บันทึกข้อมูลอัตโนมัติ)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('saved');
@@ -420,6 +427,95 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
     dataService.saveScoreSheet(updatedSheet, true);
     triggerAutoSaveEffect();
+  };
+
+  // Copy / Pick student from student registry (แก้5)
+  const handleCopySingleStudent = (pickedStudent: Student) => {
+    if (!activeSheet) return;
+    if (targetStudentRowId) {
+      // Replace specific student row with picked student info
+      const updatedList = currentSheetStudents.map((s) => {
+        if (s.id === targetStudentRowId) {
+          return {
+            ...s,
+            prefix: pickedStudent.prefix || '',
+            firstName: pickedStudent.firstName,
+            lastName: pickedStudent.lastName,
+            nickname: pickedStudent.nickname || '',
+          };
+        }
+        return s;
+      });
+      const updatedSheet: ScoreSheet = {
+        ...activeSheet,
+        studentList: updatedList,
+        updatedAt: new Date().toISOString(),
+      };
+      dataService.saveScoreSheet(updatedSheet, true);
+      triggerAutoSaveEffect();
+      dataService.notifyToast('success', 'คัดลอกข้อมูลนักเรียนแล้ว', `เปลี่ยนชื่อเป็น ${pickedStudent.prefix || ''}${pickedStudent.firstName} ${pickedStudent.lastName}`);
+    } else {
+      // Add as new row if no target row specified
+      const currentList = currentSheetStudents;
+      const newOrder = currentList.length + 1;
+      const newStudent: SheetStudent = {
+        id: pickedStudent.id || `std-row-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        order: newOrder,
+        prefix: pickedStudent.prefix || '',
+        firstName: pickedStudent.firstName,
+        lastName: pickedStudent.lastName,
+        nickname: pickedStudent.nickname || '',
+      };
+      const updatedList = [...currentList, newStudent];
+      const updatedSheet: ScoreSheet = {
+        ...activeSheet,
+        studentList: updatedList,
+        updatedAt: new Date().toISOString(),
+      };
+      dataService.saveScoreSheet(updatedSheet, true);
+      triggerAutoSaveEffect();
+      dataService.notifyToast('success', 'เพิ่มนักเรียนแล้ว', `เพิ่ม ${pickedStudent.prefix || ''}${pickedStudent.firstName} ${pickedStudent.lastName}`);
+    }
+  };
+
+  // Bulk import students from a grade level or multiple selection
+  const handleCopyMultipleStudents = (selectedStudents: Student[]) => {
+    if (!activeSheet || selectedStudents.length === 0) return;
+    const currentList = currentSheetStudents;
+    const existingIds = new Set(currentList.map((s) => s.id));
+    const newItems: SheetStudent[] = [];
+
+    let currentOrder = currentList.length;
+    selectedStudents.forEach((st) => {
+      // If student not already in table, append
+      if (!existingIds.has(st.id)) {
+        currentOrder += 1;
+        newItems.push({
+          id: st.id,
+          order: currentOrder,
+          prefix: st.prefix || '',
+          firstName: st.firstName,
+          lastName: st.lastName,
+          nickname: st.nickname || '',
+        });
+        existingIds.add(st.id);
+      }
+    });
+
+    if (newItems.length === 0) {
+      dataService.notifyToast('info', 'มีรายชื่อนักเรียนเหล่านี้อยู่แล้วในตาราง');
+      return;
+    }
+
+    const updatedList = [...currentList, ...newItems];
+    const updatedSheet: ScoreSheet = {
+      ...activeSheet,
+      studentList: updatedList,
+      updatedAt: new Date().toISOString(),
+    };
+    dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
+    dataService.notifyToast('success', 'ดึงรายชื่อสำเร็จ', `ดึงนักเรียนเพิ่ม ${newItems.length} คน`);
   };
 
   // Add a new student row to this specific class/sheet
@@ -1267,6 +1363,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                           />
                           <button
                             type="button"
+                            onClick={() => {
+                              setTargetStudentRowId(student.id);
+                              setShowCopyStudentModal(true);
+                            }}
+                            className="p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                            title="คัดลอก/เลือกชื่อนักเรียนจากทะเบียนประวัติ (แก้5)"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleRemoveStudentRow(student.id, `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim())}
                             className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
                             title="ลบแถวนักเรียนคนนี้"
@@ -1424,6 +1531,20 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <span>+ เพิ่มแถวนักเรียน</span>
               </button>
 
+              {/* ดึงรายชื่อจากชั้นเรียน/ทะเบียนนักเรียน */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetStudentRowId(null);
+                  setShowCopyStudentModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                title="คัดลอก/เลือกรายชื่อนักเรียนจากทะเบียนประวัติ (เลือกรายคน หรือยกชั้น ป.1-ป.6)"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>คัดลอกรายชื่อจากชั้นเรียน</span>
+              </button>
+
               {/* เติมคะแนน 5 ทุกคน */}
               <button
                 type="button"
@@ -1533,6 +1654,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                           />
                           <button
                             type="button"
+                            onClick={() => {
+                              setTargetStudentRowId(student.id);
+                              setShowCopyStudentModal(true);
+                            }}
+                            className="p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                            title="คัดลอก/เลือกชื่อนักเรียนจากทะเบียนประวัติ (แก้5)"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleRemoveStudentRow(student.id, `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim())}
                             className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
                             title="ลบแถวนักเรียนคนนี้"
@@ -1628,6 +1760,20 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>+ เพิ่มแถวนักเรียน</span>
+              </button>
+
+              {/* ดึงรายชื่อจากชั้นเรียน/ทะเบียนนักเรียน */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetStudentRowId(null);
+                  setShowCopyStudentModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-200/80 hover:bg-amber-300/80 text-amber-950 rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                title="คัดลอก/เลือกรายชื่อนักเรียนจากทะเบียนประวัติ (เลือกรายคน หรือยกชั้น ป.1-ป.6)"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>คัดลอกรายชื่อจากชั้นเรียน</span>
               </button>
 
               {/* เติมคะแนนเต็มทุกคน */}
@@ -1787,6 +1933,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                         />
                         <button
                           type="button"
+                          onClick={() => {
+                            setTargetStudentRowId(row.studentId);
+                            setShowCopyStudentModal(true);
+                          }}
+                          className="p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                          title="คัดลอก/เลือกชื่อนักเรียนจากทะเบียนประวัติ (แก้5)"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleRemoveStudentRow(row.studentId, row.studentName)}
                           className="p-1 text-slate-300 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
                           title="ลบแถวนักเรียนคนนี้"
@@ -1889,6 +2046,20 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               >
                 <UserPlus className="w-4 h-4" />
                 <span>+ เพิ่มแถวนักเรียน</span>
+              </button>
+
+              {/* ดึงรายชื่อจากชั้นเรียน/ทะเบียนนักเรียน */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetStudentRowId(null);
+                  setShowCopyStudentModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                title="คัดลอก/เลือกรายชื่อนักเรียนจากทะเบียนประวัติ (เลือกรายคน หรือยกชั้น ป.1-ป.6)"
+              >
+                <Users className="w-4 h-4" />
+                <span>คัดลอกรายชื่อจากชั้นเรียน</span>
               </button>
 
               <button
@@ -2299,6 +2470,20 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
           </PrintReportModal>
         );
       })()}
+
+      {/* Modal คัดลอก/เลือกข้อมูลนักเรียนจากทะเบียนประวัติ (แก้5) */}
+      <CopyStudentModal
+        isOpen={showCopyStudentModal}
+        onClose={() => {
+          setShowCopyStudentModal(false);
+          setTargetStudentRowId(null);
+        }}
+        onSelectStudent={handleCopySingleStudent}
+        onSelectMultiple={handleCopyMultipleStudents}
+        title={targetStudentRowId ? 'เลือกนักเรียนเพื่อเปลี่ยนชื่อแถวนี้' : 'เลือกรายชื่อนักเรียนลงตารางคะแนน'}
+        description={targetStudentRowId ? 'คลิกที่นักเรียนเพื่อนำชื่อมาใส่ในแถวนี้ทันที' : 'เลือกรายคน หรือคัดลอกทั้งชั้นเรียนเพื่อนำชื่อลงในตารางคะแนน'}
+        enableMultiple={!targetStudentRowId}
+      />
     </div>
   );
 };

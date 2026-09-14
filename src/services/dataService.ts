@@ -507,15 +507,37 @@ class DataService {
   // Students (Page 2)
   public getStudents(): Student[] {
     const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-    if (!data) {
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(INITIAL_STUDENTS));
-      return INITIAL_STUDENTS;
+    let list: Student[] = INITIAL_STUDENTS;
+    if (data) {
+      try {
+        list = JSON.parse(data);
+      } catch {
+        list = INITIAL_STUDENTS;
+      }
     }
-    try {
-      return JSON.parse(data);
-    } catch {
-      return INITIAL_STUDENTS;
+    // Ensure all students have a valid gradeLevel (default to ป.1 if not specified)
+    let hasChanges = false;
+    const profile = this.getProfile();
+    const defaultGrade = (profile.classroomName || 'ป.1') as any;
+    const validGrades = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'];
+    const resolvedDefault = validGrades.includes(defaultGrade) ? defaultGrade : 'ป.1';
+
+    const normalized = list.map((s, idx) => {
+      if (!s.gradeLevel) {
+        hasChanges = true;
+        // Distribute demo students sensibly: 1st half to ป.1 or current profile grade
+        return {
+          ...s,
+          gradeLevel: (s.studentCode?.startsWith('501') ? 'ป.1' : resolvedDefault) as any,
+        };
+      }
+      return s;
+    });
+
+    if (hasChanges && data) {
+      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(normalized));
     }
+    return normalized;
   }
 
   public saveStudent(student: Student): void {

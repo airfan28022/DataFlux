@@ -6,6 +6,8 @@ export interface DynamicField {
   value: string;
 }
 
+export type GradeLevel = 'ป.1' | 'ป.2' | 'ป.3' | 'ป.4' | 'ป.5' | 'ป.6';
+
 export interface Student {
   id: string;
   studentCode: string;
@@ -13,6 +15,7 @@ export interface Student {
   firstName: string;
   lastName: string;
   nickname: string;
+  gradeLevel?: GradeLevel; // ชั้นประถมศึกษา ป.1 - ป.6
   birthDate: string; // YYYY-MM-DD
   age: number;
   gender: 'male' | 'female';

@@ -86,6 +86,9 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   // Table Fullscreen Pop-up State
   const [isTableFullscreen, setIsTableFullscreen] = useState(false);
 
+  // Copied student state for feedback
+  const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
+
   // Load data for the selected date (Req 7: ให้ขึ้นสถานะมาเรียน ม อัตโนมัติเองเลย)
   const loadDayData = (date: string) => {
     const dayData = dataService.getDayAttendanceAndBank(date);
@@ -634,14 +637,45 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                               className="w-full h-full object-cover"
                             />
                           </div>
-                          <div>
-                            <span className="font-semibold text-slate-800 text-xs">
-                              {student.prefix}{student.firstName} {student.lastName}
-                            </span>
-                            {student.nickname && (
-                              <span className="text-[10px] text-slate-500 ml-1">({student.nickname})</span>
-                            )}
-                            <span className="block text-[9px] text-slate-400">#{student.studentCode}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-800 text-xs truncate">
+                                {student.prefix}{student.firstName} {student.lastName}
+                              </span>
+                              {student.nickname && (
+                                <span className="text-[10px] text-slate-500 shrink-0">({student.nickname})</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nameToCopy = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
+                                  navigator.clipboard.writeText(nameToCopy).then(() => {
+                                    setCopiedStudentId(student.id);
+                                    dataService.notifyToast('success', 'คัดลอกชื่อนักเรียนแล้ว', nameToCopy);
+                                    setTimeout(() => setCopiedStudentId(null), 2000);
+                                  }).catch(() => {
+                                    // Fallback if clipboard API is constrained
+                                    dataService.notifyToast('info', 'คัดลอกชื่อนักเรียน', nameToCopy);
+                                  });
+                                }}
+                                className="p-1 text-slate-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                                title="คัดลอกชื่อ-นามสกุลนักเรียน"
+                              >
+                                {copiedStudentId === student.id ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                              <span>#{student.studentCode}</span>
+                              {student.gradeLevel && (
+                                <span className="px-1 py-0.2 bg-purple-50 text-purple-600 rounded font-medium text-[8.5px]">
+                                  {student.gradeLevel}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
