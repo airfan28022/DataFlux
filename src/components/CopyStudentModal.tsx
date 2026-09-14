@@ -226,7 +226,7 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
                 onClick={handleSelectAllFiltered}
                 className="text-xs font-semibold text-purple-700 hover:text-purple-800 cursor-pointer"
               >
-                เลือกทั้งหมดในชั้นนี้ ({filteredStudents.length})
+                เลือกทั้งหมด ({filteredStudents.length})
               </button>
               <div className="flex items-center gap-2">
                 <button
