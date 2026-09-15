@@ -102,6 +102,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   const [modalSelectedSheetId, setModalSelectedSheetId] = useState<string>('');
   const [modalSubjectName, setModalSubjectName] = useState('');
   const [modalSubjectCode, setModalSubjectCode] = useState('');
+  const [modalClassroom, setModalClassroom] = useState('');
   const [modalTerm, setModalTerm] = useState<'1' | '2'>('1');
   const [modalChapterCount, setModalChapterCount] = useState<number>(2);
   const [modalFinalExamMaxScore, setModalFinalExamMaxScore] = useState<number>(30);
@@ -225,6 +226,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     setModalSelectedSheetId('');
     setModalSubjectName('วิชาใหม่');
     setModalSubjectCode('');
+    const defaultClass = profile.gradeLevel
+      ? (profile.gradeLevel.startsWith('ป.') ? `ชั้นประถมศึกษาปีที่ ${profile.gradeLevel.replace('ป.', '')}` : profile.gradeLevel)
+      : (profile.classroomName || 'ชั้นประถมศึกษาปีที่ 1');
+    setModalClassroom(defaultClass);
     setModalTerm(termToUse);
     setModalChapterCount(2);
     setModalFinalExamMaxScore(30);
@@ -251,6 +256,21 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   const loadSheetDataIntoModal = (sheet: ScoreSheet) => {
     setModalSubjectName(sheet.subjectName);
     setModalSubjectCode(sheet.subjectCode || '');
+    let initialClass = sheet.classroom || '';
+    if (!initialClass) {
+      const sheetIds = new Set((sheet.studentList || []).map((s) => s.id));
+      const matched = students.filter((s) => sheetIds.has(s.id));
+      const grades = Array.from(new Set(matched.map((s) => s.gradeLevel).filter(Boolean))) as string[];
+      if (grades.length === 1) {
+        const g = grades[0];
+        initialClass = g.startsWith('ป.') ? `ชั้นประถมศึกษาปีที่ ${g.replace('ป.', '')}` : `ชั้น ${g}`;
+      } else if (profile.gradeLevel) {
+        initialClass = profile.gradeLevel.startsWith('ป.') ? `ชั้นประถมศึกษาปีที่ ${profile.gradeLevel.replace('ป.', '')}` : profile.gradeLevel;
+      } else {
+        initialClass = profile.classroomName || 'ชั้นประถมศึกษาปีที่ 1';
+      }
+    }
+    setModalClassroom(initialClass);
     setModalTerm(sheet.term);
     const count = sheet.chapterCount || sheet.chapters?.length || 2;
     setModalChapterCount(count);
@@ -326,6 +346,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
       id: targetSheetId,
       subjectName: modalSubjectName.trim(),
       subjectCode: modalSubjectCode.trim(),
+      classroom: modalClassroom.trim() || existingTarget?.classroom || undefined,
       academicYear: profile.academicYear || '2569',
       term: modalTerm,
       chapterCount: builtChapters.length,
@@ -333,6 +354,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
       chapters: builtChapters,
       finalExamMaxScore: Number(modalFinalExamMaxScore) >= 0 ? Number(modalFinalExamMaxScore) : 30,
       finalExamScores: existingTarget?.finalExamScores || {},
+      studentList: existingTarget?.studentList,
       scores: [],
       createdAt: existingTarget?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1067,6 +1089,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     {sheet.subjectCode && (
                       <span className="text-[10px] opacity-80 font-normal">({sheet.subjectCode})</span>
                     )}
+                    {sheet.classroom && (
+                      <span
+                        className={`text-[9px] px-1.5 py-0.2 rounded-md font-semibold ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-emerald-100/90 text-emerald-800'
+                        }`}
+                      >
+                        {sheet.classroom.replace('ชั้นประถมศึกษาปีที่ ', 'ป.')}
+                      </span>
+                    )}
                   </button>
 
                   {/* Delete button on active tab or on hover (Req 5) */}
@@ -1197,6 +1230,17 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   aria-label="รวมทุกบทเรียน"
                 >
                   All
+                </button>
+
+                {/* สัญลักษณ์เครื่องปริ้น แสดงอยู่ทุกวิชา ถัดจากสัญลักษณ์ "All" ตรงบทหรือที่กรอกคะแนน เพื่อที่จะสามารถดาวน์โหลดได้ตรงวิชา และตรงชั้นเรียน */}
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  className="w-7 h-7 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-900 border border-emerald-300 flex items-center justify-center shrink-0 cursor-pointer transition-all shadow-2xs hover:scale-105 active:scale-95 ml-0.5"
+                  title={`พิมพ์ / ดาวน์โหลดรายงานผลการเรียน (${activeSheet?.subjectName || 'วิชานี้'} - ${activeSheet?.classroom || profile.classroomName || 'ตรงชั้นเรียน'})`}
+                  aria-label="พิมพ์หรือดาวน์โหลดรายงานผลการเรียน"
+                >
+                  <Printer className="w-3.5 h-3.5" />
                 </button>
               </div>
 
@@ -2173,6 +2217,43 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 </div>
               </div>
 
+              {/* Classroom / Grade level selection */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ระดับชั้น / ห้องเรียน <span className="text-purple-600 font-normal text-[11px]">(ตรงชั้นเรียน เช่น ป.1, ป.2, ป.3)</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value={
+                      ['ชั้นประถมศึกษาปีที่ 1', 'ชั้นประถมศึกษาปีที่ 2', 'ชั้นประถมศึกษาปีที่ 3', 'ชั้นประถมศึกษาปีที่ 4', 'ชั้นประถมศึกษาปีที่ 5', 'ชั้นประถมศึกษาปีที่ 6'].includes(modalClassroom)
+                        ? modalClassroom
+                        : 'custom'
+                    }
+                    onChange={(e) => {
+                      if (e.target.value !== 'custom') {
+                        setModalClassroom(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 outline-hidden cursor-pointer"
+                  >
+                    <option value="ชั้นประถมศึกษาปีที่ 1">ชั้นประถมศึกษาปีที่ 1 (ป.1)</option>
+                    <option value="ชั้นประถมศึกษาปีที่ 2">ชั้นประถมศึกษาปีที่ 2 (ป.2)</option>
+                    <option value="ชั้นประถมศึกษาปีที่ 3">ชั้นประถมศึกษาปีที่ 3 (ป.3)</option>
+                    <option value="ชั้นประถมศึกษาปีที่ 4">ชั้นประถมศึกษาปีที่ 4 (ป.4)</option>
+                    <option value="ชั้นประถมศึกษาปีที่ 5">ชั้นประถมศึกษาปีที่ 5 (ป.5)</option>
+                    <option value="ชั้นประถมศึกษาปีที่ 6">ชั้นประถมศึกษาปีที่ 6 (ป.6)</option>
+                    <option value="custom">กำหนดเองหรือพิมพ์ระบุ...</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={modalClassroom}
+                    onChange={(e) => setModalClassroom(e.target.value)}
+                    placeholder="ระบุ เช่น ชั้นประถมศึกษาปีที่ 1"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-purple-500 text-xs font-bold outline-hidden"
+                  />
+                </div>
+              </div>
+
               {/* 2. Term Selection & Grading System */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -2398,9 +2479,35 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         const subjCodeText = activeSheet?.subjectCode?.trim() ? ` (${activeSheet.subjectCode.trim()})` : '';
         const line1 = `แบบสรุปผลการเรียน ${subjText}${subjCodeText}`;
 
-        const classroomText = (profile.classroomName && !profile.classroomName.includes('6/1'))
-          ? profile.classroomName
-          : 'ชั้นประถมศึกษาปีที่ 5';
+        // หาชั้นเรียนให้ตรงกับวิชาและนักเรียนในหน้านี้ (ตรงวิชา และตรงชั้นเรียน)
+        let classroomText = activeSheet?.classroom?.trim() || '';
+        if (!classroomText) {
+          // ตรวจสอบจากระดับชั้นของนักเรียนที่เรียนในวิชานี้
+          const sheetStudentIds = new Set(currentSheetStudents.map((s) => s.id));
+          const matchedStudents = students.filter((s) => sheetStudentIds.has(s.id));
+          const gradeLevelsInSheet = Array.from(
+            new Set(matchedStudents.map((s) => s.gradeLevel).filter(Boolean))
+          ) as string[];
+          if (gradeLevelsInSheet.length === 1) {
+            const g = gradeLevelsInSheet[0];
+            classroomText = g.startsWith('ป.')
+              ? `ชั้นประถมศึกษาปีที่ ${g.replace('ป.', '')}`
+              : `ชั้น ${g}`;
+          } else if (gradeLevelsInSheet.length > 1) {
+            classroomText = `ชั้น ${gradeLevelsInSheet.join(', ')}`;
+          } else if (profile.gradeLevel) {
+            const g = profile.gradeLevel;
+            classroomText = g.startsWith('ป.')
+              ? `ชั้นประถมศึกษาปีที่ ${g.replace('ป.', '')}`
+              : `ชั้น ${g}`;
+          } else if (profile.classroomName && !profile.classroomName.includes('6/1')) {
+            classroomText = profile.classroomName.startsWith('ชั้น')
+              ? profile.classroomName
+              : `ชั้น ${profile.classroomName}`;
+          } else {
+            classroomText = 'ชั้นประถมศึกษาปีที่ 1';
+          }
+        }
         const termText = activeSheet?.term || '1';
         const yearText = profile.academicYear || '2569';
         const line2 = `${classroomText} ภาคเรียนที่ ${termText} ปีการศึกษา ${yearText}`;

@@ -27,7 +27,14 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   if (!isOpen) return null;
 
   const handlePrint = () => {
+    const originalTitle = document.title;
+    if (title) {
+      document.title = subtitle ? `${title} - ${subtitle}` : title;
+    }
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
   };
 
   const todayThai = formatThaiDate(new Date(), true);

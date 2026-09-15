@@ -4,6 +4,7 @@ import { dataService } from '../services/dataService';
 import { formatThaiDate } from '../utils/helpers';
 import { ImageWithFallback } from '../components/ImageWithFallback';
 import { PrintReportModal } from '../components/PrintReportModal';
+import { CopyAllStudentsModal } from '../components/CopyAllStudentsModal';
 import confetti from 'canvas-confetti';
 import {
   PiggyBank,
@@ -88,6 +89,9 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   // Copied student state for feedback
   const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
+
+  // Modal คัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้)
+  const [showCopyAllStudentsModal, setShowCopyAllStudentsModal] = useState(false);
 
   // Load data for the selected date (Req 7: ให้ขึ้นสถานะมาเรียน ม อัตโนมัติเองเลย)
   const loadDayData = (date: string) => {
@@ -546,6 +550,17 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               >
                 <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700" />
               </button>
+
+              {/* ปุ่มสัญลักษณ์คัดลอก สำหรับคัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้ เช่น ป.1 ป.2 ...) */}
+              <button
+                type="button"
+                onClick={() => setShowCopyAllStudentsModal(true)}
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-700 border border-purple-300 rounded-xl transition-all cursor-pointer shrink-0"
+                title="คัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้ เช่น ป.1, ป.2...)"
+                aria-label="คัดลอกรายชื่อนักเรียนทั้งหมด"
+              >
+                <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-700" />
+              </button>
             </div>
 
             {/* Right side controls: เลื่อนวัน ซ้าย-ขวา (ไม่มีคำว่าวันนี้), จำนวนนักเรียน, ปุ่มขยายตารางเฉพาะไอคอน (แก้8) */}
@@ -606,7 +621,20 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-semibold sticky top-0 bg-slate-50 z-10">
                   <th className="py-2.5 px-2.5 w-12 text-center">ลำดับ</th>
-                  <th className="py-2.5 px-3 min-w-[200px]">รูป / ชื่อ-สกุล นักเรียน</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span>รูป / ชื่อ-สกุล นักเรียน</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCopyAllStudentsModal(true)}
+                        className="p-1 text-slate-400 hover:text-purple-700 hover:bg-purple-100 rounded-md transition-colors cursor-pointer shrink-0"
+                        title="คัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้ เช่น ป.1, ป.2...)"
+                        aria-label="คัดลอกรายชื่อทั้งหมด"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-purple-600" />
+                      </button>
+                    </div>
+                  </th>
                   <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
                   <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
                   <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม</th>
@@ -1643,6 +1671,11 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
           </div>
         </div>
       )}
+      {/* Modal คัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้) */}
+      <CopyAllStudentsModal
+        isOpen={showCopyAllStudentsModal}
+        onClose={() => setShowCopyAllStudentsModal(false)}
+      />
     </div>
   );
 };
