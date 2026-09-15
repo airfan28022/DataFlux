@@ -411,6 +411,7 @@ export const INITIAL_CALENDAR_EVENTS: CalendarEvent[] = [
 export const INITIAL_WEIGHT_HEIGHT: WeightHeightRecord = {
   id: 'wh-initial-01',
   date: new Date().toISOString().slice(0, 10),
+  gradeLevel: 'ป.5',
   academicYear: '2569',
   term: '1',
   note: 'บันทึกน้ำหนัก-ส่วนสูงต้นภาคเรียนที่ 1/2569',

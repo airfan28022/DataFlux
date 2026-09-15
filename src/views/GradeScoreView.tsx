@@ -2518,7 +2518,8 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             onClose={() => setShowPrintModal(false)}
             title={line1}
             subtitle={line2}
-            profile={profile}
+            profile={{ ...profile, classroomName: classroomText }}
+            orientation="landscape"
             customHeader={
               <div className="space-y-1.5 text-center">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-normal">

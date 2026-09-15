@@ -1335,7 +1335,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             onClose={() => setShowPrintModal(false)}
             title={line1}
             subtitle={line2}
-            profile={profile}
+            profile={{ ...profile, classroomName: classroomText }}
             hidePrintDate={true}
             customHeader={
               <div className="space-y-1.5 text-center">

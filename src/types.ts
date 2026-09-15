@@ -51,6 +51,7 @@ export interface WeightHeightRow {
 export interface WeightHeightRecord {
   id: string;
   date: string; // YYYY-MM-DD
+  gradeLevel?: GradeLevel; // ระดับชั้น ป.1 - ป.6
   academicYear: string;
   term: '1' | '2';
   note?: string;

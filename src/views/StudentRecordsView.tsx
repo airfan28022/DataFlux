@@ -48,6 +48,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
   // Print report modal
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printGradeFilter, setPrintGradeFilter] = useState<'all' | GradeLevel>('all');
 
   // Form Fields
   const [gradeLevel, setGradeLevel] = useState<GradeLevel>('ป.1');
@@ -308,9 +309,12 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowPrintModal(true)}
+            onClick={() => {
+              setPrintGradeFilter(selectedGradeFilter);
+              setShowPrintModal(true);
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-            title="พิมพ์บัญชีรายชื่อนักเรียน"
+            title="พิมพ์ / ดาวน์โหลดบัญชีรายชื่อนักเรียน (PDF)"
           >
             <Printer className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">ดาวน์โหลด PDF</span>
@@ -946,47 +950,143 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
         </div>
       )}
 
-      {/* PRINT STUDENT LIST PDF */}
-      <PrintReportModal
-        isOpen={showPrintModal}
-        onClose={() => setShowPrintModal(false)}
-        title="ทะเบียนประวัติและข้อมูลนักเรียนประจำชั้น"
-        subtitle={`รวมนักเรียนทั้งหมด ${students.length} คน`}
-        profile={profile}
-      >
-        <table className="w-full border-collapse border border-slate-400 text-xs">
-          <thead>
-            <tr className="bg-slate-100 border-b border-slate-400 font-bold">
-              <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
-              <th className="border border-slate-400 p-2 text-center w-20">รหัส</th>
-              <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล (ชื่อเล่น)</th>
-              <th className="border border-slate-400 p-2 text-center w-14">อายุ</th>
-              <th className="border border-slate-400 p-2 text-left">อาศัยอยู่กับ</th>
-              <th className="border border-slate-400 p-2 text-left">การเดินทาง</th>
-              <th className="border border-slate-400 p-2 text-center w-20">ค่าขนม</th>
-              <th className="border border-slate-400 p-2 text-left">อาชีพผู้ปกครอง</th>
-              <th className="border border-slate-400 p-2 text-left">เบอร์ติดต่อ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((s, idx) => (
-              <tr key={s.id} className="border-b border-slate-300">
-                <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
-                <td className="border border-slate-300 p-1.5 text-center">{s.studentCode}</td>
-                <td className="border border-slate-300 p-1.5 font-medium">
-                  {s.prefix}{s.firstName} {s.lastName} {s.nickname ? `(${s.nickname})` : ''}
-                </td>
-                <td className="border border-slate-300 p-1.5 text-center">{s.age}</td>
-                <td className="border border-slate-300 p-1.5">{s.livesWith}</td>
-                <td className="border border-slate-300 p-1.5">{s.commuteMethod}</td>
-                <td className="border border-slate-300 p-1.5 text-center font-semibold">{s.dailyAllowance} ฿</td>
-                <td className="border border-slate-300 p-1.5">{s.parentOccupation || '-'}</td>
-                <td className="border border-slate-300 p-1.5">{s.parentPhone || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </PrintReportModal>
+      {/* PRINT STUDENT LIST PDF WITH SELECTABLE GRADE */}
+      {(() => {
+        const filteredPrintStudents = printGradeFilter === 'all'
+          ? students
+          : students.filter((s) => s.gradeLevel === printGradeFilter);
+
+        const gradeNumberText = printGradeFilter === 'all'
+          ? '1 - 6'
+          : printGradeFilter.replace('ป.', '');
+
+        const gradeNameThai = printGradeFilter === 'all'
+          ? 'ทุกระดับชั้น (ป.1 - ป.6)'
+          : `ชั้นประถมศึกษาปีที่ ${printGradeFilter.replace('ป.', '')}`;
+
+        const yearText = profile.academicYear || '2569';
+        const printDateText = formatThaiDate(new Date(), false);
+
+        const profileForPrint: TeacherProfile = {
+          ...profile,
+          classroomName: gradeNameThai,
+        };
+
+        return (
+          <PrintReportModal
+            isOpen={showPrintModal}
+            onClose={() => setShowPrintModal(false)}
+            title="ทะเบียนประวัติและข้อมูลนักเรียน"
+            subtitle={`ชั้นประถมศึกษาปีที่ ${gradeNumberText} ภาคเรียนที่ 1 ปีการศึกษา ${yearText}`}
+            profile={profileForPrint}
+            hidePrintDate={true}
+            orientation="landscape"
+            customHeader={
+              <div className="space-y-1 text-center">
+                {/* หัวข้อบรรทัดแรก : ทะเบียนประวัติและข้อมูลนักเรียน */}
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-normal">
+                  ทะเบียนประวัติและข้อมูลนักเรียน
+                </h2>
+                {/* หัวข้อบรรทัดที่ 2 ชั้นประถมศึกษาปีที่ ภาคเรียนที่ ปีการศึกษา */}
+                <p className="text-sm sm:text-base font-semibold text-slate-800">
+                  ชั้นประถมศึกษาปีที่ {gradeNumberText} ภาคเรียนที่ 1 ปีการศึกษา {yearText}
+                </p>
+                {/* หัวข้อบรรทัดที่ 3 ขนาดเล็กมาก วัน เดือน ปี ที่พิมพ์ */}
+                <p className="text-[10px] sm:text-[11px] text-slate-500 font-normal pt-0.5">
+                  วัน เดือน ปี ที่พิมพ์ : {printDateText}
+                </p>
+              </div>
+            }
+            extraControls={
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2 overflow-x-auto py-0.5">
+                  <span className="text-xs font-bold text-slate-700 whitespace-nowrap">
+                    เลือกระดับชั้นที่ต้องการดาวน์โหลด:
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {(['all', 'ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'] as const).map((lvl) => {
+                      const isSelected = printGradeFilter === lvl;
+                      const count = lvl === 'all'
+                        ? students.length
+                        : students.filter((s) => s.gradeLevel === lvl).length;
+                      return (
+                        <button
+                          key={lvl}
+                          type="button"
+                          onClick={() => setPrintGradeFilter(lvl)}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white hover:bg-slate-200/80 text-slate-700 border border-slate-200'
+                          }`}
+                        >
+                          {lvl === 'all' ? 'ทุกชั้น' : lvl} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 shrink-0 self-start sm:self-auto">
+                  {gradeNameThai} ({filteredPrintStudents.length} คน)
+                </span>
+              </div>
+            }
+          >
+            <table className="w-full border-collapse border border-slate-400 text-xs">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-400 font-bold">
+                  <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
+                  <th className="border border-slate-400 p-2 text-center w-20">รหัส</th>
+                  <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล (ชื่อเล่น)</th>
+                  {printGradeFilter === 'all' && (
+                    <th className="border border-slate-400 p-2 text-center w-14">ชั้น</th>
+                  )}
+                  <th className="border border-slate-400 p-2 text-center w-14">อายุ</th>
+                  <th className="border border-slate-400 p-2 text-left">อาศัยอยู่กับ</th>
+                  <th className="border border-slate-400 p-2 text-left">การเดินทาง</th>
+                  <th className="border border-slate-400 p-2 text-center w-20">ค่าขนม</th>
+                  <th className="border border-slate-400 p-2 text-left">อาชีพผู้ปกครอง</th>
+                  <th className="border border-slate-400 p-2 text-left">เบอร์ติดต่อ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPrintStudents.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={printGradeFilter === 'all' ? 10 : 9}
+                      className="border border-slate-300 p-6 text-center text-slate-400"
+                    >
+                      ไม่มีข้อมูลนักเรียนในระดับชั้นนี้
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPrintStudents.map((s, idx) => (
+                    <tr key={s.id} className="border-b border-slate-300">
+                      <td className="border border-slate-300 p-1.5 text-center">{idx + 1}</td>
+                      <td className="border border-slate-300 p-1.5 text-center font-mono">{s.studentCode}</td>
+                      <td className="border border-slate-300 p-1.5 font-medium">
+                        {s.prefix}{s.firstName} {s.lastName} {s.nickname ? `(${s.nickname})` : ''}
+                      </td>
+                      {printGradeFilter === 'all' && (
+                        <td className="border border-slate-300 p-1.5 text-center font-semibold text-slate-700">
+                          {s.gradeLevel || '-'}
+                        </td>
+                      )}
+                      <td className="border border-slate-300 p-1.5 text-center">{s.age}</td>
+                      <td className="border border-slate-300 p-1.5">{s.livesWith || '-'}</td>
+                      <td className="border border-slate-300 p-1.5">{s.commuteMethod || '-'}</td>
+                      <td className="border border-slate-300 p-1.5 text-center font-semibold">{s.dailyAllowance || 0} ฿</td>
+                      <td className="border border-slate-300 p-1.5">{s.parentOccupation || '-'}</td>
+                      <td className="border border-slate-300 p-1.5 font-mono">{s.parentPhone || '-'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </PrintReportModal>
+        );
+      })()}
     </div>
   );
 };
