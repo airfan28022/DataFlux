@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { TeacherProfile } from '../types';
 import { formatThaiDate } from '../utils/helpers';
 import { Printer, X, Download, FileText, Loader2 } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas-pro';
+import { jsPDF } from 'jspdf';
 
 interface PrintReportModalProps {
   isOpen: boolean;
@@ -57,17 +58,83 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
         .replace(/[\/\\?%*:|"<>•]/g, '_')
         .replace(/\s+/g, '_')
         .trim();
-      const cleanFileName = rawFileName.length > 50 ? rawFileName.slice(0, 50) : rawFileName;
+      const cleanFileName = (rawFileName.length > 50 ? rawFileName.slice(0, 50) : rawFileName) || 'report';
+      const finalFileName = `${cleanFileName}.pdf`;
 
-      const opt = {
-        margin: [8, 8, 8, 8] as [number, number, number, number],
-        filename: `${cleanFileName || 'report'}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: (orientation || 'portrait') as 'portrait' | 'landscape' }
-      };
+      // html2canvas-pro supports modern CSS color functions including oklch() from Tailwind CSS v4
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+      });
 
-      await html2pdf().set(opt).from(element).save();
+      const isLandscape = orientation === 'landscape';
+      const pdf = new jsPDF({
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      // A4 dimensions in mm
+      const pageWidth = isLandscape ? 297 : 210;
+      const pageHeight = isLandscape ? 210 : 297;
+      const margin = 8;
+      const contentWidth = pageWidth - margin * 2;
+      const contentHeight = pageHeight - margin * 2;
+
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const pageCanvasHeight = Math.floor((imgWidth * contentHeight) / contentWidth);
+
+      if (imgHeight <= pageCanvasHeight) {
+        // Fits on a single page
+        const renderedHeight = (imgHeight * contentWidth) / imgWidth;
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        pdf.addImage(imgData, 'JPEG', margin, margin, contentWidth, renderedHeight);
+      } else {
+        // Multi-page slicing
+        const totalPages = Math.ceil(imgHeight / pageCanvasHeight);
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = imgWidth;
+        const sliceCtx = sliceCanvas.getContext('2d');
+
+        for (let i = 0; i < totalPages; i++) {
+          const sourceY = i * pageCanvasHeight;
+          const currentSliceHeight = Math.min(pageCanvasHeight, imgHeight - sourceY);
+
+          sliceCanvas.height = currentSliceHeight;
+          if (sliceCtx) {
+            sliceCtx.fillStyle = '#ffffff';
+            sliceCtx.fillRect(0, 0, sliceCanvas.width, currentSliceHeight);
+            sliceCtx.drawImage(
+              canvas,
+              0,
+              sourceY,
+              imgWidth,
+              currentSliceHeight,
+              0,
+              0,
+              imgWidth,
+              currentSliceHeight
+            );
+          }
+
+          if (i > 0) {
+            pdf.addPage();
+          }
+
+          const sliceRenderedHeight = (currentSliceHeight * contentWidth) / imgWidth;
+          const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 0.98);
+          pdf.addImage(sliceImgData, 'JPEG', margin, margin, contentWidth, sliceRenderedHeight);
+        }
+      }
+
+      pdf.save(finalFileName);
     } catch (err) {
       console.error('PDF direct generation failed, falling back to window.print():', err);
       handlePrint();
