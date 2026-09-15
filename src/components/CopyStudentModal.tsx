@@ -9,6 +9,8 @@ interface CopyStudentModalProps {
   onClose: () => void;
   title?: string;
   subtitle?: string;
+  description?: string;
+  enableMultiple?: boolean;
   onSelectStudent?: (student: Student) => void;
   onSelectMultiple?: (students: Student[]) => void;
 }
@@ -18,6 +20,8 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
   onClose,
   title = 'คัดลอก / เลือกข้อมูลนักเรียนจากทะเบียนนักเรียน',
   subtitle = 'เลือกชั้นประถมศึกษาเพื่อดึงรายชื่อนักเรียนมาใช้งาน',
+  description,
+  enableMultiple = true,
   onSelectStudent,
   onSelectMultiple,
 }) => {
@@ -25,6 +29,9 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const students = dataService.getStudents();
+
+  const isMultiple = Boolean(onSelectMultiple && enableMultiple);
+  const displaySubtitle = description || subtitle;
 
   // Filter students based on grade and search query
   const filteredStudents = useMemo(() => {
@@ -76,7 +83,7 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-sm sm:text-base">{title}</h3>
-              <p className="text-xs text-slate-500">{subtitle}</p>
+              <p className="text-xs text-slate-500">{displaySubtitle}</p>
             </div>
           </div>
           <button
@@ -159,14 +166,27 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
               return (
                 <div
                   key={s.id}
-                  className="py-2.5 px-3 flex items-center justify-between gap-3 hover:bg-purple-50/50 rounded-xl transition-colors group"
+                  onClick={() => {
+                    if (isMultiple) {
+                      toggleSelectStudent(s.id);
+                    } else if (onSelectStudent) {
+                      onSelectStudent(s);
+                      onClose();
+                    }
+                  }}
+                  className={`py-2.5 px-3 flex items-center justify-between gap-3 rounded-xl transition-colors group cursor-pointer ${
+                    isChecked ? 'bg-purple-100/70 border border-purple-200' : 'hover:bg-purple-50/60'
+                  }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    {onSelectMultiple && (
+                    {isMultiple && (
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => toggleSelectStudent(s.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelectStudent(s.id);
+                        }}
                         className="w-4 h-4 rounded text-purple-600 focus:ring-purple-400 border-slate-300 cursor-pointer shrink-0"
                       />
                     )}
@@ -200,15 +220,16 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
                   {onSelectStudent && (
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         onSelectStudent(s);
                         onClose();
                       }}
                       className="px-3 py-1.5 bg-white group-hover:bg-purple-600 group-hover:text-white text-purple-700 border border-purple-200 group-hover:border-purple-600 rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-                      title="คัดลอกชื่อนักเรียนคนนี้"
+                      title="เลือกนักเรียนคนนี้"
                     >
                       <Copy className="w-3.5 h-3.5" />
-                      <span>คัดลอก</span>
+                      <span>{isMultiple ? 'คัดลอก' : 'เลือก'}</span>
                     </button>
                   )}
                 </div>
@@ -219,7 +240,7 @@ export const CopyStudentModal: React.FC<CopyStudentModalProps> = ({
 
         {/* Footer */}
         <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-          {onSelectMultiple ? (
+          {isMultiple ? (
             <>
               <button
                 type="button"
