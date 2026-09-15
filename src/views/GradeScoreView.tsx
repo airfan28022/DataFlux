@@ -1242,6 +1242,20 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 >
                   <Printer className="w-3.5 h-3.5" />
                 </button>
+
+                {/* สัญลักษณ์คัดลอกรายชื่อจากชั้นเรียน ถัดจากไอคอนเครื่องปริ้น All */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetStudentRowId(null);
+                    setShowCopyStudentModal(true);
+                  }}
+                  className="w-7 h-7 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-300 flex items-center justify-center shrink-0 cursor-pointer transition-all shadow-2xs hover:scale-105 active:scale-95 ml-0.5"
+                  title="คัดลอกรายชื่อจากชั้นเรียน (ทะเบียนประวัติ)"
+                  aria-label="คัดลอกรายชื่อจากชั้นเรียน"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Right Side: แก้6 ปุ่มขยาย/ย่อ ไม่ต้องมีข้อความ แสดงสัญลักษณ์พอ */}
@@ -1575,19 +1589,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <span>+ เพิ่มแถวนักเรียน</span>
               </button>
 
-              {/* ดึงรายชื่อจากชั้นเรียน/ทะเบียนนักเรียน */}
-              <button
-                type="button"
-                onClick={() => {
-                  setTargetStudentRowId(null);
-                  setShowCopyStudentModal(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
-                title="คัดลอก/เลือกรายชื่อนักเรียนจากทะเบียนประวัติ (เลือกรายคน หรือยกชั้น ป.1-ป.6)"
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>คัดลอกรายชื่อจากชั้นเรียน</span>
-              </button>
 
               {/* เติมคะแนน 5 ทุกคน */}
               <button
@@ -1806,19 +1807,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <span>+ เพิ่มแถวนักเรียน</span>
               </button>
 
-              {/* ดึงรายชื่อจากชั้นเรียน/ทะเบียนนักเรียน */}
-              <button
-                type="button"
-                onClick={() => {
-                  setTargetStudentRowId(null);
-                  setShowCopyStudentModal(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-200/80 hover:bg-amber-300/80 text-amber-950 rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer"
-                title="คัดลอก/เลือกรายชื่อนักเรียนจากทะเบียนประวัติ (เลือกรายคน หรือยกชั้น ป.1-ป.6)"
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>คัดลอกรายชื่อจากชั้นเรียน</span>
-              </button>
 
               {/* เติมคะแนนเต็มทุกคน */}
               <button
@@ -2092,19 +2080,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                 <span>+ เพิ่มแถวนักเรียน</span>
               </button>
 
-              {/* ดึงรายชื่อจากชั้นเรียน/ทะเบียนนักเรียน */}
-              <button
-                type="button"
-                onClick={() => {
-                  setTargetStudentRowId(null);
-                  setShowCopyStudentModal(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                title="คัดลอก/เลือกรายชื่อนักเรียนจากทะเบียนประวัติ (เลือกรายคน หรือยกชั้น ป.1-ป.6)"
-              >
-                <Users className="w-4 h-4" />
-                <span>คัดลอกรายชื่อจากชั้นเรียน</span>
-              </button>
 
               <button
                 type="button"
