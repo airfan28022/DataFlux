@@ -75,10 +75,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
         <div className="p-4 bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border border-emerald-200/80 rounded-2xl space-y-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-sm border border-emerald-200 bg-[#A8CBAB] shrink-0">
+              <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-sm border border-emerald-200 bg-white shrink-0">
                 <img
                   src="/app-logo.png"
-                  alt="ครู"
+                  alt="โลโก้แอป"
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
@@ -118,10 +118,10 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             {/* Header */}
             <div className="p-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-md border border-white/40 bg-[#A8CBAB] shrink-0">
+                <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-md border border-white/40 bg-white shrink-0">
                   <img
                     src="/app-logo.png"
-                    alt="ครู"
+                    alt="โลโก้แอป"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
