@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Student, DynamicField, TeacherProfile, GradeLevel } from '../types';
 import { dataService } from '../services/dataService';
 import { calculateAge, formatThaiDate } from '../utils/helpers';
@@ -269,12 +269,48 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     });
   };
 
-  // Drag & drop / Press-and-hold reorder state
+  // Filter by search query and grade
+  const filteredStudents = useMemo(() => {
+    return students.filter((s) => {
+      if (selectedGradeFilter !== 'all' && (s.gradeLevel || 'ป.1') !== selectedGradeFilter) {
+        return false;
+      }
+      const q = searchQuery.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        s.firstName.toLowerCase().includes(q) ||
+        s.lastName.toLowerCase().includes(q) ||
+        s.nickname?.toLowerCase().includes(q) ||
+        s.studentCode.toLowerCase().includes(q) ||
+        s.gradeLevel?.toLowerCase().includes(q) ||
+        s.parentOccupation?.toLowerCase().includes(q)
+      );
+    });
+  }, [students, selectedGradeFilter, searchQuery]);
+
+  // Drag & drop / Press-and-hold reorder state (supports Desktop Mouse & Mobile Touch)
   const [draggingStudentId, setDraggingStudentId] = useState<string | null>(null);
   const [dragOverStudentId, setDragOverStudentId] = useState<string | null>(null);
-  const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
-  const isTouchDraggingRef = React.useRef<boolean>(false);
+  const isDraggingActiveRef = React.useRef<boolean>(false);
+  const activeDragIdRef = React.useRef<string | null>(null);
+  const pressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const dragStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
+
+  // Keep fresh references for asynchronous mouse/touch events
+  const dragOverStudentIdRef = React.useRef<string | null>(null);
+  dragOverStudentIdRef.current = dragOverStudentId;
+
+  const filteredStudentsRef = React.useRef<Student[]>(filteredStudents);
+  filteredStudentsRef.current = filteredStudents;
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (pressTimerRef.current) {
+        clearTimeout(pressTimerRef.current);
+      }
+    };
+  }, []);
 
   // Reorder student positions
   const handleMoveStudent = (fromIndex: number, toIndex: number) => {
@@ -311,24 +347,160 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     dataService.reorderStudents(newFullStudents, true);
   };
 
-  // HTML5 Drag and drop handlers (Desktop)
+  // Find target student row at screen coordinates
+  const findTargetStudentIdAt = (clientX: number, clientY: number, excludeId?: string | null): string | null => {
+    if (typeof document === 'undefined') return null;
+
+    if (document.elementsFromPoint) {
+      const elements = document.elementsFromPoint(clientX, clientY);
+      for (const el of elements) {
+        const row = el.closest('[data-student-id]') as HTMLElement | null;
+        const id = row?.getAttribute('data-student-id');
+        if (id && id !== excludeId) {
+          return id;
+        }
+      }
+    }
+
+    const single = document.elementFromPoint(clientX, clientY);
+    const row = single?.closest('[data-student-id]') as HTMLElement | null;
+    const id = row?.getAttribute('data-student-id');
+    if (id && id !== excludeId) {
+      return id;
+    }
+
+    return null;
+  };
+
+  const startDragging = (studentId: string) => {
+    isDraggingActiveRef.current = true;
+    activeDragIdRef.current = studentId;
+    setDraggingStudentId(studentId);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+  };
+
+  const endDragging = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+
+    if (isDraggingActiveRef.current && activeDragIdRef.current) {
+      const sourceId = activeDragIdRef.current;
+      const targetId = dragOverStudentIdRef.current;
+      if (targetId && sourceId !== targetId) {
+        const fromIdx = filteredStudentsRef.current.findIndex((s) => s.id === sourceId);
+        const toIdx = filteredStudentsRef.current.findIndex((s) => s.id === targetId);
+        if (fromIdx >= 0 && toIdx >= 0) {
+          handleMoveStudent(fromIdx, toIdx);
+        }
+      }
+    }
+
+    isDraggingActiveRef.current = false;
+    activeDragIdRef.current = null;
+    dragStartPosRef.current = null;
+    setDraggingStudentId(null);
+    setDragOverStudentId(null);
+  };
+
+  // 1. Desktop Mouse Handlers (Press-and-Hold or Click-and-Drag)
+  const handleMouseDown = (studentId: string, e: React.MouseEvent, isHandle = false) => {
+    // Only primary left-click
+    if (e.button !== 0) return;
+
+    const target = e.target as HTMLElement;
+    if (!isHandle && target.closest('button, a, input, select, textarea, [data-interactive="true"]')) {
+      return;
+    }
+
+    dragStartPosRef.current = { x: e.clientX, y: e.clientY };
+
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+
+    if (isHandle) {
+      // Immediate response on grip handle
+      startDragging(studentId);
+    } else {
+      // 150ms press-and-hold on Desktop row
+      pressTimerRef.current = setTimeout(() => {
+        startDragging(studentId);
+      }, 150);
+    }
+
+    const onWindowMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingActiveRef.current) {
+        if (dragStartPosRef.current) {
+          const dx = Math.abs(moveEvent.clientX - dragStartPosRef.current.x);
+          const dy = Math.abs(moveEvent.clientY - dragStartPosRef.current.y);
+          if (dx > 4 || dy > 4) {
+            if (pressTimerRef.current) {
+              clearTimeout(pressTimerRef.current);
+              pressTimerRef.current = null;
+            }
+            startDragging(studentId);
+          }
+        }
+      }
+
+      if (isDraggingActiveRef.current) {
+        moveEvent.preventDefault();
+
+        // Edge scrolling
+        const scrollMargin = 70;
+        if (moveEvent.clientY < scrollMargin) {
+          window.scrollBy({ top: -10, behavior: 'auto' });
+        } else if (moveEvent.clientY > window.innerHeight - scrollMargin) {
+          window.scrollBy({ top: 10, behavior: 'auto' });
+        }
+
+        const targetId = findTargetStudentIdAt(moveEvent.clientX, moveEvent.clientY, activeDragIdRef.current);
+        if (targetId && targetId !== dragOverStudentIdRef.current) {
+          setDragOverStudentId(targetId);
+        }
+      }
+    };
+
+    const onWindowMouseUp = () => {
+      window.removeEventListener('mousemove', onWindowMouseMove);
+      window.removeEventListener('mouseup', onWindowMouseUp);
+      endDragging();
+    };
+
+    window.addEventListener('mousemove', onWindowMouseMove);
+    window.addEventListener('mouseup', onWindowMouseUp);
+  };
+
+  // 2. Native HTML5 Drag and Drop Handlers (Desktop fallback)
   const handleDragStart = (e: React.DragEvent, studentId: string) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, select, textarea, [data-interactive="true"]')) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('text/plain', studentId);
     e.dataTransfer.effectAllowed = 'move';
+    activeDragIdRef.current = studentId;
+    isDraggingActiveRef.current = true;
     setDraggingStudentId(studentId);
   };
 
   const handleDragOver = (e: React.DragEvent, studentId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverStudentId !== studentId) {
+    if (dragOverStudentId !== studentId && activeDragIdRef.current !== studentId) {
       setDragOverStudentId(studentId);
     }
   };
 
   const handleDrop = (e: React.DragEvent, targetStudentId: string) => {
     e.preventDefault();
-    const sourceStudentId = e.dataTransfer.getData('text/plain') || draggingStudentId;
+    const sourceStudentId = e.dataTransfer.getData('text/plain') || activeDragIdRef.current;
     if (sourceStudentId && targetStudentId && sourceStudentId !== targetStudentId) {
       const fromIdx = filteredStudents.findIndex((s) => s.id === sourceStudentId);
       const toIdx = filteredStudents.findIndex((s) => s.id === targetStudentId);
@@ -336,47 +508,35 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
         handleMoveStudent(fromIdx, toIdx);
       }
     }
-    setDraggingStudentId(null);
-    setDragOverStudentId(null);
+    endDragging();
   };
 
   const handleDragEnd = () => {
-    setDraggingStudentId(null);
-    setDragOverStudentId(null);
+    endDragging();
   };
 
-  // Touch Press-and-Hold handlers (Mobile)
+  // 3. Touch Press-and-Hold Handlers (Mobile)
   const handleTouchStart = (studentId: string, e: React.TouchEvent, isDirectHandle = false) => {
     const target = e.target as HTMLElement;
-    if (!isDirectHandle && target.closest('button, a, input, [role="button"]')) {
+    if (!isDirectHandle && target.closest('button, a, input, select, [data-interactive="true"]')) {
       return;
     }
 
     const touch = e.touches[0];
     if (!touch) return;
-    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    dragStartPosRef.current = { x: touch.clientX, y: touch.clientY };
 
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
     }
 
     if (isDirectHandle) {
-      // Immediate response on grip handle
-      isTouchDraggingRef.current = true;
-      setDraggingStudentId(studentId);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(35);
-      }
+      startDragging(studentId);
     } else {
-      // 200ms press-and-hold triggers drag mode on row
-      longPressTimerRef.current = setTimeout(() => {
-        isTouchDraggingRef.current = true;
-        setDraggingStudentId(studentId);
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          navigator.vibrate(40);
-        }
-      }, 200);
+      pressTimerRef.current = setTimeout(() => {
+        startDragging(studentId);
+      }, 180);
     }
   };
 
@@ -384,27 +544,24 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     const touch = e.touches[0];
     if (!touch) return;
 
-    if (!isTouchDraggingRef.current) {
-      // Check if finger moved too much before timer (normal page scrolling)
-      if (touchStartPosRef.current) {
-        const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
-        const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (!isDraggingActiveRef.current) {
+      if (dragStartPosRef.current) {
+        const dx = Math.abs(touch.clientX - dragStartPosRef.current.x);
+        const dy = Math.abs(touch.clientY - dragStartPosRef.current.y);
         if (dx > 8 || dy > 8) {
-          if (longPressTimerRef.current) {
-            clearTimeout(longPressTimerRef.current);
-            longPressTimerRef.current = null;
+          if (pressTimerRef.current) {
+            clearTimeout(pressTimerRef.current);
+            pressTimerRef.current = null;
           }
         }
       }
       return;
     }
 
-    // Drag mode active: prevent default page scrolling if cancelable
     if (e.cancelable) {
       e.preventDefault();
     }
 
-    // Auto-scroll viewport if near top/bottom
     const scrollMargin = 75;
     if (touch.clientY < scrollMargin) {
       window.scrollBy({ top: -8, behavior: 'auto' });
@@ -412,52 +569,15 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
       window.scrollBy({ top: 8, behavior: 'auto' });
     }
 
-    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-    const rowEl = elem?.closest('[data-student-id]') as HTMLElement | null;
-    if (rowEl) {
-      const targetId = rowEl.getAttribute('data-student-id');
-      if (targetId && targetId !== dragOverStudentId) {
-        setDragOverStudentId(targetId);
-      }
+    const targetId = findTargetStudentIdAt(touch.clientX, touch.clientY, activeDragIdRef.current);
+    if (targetId && targetId !== dragOverStudentIdRef.current) {
+      setDragOverStudentId(targetId);
     }
   };
 
   const handleTouchEnd = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-
-    if (isTouchDraggingRef.current && draggingStudentId && dragOverStudentId && draggingStudentId !== dragOverStudentId) {
-      const fromIdx = filteredStudents.findIndex((s) => s.id === draggingStudentId);
-      const toIdx = filteredStudents.findIndex((s) => s.id === dragOverStudentId);
-      if (fromIdx >= 0 && toIdx >= 0) {
-        handleMoveStudent(fromIdx, toIdx);
-      }
-    }
-
-    isTouchDraggingRef.current = false;
-    setDraggingStudentId(null);
-    setDragOverStudentId(null);
-    touchStartPosRef.current = null;
+    endDragging();
   };
-
-  // Filter by search query and grade
-  const filteredStudents = students.filter((s) => {
-    if (selectedGradeFilter !== 'all' && (s.gradeLevel || 'ป.1') !== selectedGradeFilter) {
-      return false;
-    }
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      s.firstName.toLowerCase().includes(q) ||
-      s.lastName.toLowerCase().includes(q) ||
-      s.nickname?.toLowerCase().includes(q) ||
-      s.studentCode.toLowerCase().includes(q) ||
-      s.gradeLevel?.toLowerCase().includes(q) ||
-      s.parentOccupation?.toLowerCase().includes(q)
-    );
-  });
 
   return (
     <div className="space-y-4 pb-12">
@@ -579,13 +699,14 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   onDragOver={(e) => handleDragOver(e, student.id)}
                   onDrop={(e) => handleDrop(e, student.id)}
                   onDragEnd={handleDragEnd}
-                  onTouchStart={(e) => handleTouchStart(student.id, e)}
+                  onMouseDown={(e) => handleMouseDown(student.id, e, false)}
+                  onTouchStart={(e) => handleTouchStart(student.id, e, false)}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
                   onTouchCancel={handleTouchEnd}
-                  className={`px-3 py-2 sm:px-3.5 sm:py-2.5 transition-all flex items-center justify-between gap-2.5 sm:gap-3 text-xs select-none ${
+                  className={`px-3 py-2 sm:px-3.5 sm:py-2.5 transition-all flex items-center justify-between gap-2.5 sm:gap-3 text-xs select-none cursor-grab active:cursor-grabbing ${
                     isDraggingThis
-                      ? 'opacity-40 bg-blue-50 border-y-2 border-dashed border-blue-500 scale-[0.99] shadow-inner pointer-events-none'
+                      ? 'opacity-40 bg-blue-50 border-y-2 border-dashed border-blue-500 scale-[0.99] shadow-inner'
                       : isOverThis
                       ? 'bg-blue-100/80 border-t-2 border-b-2 border-blue-600 shadow-md ring-2 ring-blue-300/70 z-10'
                       : 'hover:bg-slate-50/90 bg-white'
@@ -595,17 +716,21 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Drag Handle */}
                     <div
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        handleMouseDown(student.id, e, true);
+                      }}
                       onTouchStart={(e) => {
                         e.stopPropagation();
                         handleTouchStart(student.id, e, true);
                       }}
-                      className={`p-1.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing touch-none select-none flex items-center justify-center ${
+                      className={`p-1.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing select-none flex items-center justify-center ${
                         isDraggingThis
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
                       }`}
                     >
-                      <GripVertical className="w-4 h-4" />
+                      <GripVertical className="w-4 h-4 pointer-events-none" />
                     </div>
 
                     {/* Roll Number Badge */}
@@ -623,15 +748,17 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                     {/* Avatar Photo */}
                     <div
+                      data-interactive="true"
+                      draggable={false}
                       onClick={() => setDetailStudent(student)}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50 cursor-pointer shadow-2xs hover:border-blue-400 transition-colors"
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50 cursor-pointer shadow-2xs hover:border-blue-400 transition-colors select-none"
                       title="คลิกเพื่อดูรายละเอียด"
                     >
                       <ImageWithFallback
                         src={student.photoUrl}
                         alt={student.firstName}
                         isAvatar={true}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover pointer-events-none select-none"
                       />
                     </div>
 
