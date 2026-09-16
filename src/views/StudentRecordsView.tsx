@@ -691,8 +691,6 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">
-                        <span>{student.gender === 'male' ? 'ชาย' : 'หญิง'}</span>
-                        <span>•</span>
                         <span>อายุ {student.age} ปี</span>
                         {student.parentPhone && (
                           <>
