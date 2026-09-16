@@ -85,8 +85,13 @@ class DataService {
         if (!snap.empty) {
           this.isStudentsInitialized = true;
           const students = snap.docs.map((d) => d.data() as Student);
-          // Sort by studentCode or id for consistent rendering
-          students.sort((a, b) => (Number(a.studentCode) || 0) - (Number(b.studentCode) || 0) || a.id.localeCompare(b.id));
+          // Sort by order, studentCode, or id for consistent rendering
+          students.sort((a, b) => {
+            if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
+              return a.order - b.order;
+            }
+            return (Number(a.studentCode) || 0) - (Number(b.studentCode) || 0) || a.id.localeCompare(b.id);
+          });
           localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
           this.notifySubscribersOnly();
         } else if (!this.isStudentsInitialized) {
@@ -561,6 +566,29 @@ class DataService {
     setDoc(doc(db, 'students', finalStudent.id), cleanForFirestore(finalStudent)).catch((e) =>
       console.warn('[Firestore] Student save warning:', e)
     );
+    this.notifyChanges();
+  }
+
+  public reorderStudents(newStudents: Student[], showToast = true): void {
+    const updated = newStudents.map((s, idx) => ({
+      ...s,
+      order: idx + 1,
+      updatedAt: new Date().toISOString(),
+    }));
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+    // Persist to Firestore asynchronously
+    try {
+      updated.forEach((student) => {
+        setDoc(doc(db, 'students', student.id), cleanForFirestore(student)).catch((e) =>
+          console.warn('[Firestore] Student reorder sync warning:', e)
+        );
+      });
+    } catch (err) {
+      console.warn('[Firestore] Reorder batch error:', err);
+    }
+    if (showToast) {
+      this.notifyToast('success', 'จัดลำดับสำเร็จ', 'บันทึกลำดับและเลขที่นักเรียนเรียบร้อยแล้ว');
+    }
     this.notifyChanges();
   }
 

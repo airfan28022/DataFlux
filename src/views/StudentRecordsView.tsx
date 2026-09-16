@@ -26,7 +26,10 @@ import {
   Tag,
   CheckCircle2,
   Filter,
-  GraduationCap
+  GraduationCap,
+  GripVertical,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 interface StudentRecordsViewProps {
@@ -268,6 +271,163 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     });
   };
 
+  // Drag & drop / Press-and-hold reorder state
+  const [draggingStudentId, setDraggingStudentId] = useState<string | null>(null);
+  const [dragOverStudentId, setDragOverStudentId] = useState<string | null>(null);
+  const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const isTouchDraggingRef = React.useRef<boolean>(false);
+
+  // Reorder student positions
+  const handleMoveStudent = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= filteredStudents.length) return;
+
+    const sourceStudent = filteredStudents[fromIndex];
+    const targetStudent = filteredStudents[toIndex];
+    if (!sourceStudent || !targetStudent) return;
+
+    const newFiltered = [...filteredStudents];
+    const [moved] = newFiltered.splice(fromIndex, 1);
+    newFiltered.splice(toIndex, 0, moved);
+
+    let newFullStudents: Student[];
+    if (selectedGradeFilter === 'all' && !searchQuery.trim()) {
+      newFullStudents = newFiltered.map((s, idx) => ({ ...s, order: idx + 1 }));
+    } else {
+      // Find the positions of the filtered students in the full list
+      const filteredIdSet = new Set(newFiltered.map((s) => s.id));
+      let insertIdx = 0;
+      newFullStudents = students.map((s) => {
+        if (filteredIdSet.has(s.id)) {
+          const replacement = newFiltered[insertIdx++];
+          return {
+            ...replacement,
+            order: insertIdx,
+          };
+        }
+        return s;
+      });
+    }
+
+    setStudents(newFullStudents);
+    dataService.reorderStudents(newFullStudents, true);
+  };
+
+  // Quick arrow step move
+  const handleMoveStep = (idx: number, delta: -1 | 1) => {
+    const targetIdx = idx + delta;
+    if (targetIdx < 0 || targetIdx >= filteredStudents.length) return;
+    handleMoveStudent(idx, targetIdx);
+  };
+
+  // HTML5 Drag and drop handlers (Desktop)
+  const handleDragStart = (e: React.DragEvent, studentId: string) => {
+    e.dataTransfer.setData('text/plain', studentId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingStudentId(studentId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, studentId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverStudentId !== studentId) {
+      setDragOverStudentId(studentId);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStudentId: string) => {
+    e.preventDefault();
+    const sourceStudentId = e.dataTransfer.getData('text/plain') || draggingStudentId;
+    if (sourceStudentId && targetStudentId && sourceStudentId !== targetStudentId) {
+      const fromIdx = filteredStudents.findIndex((s) => s.id === sourceStudentId);
+      const toIdx = filteredStudents.findIndex((s) => s.id === targetStudentId);
+      if (fromIdx >= 0 && toIdx >= 0) {
+        handleMoveStudent(fromIdx, toIdx);
+      }
+    }
+    setDraggingStudentId(null);
+    setDragOverStudentId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingStudentId(null);
+    setDragOverStudentId(null);
+  };
+
+  // Touch Press-and-Hold handlers (Mobile)
+  const handleTouchStart = (studentId: string, e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+    isTouchDraggingRef.current = false;
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      isTouchDraggingRef.current = true;
+      setDraggingStudentId(studentId);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(40);
+      }
+    }, 220); // 220ms press-and-hold triggers drag mode
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    if (!isTouchDraggingRef.current) {
+      // Check if finger moved too much before timer (normal page scrolling)
+      if (touchStartPosRef.current) {
+        const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+        const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+        if (dx > 10 || dy > 10) {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
+      }
+      return;
+    }
+
+    // Drag mode active: prevent default page scrolling
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+    const rowEl = elem?.closest('[data-student-id]') as HTMLElement | null;
+    if (rowEl) {
+      const targetId = rowEl.getAttribute('data-student-id');
+      if (targetId && targetId !== dragOverStudentId) {
+        setDragOverStudentId(targetId);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (isTouchDraggingRef.current && draggingStudentId && dragOverStudentId && draggingStudentId !== dragOverStudentId) {
+      const fromIdx = filteredStudents.findIndex((s) => s.id === draggingStudentId);
+      const toIdx = filteredStudents.findIndex((s) => s.id === dragOverStudentId);
+      if (fromIdx >= 0 && toIdx >= 0) {
+        handleMoveStudent(fromIdx, toIdx);
+      }
+    }
+
+    isTouchDraggingRef.current = false;
+    setDraggingStudentId(null);
+    setDragOverStudentId(null);
+    touchStartPosRef.current = null;
+  };
+
   // Filter by search query and grade
   const filteredStudents = students.filter((s) => {
     if (selectedGradeFilter !== 'all' && (s.gradeLevel || 'ป.1') !== selectedGradeFilter) {
@@ -383,7 +543,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
         </div>
       </div>
 
-      {/* Compact List/Row-based Layout (แก้1: ให้แสดงผลเป็นรายการแบบแถวขนาดเล็ก) */}
+      {/* Compact List/Row-based Layout (แก้1: ให้แสดงผลเป็นรายการแบบแถวขนาดเล็ก พร้อมลากสลับเลขที่-ลำดับ) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
         {filteredStudents.length === 0 ? (
           <div className="p-10 text-center text-slate-400">
@@ -392,95 +552,177 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {filteredStudents.map((student, idx) => (
-              <div
-                key={student.id}
-                className="px-3.5 py-2.5 hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 text-xs"
-              >
-                {/* Left: Avatar + Identity + Grade */}
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  {/* Avatar Photo */}
-                  <div
-                    onClick={() => setDetailStudent(student)}
-                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50 cursor-pointer shadow-2xs"
-                    title="คลิกเพื่อดูรายละเอียด"
-                  >
-                    <ImageWithFallback
-                      src={student.photoUrl}
-                      alt={student.firstName}
-                      isAvatar={true}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+            {filteredStudents.map((student, idx) => {
+              const isDraggingThis = draggingStudentId === student.id;
+              const isOverThis = dragOverStudentId === student.id && !isDraggingThis;
 
-                  {/* Name and Basic Data */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded text-[11px] border border-purple-100 shrink-0">
-                        {student.gradeLevel || 'ป.1'}
+              return (
+                <div
+                  key={student.id}
+                  data-student-id={student.id}
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, student.id)}
+                  onDragOver={(e) => handleDragOver(e, student.id)}
+                  onDrop={(e) => handleDrop(e, student.id)}
+                  onDragEnd={handleDragEnd}
+                  onTouchStart={(e) => handleTouchStart(student.id, e)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={handleTouchEnd}
+                  className={`px-3 py-2 sm:px-3.5 sm:py-2.5 transition-all flex items-center justify-between gap-2.5 sm:gap-3 text-xs select-none ${
+                    isDraggingThis
+                      ? 'opacity-40 bg-blue-50 border-y-2 border-dashed border-blue-500 scale-[0.99] shadow-inner'
+                      : isOverThis
+                      ? 'bg-blue-100/70 border-t-2 border-b-2 border-blue-600 shadow-md ring-2 ring-blue-300/60'
+                      : 'hover:bg-slate-50/90 bg-white'
+                  }`}
+                >
+                  {/* Left: Drag Handle + Roll Number Badge + Quick Step */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    {/* Drag Handle */}
+                    <div
+                      className={`p-1.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing touch-none select-none flex items-center justify-center ${
+                        isDraggingThis
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+                      }`}
+                      title="กดค้างเพื่อลากเลื่อนเลขที่-ลำดับ"
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </div>
+
+                    {/* Roll Number Badge */}
+                    <div className="flex flex-col items-center justify-center min-w-[34px] sm:min-w-[40px] px-1 py-0.5 rounded-lg bg-blue-50 border border-blue-200/80 shadow-2xs">
+                      <span className="text-[11px] sm:text-xs font-black text-blue-700 leading-tight">
+                        {idx + 1}
                       </span>
-                      <span className="text-[11px] font-medium text-slate-400">
-                        #{student.studentCode || idx + 1}
+                      <span className="text-[8px] sm:text-[9px] font-bold text-blue-500 leading-none">
+                        เลขที่
                       </span>
+                    </div>
+
+                    {/* Step Reorder Buttons */}
+                    <div className="flex flex-col -space-y-1">
                       <button
                         type="button"
-                        onClick={() => setDetailStudent(student)}
-                        className="font-bold text-slate-800 hover:text-blue-600 truncate cursor-pointer text-left text-xs sm:text-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveStep(idx, -1);
+                        }}
+                        disabled={idx === 0}
+                        className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-20 disabled:pointer-events-none rounded cursor-pointer transition-colors"
+                        title="เลื่อนขึ้น 1 ลำดับ"
                       >
-                        {student.prefix}{student.firstName} {student.lastName}
+                        <ChevronUp className="w-3.5 h-3.5" />
                       </button>
-                      {student.nickname && (
-                        <span className="text-slate-400 font-normal">
-                          ({student.nickname})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5 truncate">
-                      <span>{student.gender === 'male' ? 'ชาย' : 'หญิง'}</span>
-                      <span>•</span>
-                      <span>อายุ {student.age} ปี</span>
-                      {student.parentPhone && (
-                        <>
-                          <span>•</span>
-                          <span className="hidden sm:inline text-slate-400">โทร {student.parentPhone}</span>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveStep(idx, 1);
+                        }}
+                        disabled={idx === filteredStudents.length - 1}
+                        className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-20 disabled:pointer-events-none rounded cursor-pointer transition-colors"
+                        title="เลื่อนลง 1 ลำดับ"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                {/* Right: Quick actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setDetailStudent(student)}
-                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                    title="ดูรายละเอียด"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditModal(student)}
-                    className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-                    title="แก้ไขข้อมูลนักเรียน"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteStudent(student)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                    title="ลบข้อมูลนักเรียน"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Center: Avatar + Identity + Grade */}
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                    {/* Avatar Photo */}
+                    <div
+                      onClick={() => setDetailStudent(student)}
+                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50 cursor-pointer shadow-2xs hover:border-blue-400 transition-colors"
+                      title="คลิกเพื่อดูรายละเอียด"
+                    >
+                      <ImageWithFallback
+                        src={student.photoUrl}
+                        alt={student.firstName}
+                        isAvatar={true}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    {/* Name and Basic Data */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded text-[10px] sm:text-[11px] border border-purple-100 shrink-0">
+                          {student.gradeLevel || 'ป.1'}
+                        </span>
+                        <span className="text-[10px] sm:text-[11px] font-mono text-slate-400">
+                          #{student.studentCode || idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDetailStudent(student)}
+                          className="font-bold text-slate-800 hover:text-blue-600 truncate cursor-pointer text-left text-xs sm:text-sm"
+                        >
+                          {student.prefix}{student.firstName} {student.lastName}
+                        </button>
+                        {student.nickname && (
+                          <span className="text-slate-400 font-normal text-[11px]">
+                            ({student.nickname})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">
+                        <span>{student.gender === 'male' ? 'ชาย' : 'หญิง'}</span>
+                        <span>•</span>
+                        <span>อายุ {student.age} ปี</span>
+                        {student.parentPhone && (
+                          <>
+                            <span>•</span>
+                            <span className="hidden sm:inline text-slate-400">โทร {student.parentPhone}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Quick actions */}
+                  <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDetailStudent(student)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                      title="ดูรายละเอียด"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(student)}
+                      className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                      title="แก้ไขข้อมูลนักเรียน"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteStudent(student)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                      title="ลบข้อมูลนักเรียน"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Floating Notification while Dragging on Mobile */}
+      {draggingStudentId && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-xs text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 text-xs font-semibold border border-slate-700 animate-pulse pointer-events-none whitespace-nowrap">
+          <GripVertical className="w-4 h-4 text-blue-400" />
+          <span>กำลังเลื่อนตำแหน่ง... ลากไปยังเลขที่ต้องการแล้วปล่อย</span>
+        </div>
+      )}
 
       {/* DETAIL MODAL (รายละเอียดเชิงลึก) */}
       {detailStudent && (

@@ -11,6 +11,7 @@ export type GradeLevel = 'ป.1' | 'ป.2' | 'ป.3' | 'ป.4' | 'ป.5' | 'ป.
 export interface Student {
   id: string;
   studentCode: string;
+  order?: number; // ลำดับที่ / เลขที่ประจำตัวนักเรียน
   prefix: 'เด็กชาย' | 'เด็กหญิง' | 'นาย' | 'นางสาว';
   firstName: string;
   lastName: string;
