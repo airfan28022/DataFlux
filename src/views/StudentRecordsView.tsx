@@ -355,23 +355,33 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
   };
 
   // Touch Press-and-Hold handlers (Mobile)
-  const handleTouchStart = (studentId: string, e: React.TouchEvent) => {
+  const handleTouchStart = (studentId: string, e: React.TouchEvent, isDirectHandle = false) => {
     const touch = e.touches[0];
     if (!touch) return;
     touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
-    isTouchDraggingRef.current = false;
 
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
     }
 
-    longPressTimerRef.current = setTimeout(() => {
+    if (isDirectHandle) {
+      // Immediate response on grip handle
       isTouchDraggingRef.current = true;
       setDraggingStudentId(studentId);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(40);
+        navigator.vibrate(35);
       }
-    }, 220); // 220ms press-and-hold triggers drag mode
+    } else {
+      // 200ms press-and-hold triggers drag mode on row
+      longPressTimerRef.current = setTimeout(() => {
+        isTouchDraggingRef.current = true;
+        setDraggingStudentId(studentId);
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          navigator.vibrate(40);
+        }
+      }, 200);
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -383,7 +393,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
       if (touchStartPosRef.current) {
         const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
         const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
-        if (dx > 10 || dy > 10) {
+        if (dx > 8 || dy > 8) {
           if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
             longPressTimerRef.current = null;
@@ -393,9 +403,17 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
       return;
     }
 
-    // Drag mode active: prevent default page scrolling
+    // Drag mode active: prevent default page scrolling if cancelable
     if (e.cancelable) {
       e.preventDefault();
+    }
+
+    // Auto-scroll viewport if near top/bottom
+    const scrollMargin = 75;
+    if (touch.clientY < scrollMargin) {
+      window.scrollBy({ top: -8, behavior: 'auto' });
+    } else if (touch.clientY > window.innerHeight - scrollMargin) {
+      window.scrollBy({ top: 8, behavior: 'auto' });
     }
 
     const elem = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -571,9 +589,9 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   onTouchCancel={handleTouchEnd}
                   className={`px-3 py-2 sm:px-3.5 sm:py-2.5 transition-all flex items-center justify-between gap-2.5 sm:gap-3 text-xs select-none ${
                     isDraggingThis
-                      ? 'opacity-40 bg-blue-50 border-y-2 border-dashed border-blue-500 scale-[0.99] shadow-inner'
+                      ? 'opacity-40 bg-blue-50 border-y-2 border-dashed border-blue-500 scale-[0.99] shadow-inner pointer-events-none'
                       : isOverThis
-                      ? 'bg-blue-100/70 border-t-2 border-b-2 border-blue-600 shadow-md ring-2 ring-blue-300/60'
+                      ? 'bg-blue-100/80 border-t-2 border-b-2 border-blue-600 shadow-md ring-2 ring-blue-300/70 z-10'
                       : 'hover:bg-slate-50/90 bg-white'
                   }`}
                 >
@@ -581,12 +599,16 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Drag Handle */}
                     <div
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        handleTouchStart(student.id, e, true);
+                      }}
                       className={`p-1.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing touch-none select-none flex items-center justify-center ${
                         isDraggingThis
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
                       }`}
-                      title="กดค้างเพื่อลากเลื่อนเลขที่-ลำดับ"
+                      title="กดค้างหรือลากเพื่อเลื่อนเลขที่-ลำดับ"
                     >
                       <GripVertical className="w-4 h-4" />
                     </div>
@@ -718,9 +740,13 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
       {/* Floating Notification while Dragging on Mobile */}
       {draggingStudentId && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-xs text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 text-xs font-semibold border border-slate-700 animate-pulse pointer-events-none whitespace-nowrap">
-          <GripVertical className="w-4 h-4 text-blue-400" />
-          <span>กำลังเลื่อนตำแหน่ง... ลากไปยังเลขที่ต้องการแล้วปล่อย</span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 pointer-events-none whitespace-nowrap animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <GripVertical className="w-4 h-4 text-blue-400 animate-pulse" />
+          <span>
+            {dragOverStudentId && dragOverStudentId !== draggingStudentId
+              ? `ปล่อยเพื่อสลับไปที่เลขที่ ${filteredStudents.findIndex((s) => s.id === dragOverStudentId) + 1}`
+              : 'แตะค้างแล้วลากไปยังเลขที่ต้องการ'}
+          </span>
         </div>
       )}
 

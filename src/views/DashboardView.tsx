@@ -223,20 +223,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
   };
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-3.5 sm:space-y-5 pb-8 w-full max-w-full min-w-0">
       {/* Middle Layout: High Density Calendar & Classroom Summary/Recent Updates */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-5">
         {/* Calendar Column (8 cols) */}
-        <div className="lg:col-span-8 bg-white border border-emerald-50 rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+        <div className="lg:col-span-8 bg-white border border-slate-200/80 rounded-2xl shadow-2xs p-2.5 sm:p-5 flex flex-col justify-between">
           <div>
             {/* Header: Title and Month controls */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-                <CalendarIcon className="w-5 h-5 text-emerald-600" />
-                <span>ตารางปฏิทินกิจกรรม</span>
+            <div className="flex items-center justify-between mb-3 sm:mb-4 gap-1">
+              <h2 className="font-bold text-gray-900 text-xs sm:text-base flex items-center gap-1.5 sm:gap-2 truncate">
+                <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 shrink-0" />
+                <span className="truncate">ตารางปฏิทินกิจกรรม</span>
               </h2>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <button
                   onClick={handlePrevMonth}
                   className="p-1 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors cursor-pointer"
@@ -244,7 +244,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-xs sm:text-sm font-bold px-2 text-gray-800">
+                <span className="text-xs sm:text-sm font-bold px-1 sm:px-2 text-gray-800 whitespace-nowrap">
                   {formatThaiDate(new Date(year, month, 1)).replace(/^\d+\s+/, '')}
                 </span>
                 <button
@@ -258,7 +258,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                 <button
                   type="button"
                   onClick={() => setShowEventModal(true)}
-                  className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+                  className="ml-1 sm:ml-2 flex items-center gap-1 px-2 sm:px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">เพิ่มบันทึก</span>
@@ -267,18 +267,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
             </div>
 
             {/* High Density Day Grid with gap-px */}
-            <div className="grid grid-cols-7 gap-px bg-gray-100 border border-gray-100 rounded-lg overflow-hidden flex-grow">
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">อา.</div>
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">จ.</div>
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">อ.</div>
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">พ.</div>
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">พฤ.</div>
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">ศ.</div>
-              <div className="bg-gray-50 p-2 text-[10px] font-bold text-center text-gray-500 uppercase">ส.</div>
+            <div className="grid grid-cols-7 gap-px bg-slate-200 border border-slate-200 rounded-xl overflow-hidden flex-grow">
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">อา.</div>
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">จ.</div>
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">อ.</div>
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">พ.</div>
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">พฤ.</div>
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">ศ.</div>
+              <div className="bg-slate-50 py-1.5 px-0.5 sm:p-2 text-[10px] sm:text-xs font-bold text-center text-slate-600">ส.</div>
 
               {/* Empty slots before first day */}
               {Array.from({ length: firstDayIndex }).map((_, i) => (
-                <div key={`empty-${i}`} className="bg-white p-2 min-h-[58px] opacity-30 text-xs" />
+                <div key={`empty-${i}`} className="bg-white/60 p-1 sm:p-2 min-h-[44px] sm:min-h-[58px] opacity-30 text-xs" />
               ))}
 
               {/* Days of current month (Req 4: สามารถกดที่วันที่เพื่อดูรายละเอียด pop-up และแก้ไข หรือ ลบได้) */}
@@ -293,7 +293,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                   <div
                     key={`day-${dayNum}`}
                     onClick={() => handleOpenDayDetail(dateStr)}
-                    className={`p-1.5 sm:p-2 min-h-[62px] text-xs font-semibold flex flex-col justify-between transition-all cursor-pointer group hover:bg-slate-50 relative ${
+                    className={`p-1 sm:p-2 min-h-[46px] sm:min-h-[62px] text-xs font-semibold flex flex-col justify-between transition-all cursor-pointer group hover:bg-slate-50 relative ${
                       isToday
                         ? 'bg-emerald-50 text-emerald-700 font-bold ring-2 ring-emerald-500 ring-inset'
                         : 'bg-white text-gray-800'
@@ -301,7 +301,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                     title={`คลิกเพื่อดูรายละเอียด / แก้ไข / ลบกิจกรรมวันที่ ${dayNum} ${formatThaiDate(new Date(year, month, dayNum))}`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`block text-[11px] font-bold ${isToday ? 'text-emerald-700' : isSunday ? 'text-rose-500' : 'text-slate-700'}`}>
+                      <span className={`block text-[10px] sm:text-[11px] font-bold ${isToday ? 'text-emerald-700' : isSunday ? 'text-rose-500' : 'text-slate-700'}`}>
                         {dayNum}
                       </span>
                       {dayEvents.length > 0 && (
@@ -309,12 +309,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                       )}
                     </div>
 
-                    <div className="space-y-1 overflow-hidden mt-1">
+                    <div className="space-y-0.5 overflow-hidden mt-0.5">
                       {dayEvents.slice(0, 2).map((evt) => (
                         <div
                           key={evt.id}
                           title={`${evt.title} (${evt.startTime || ''})`}
-                          className={`text-[8px] text-white p-0.5 rounded px-1 truncate font-medium ${getColorClasses(
+                          className={`text-[8px] sm:text-[9px] text-white p-0.5 rounded px-1 truncate font-medium ${getColorClasses(
                             evt.color
                           )}`}
                         >
@@ -322,7 +322,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                         </div>
                       ))}
                       {dayEvents.length > 2 && (
-                        <span className="text-[8px] text-gray-400 font-medium block">
+                        <span className="text-[7px] sm:text-[8px] text-gray-400 font-medium block">
                           +{dayEvents.length - 2} รายการ
                         </span>
                       )}
@@ -334,7 +334,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
           </div>
 
           {/* Upcoming Event List */}
-          <div className="mt-4 pt-3 border-t border-gray-100">
+          <div className="mt-3.5 pt-3 border-t border-gray-100">
             <h4 className="text-xs font-bold text-gray-700 mb-2">รายการกิจกรรมใกล้ถึง (คลิกเพื่อดู/แก้ไข)</h4>
             <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
               {events.length === 0 ? (
@@ -343,20 +343,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                 events.slice(0, 5).map((evt) => (
                   <div
                     key={evt.id}
-                    className="p-2 rounded-lg bg-gray-50/70 hover:bg-slate-100/80 border border-gray-100 flex items-center justify-between text-xs transition-colors cursor-pointer group"
+                    className="p-2 sm:p-2.5 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-between text-xs transition-colors cursor-pointer group"
                     onClick={() => handleOpenDayDetail(evt.date)}
                     title="คลิกเพื่อดูรายละเอียด / แก้ไข / ลบกิจกรรม"
                   >
-                    <div className="flex items-center gap-2 overflow-hidden mr-2">
+                    <div className="flex items-center gap-2 overflow-hidden mr-1 min-w-0 flex-1">
                       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${getColorClasses(evt.color)}`} />
-                      <span className="font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-md group-hover:text-emerald-700">
+                      <span className="font-semibold text-gray-800 truncate group-hover:text-emerald-700">
                         {evt.title}
                       </span>
-                      <span className="text-[10px] text-gray-400 shrink-0">
+                      <span className="text-[10px] text-gray-400 shrink-0 hidden xs:inline">
                         ({formatThaiDate(evt.date)}{evt.startTime ? ` ${evt.startTime}` : ''})
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => {
                           setSelectedCalendarDate(evt.date);
@@ -384,9 +384,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
         </div>
 
         {/* Right Column: Classroom Summary & Recent Log Feed (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        <div className="lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
           {/* Card 1: สรุปข้อมูลห้องเรียน */}
-          <div className="bg-white border border-emerald-50 rounded-2xl shadow-xs p-5 flex flex-col shrink-0">
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs p-3.5 sm:p-5 flex flex-col shrink-0">
             <h3 className="text-sm font-bold text-gray-900 mb-3">สรุปข้อมูลห้องเรียน</h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -408,7 +408,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
           </div>
 
           {/* Card 2: บันทึกล่าสุด */}
-          <div className="bg-white border border-emerald-50 rounded-2xl shadow-xs p-5 flex flex-col flex-grow overflow-hidden">
+          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs p-3.5 sm:p-5 flex flex-col flex-grow overflow-hidden">
             <h3 className="text-sm font-bold text-gray-900 mb-3">บันทึกล่าสุด</h3>
             <div className="space-y-3 overflow-y-auto pr-1">
               <div className="flex gap-3 items-center">
@@ -450,8 +450,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
 
       {/* Add Event Modal */}
       {showEventModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-emerald-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-md w-full shadow-2xl border border-slate-200">
             <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
               <CalendarIcon className="w-4 h-4 text-emerald-600" />
               <span>เพิ่มบันทึกกิจกรรมส่วนตัว</span>
@@ -551,10 +551,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
 
       {/* DAY DETAIL POP-UP MODAL (Req 4: กดที่วันที่เพื่อดูรายละเอียด pop-up และแก้ไข หรือ ลบได้) */}
       {showDayDetailModal && selectedCalendarDate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg sm:rounded-3xl flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+            <div className="p-3.5 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
                   <CalendarIcon className="w-5 h-5" />
