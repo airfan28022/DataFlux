@@ -27,9 +27,7 @@ import {
   CheckCircle2,
   Filter,
   GraduationCap,
-  GripVertical,
-  ChevronUp,
-  ChevronDown
+  GripVertical
 } from 'lucide-react';
 
 interface StudentRecordsViewProps {
@@ -313,13 +311,6 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     dataService.reorderStudents(newFullStudents, true);
   };
 
-  // Quick arrow step move
-  const handleMoveStep = (idx: number, delta: -1 | 1) => {
-    const targetIdx = idx + delta;
-    if (targetIdx < 0 || targetIdx >= filteredStudents.length) return;
-    handleMoveStudent(idx, targetIdx);
-  };
-
   // HTML5 Drag and drop handlers (Desktop)
   const handleDragStart = (e: React.DragEvent, studentId: string) => {
     e.dataTransfer.setData('text/plain', studentId);
@@ -356,6 +347,11 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
   // Touch Press-and-Hold handlers (Mobile)
   const handleTouchStart = (studentId: string, e: React.TouchEvent, isDirectHandle = false) => {
+    const target = e.target as HTMLElement;
+    if (!isDirectHandle && target.closest('button, a, input, [role="button"]')) {
+      return;
+    }
+
     const touch = e.touches[0];
     if (!touch) return;
     touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
@@ -595,7 +591,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                       : 'hover:bg-slate-50/90 bg-white'
                   }`}
                 >
-                  {/* Left: Drag Handle + Roll Number Badge + Quick Step */}
+                  {/* Left: Drag Handle + Roll Number Badge */}
                   <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Drag Handle */}
                     <div
@@ -608,7 +604,6 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
                       }`}
-                      title="กดค้างหรือลากเพื่อเลื่อนเลขที่-ลำดับ"
                     >
                       <GripVertical className="w-4 h-4" />
                     </div>
@@ -621,34 +616,6 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                       <span className="text-[8px] sm:text-[9px] font-bold text-blue-500 leading-none">
                         เลขที่
                       </span>
-                    </div>
-
-                    {/* Step Reorder Buttons */}
-                    <div className="flex flex-col -space-y-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveStep(idx, -1);
-                        }}
-                        disabled={idx === 0}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-20 disabled:pointer-events-none rounded cursor-pointer transition-colors"
-                        title="เลื่อนขึ้น 1 ลำดับ"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveStep(idx, 1);
-                        }}
-                        disabled={idx === filteredStudents.length - 1}
-                        className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 disabled:opacity-20 disabled:pointer-events-none rounded cursor-pointer transition-colors"
-                        title="เลื่อนลง 1 ลำดับ"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </div>
 
@@ -735,18 +702,6 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
           </div>
         )}
       </div>
-
-      {/* Floating Notification while Dragging on Mobile */}
-      {draggingStudentId && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 text-xs font-semibold border border-slate-700 pointer-events-none whitespace-nowrap animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <GripVertical className="w-4 h-4 text-blue-400 animate-pulse" />
-          <span>
-            {dragOverStudentId && dragOverStudentId !== draggingStudentId
-              ? `ปล่อยเพื่อสลับไปที่เลขที่ ${filteredStudents.findIndex((s) => s.id === dragOverStudentId) + 1}`
-              : 'แตะค้างแล้วลากไปยังเลขที่ต้องการ'}
-          </span>
-        </div>
-      )}
 
       {/* DETAIL MODAL (รายละเอียดเชิงลึก) */}
       {detailStudent && (
