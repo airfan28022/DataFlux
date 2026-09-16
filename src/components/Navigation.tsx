@@ -280,9 +280,9 @@ export const Navigation: React.FC<NavigationProps> = ({
     {/* Mobile Bottom Navigation Bar (Mobile only: < md, fixed at bottom, persists and does not scroll away) */}
     <nav
       aria-label="เมนูหลักสำหรับมือถือ"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-emerald-100/90 shadow-[0_-4px_25px_rgba(0,0,0,0.08)] px-1.5 pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom,0.45rem))] select-none"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-emerald-100 shadow-[0_-4px_25px_rgba(0,0,0,0.12)] px-1 pt-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom,0.45rem))] select-none w-full max-w-full"
     >
-      <div className="grid grid-cols-5 gap-1 max-w-lg mx-auto">
+      <div className="grid grid-cols-5 gap-0.5 sm:gap-1 w-full max-w-full mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -304,13 +304,13 @@ export const Navigation: React.FC<NavigationProps> = ({
               <div
                 className={`w-9 h-7 rounded-lg flex items-center justify-center transition-all ${
                   isActive
-                    ? 'bg-emerald-100/80 text-emerald-700 shadow-2xs'
+                    ? 'bg-emerald-100/90 text-emerald-700 shadow-2xs'
                     : 'text-slate-500'
                 }`}
               >
                 <Icon className="w-4 h-4" />
               </div>
-              <span className="text-[10px] leading-tight mt-0.5 whitespace-nowrap">
+              <span className="text-[9px] sm:text-[10px] leading-tight mt-0.5 whitespace-nowrap text-center">
                 {item.shortLabel}
               </span>
             </button>

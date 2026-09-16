@@ -115,7 +115,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFB] text-gray-800 flex flex-col md:flex-row font-sans selection:bg-emerald-100 selection:text-emerald-900 antialiased">
+    <div className="min-h-screen bg-[#F8FAFB] text-gray-800 flex flex-col md:flex-row font-sans selection:bg-emerald-100 selection:text-emerald-900 antialiased w-full max-w-full overflow-x-hidden">
       {/* Centered Login Success Alert (แสดงข้อความ "เข้าสู่ระบบสำเร็จ" ตรงกลางเว็ปเลย แสดงแปปเดียวและหายทันที) */}
       {showLoginSuccessNotice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs pointer-events-none transition-all duration-300 animate-fade-in">
@@ -143,7 +143,7 @@ export default function App() {
       />
 
       {/* Main Right Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden">
         {/* Top Header */}
         <Header
           isAdmin={isAdmin}
@@ -155,7 +155,7 @@ export default function App() {
         />
 
         {/* Content Body */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24 md:pb-5">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-3.5 sm:py-5 pb-24 md:pb-5">
           {activeTab === 'dashboard' && (
             <DashboardView onNavigate={setActiveTab} isAdmin={isAdmin} />
           )}

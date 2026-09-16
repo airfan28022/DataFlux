@@ -93,6 +93,63 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   // Modal คัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้)
   const [showCopyAllStudentsModal, setShowCopyAllStudentsModal] = useState(false);
 
+  // Mobile / Full-screen Student Pop-up Modal (Req: ตรงหน้าฝากเงิน & เช็คชื่อ เมื่อกดชื่อ จะแสดงpop-up หน้าเต็มพอดี และมีกรอกใส่เงินฝาก หรือ เลือก ม,ป,ล,ข ลงเสร็จกดบันทึก)
+  const [selectedStudentModal, setSelectedStudentModal] = useState<Student | null>(null);
+  const [modalAttendance, setModalAttendance] = useState<AttendanceStatus>('present');
+  const [modalDeposit, setModalDeposit] = useState<number>(0);
+
+  const handleOpenStudentModal = (student: Student) => {
+    setSelectedStudentModal(student);
+    setModalAttendance(attendanceMap[student.id] || 'present');
+    setModalDeposit(depositsMap[student.id] || 0);
+  };
+
+  const handleSaveStudentModal = () => {
+    if (!selectedStudentModal) return;
+    const sId = selectedStudentModal.id;
+    handleAttendanceChange(sId, modalAttendance);
+    handleDepositChange(sId, modalDeposit);
+    dataService.notifyToast(
+      'success',
+      `บันทึกข้อมูล ${selectedStudentModal.prefix || ''}${selectedStudentModal.firstName} แล้ว`,
+      `สถานะ: ${modalAttendance === 'present' ? 'มาเรียน' : modalAttendance === 'sick' ? 'ป่วย' : modalAttendance === 'personal' ? 'ลากิจ' : 'ขาดเรียน'} | เงินฝาก: ${modalDeposit} บาท`
+    );
+    setSelectedStudentModal(null);
+  };
+
+  const handleNextStudentInModal = () => {
+    if (!selectedStudentModal) return;
+    const sId = selectedStudentModal.id;
+    handleAttendanceChange(sId, modalAttendance);
+    handleDepositChange(sId, modalDeposit);
+
+    const currentIndex = students.findIndex((s) => s.id === selectedStudentModal.id);
+    if (currentIndex < students.length - 1) {
+      const nextStudent = students[currentIndex + 1];
+      setSelectedStudentModal(nextStudent);
+      setModalAttendance(attendanceMap[nextStudent.id] || 'present');
+      setModalDeposit(depositsMap[nextStudent.id] || 0);
+    } else {
+      setSelectedStudentModal(null);
+      dataService.notifyToast('success', 'บันทึกครบทุกคนแล้ว');
+    }
+  };
+
+  const handlePrevStudentInModal = () => {
+    if (!selectedStudentModal) return;
+    const sId = selectedStudentModal.id;
+    handleAttendanceChange(sId, modalAttendance);
+    handleDepositChange(sId, modalDeposit);
+
+    const currentIndex = students.findIndex((s) => s.id === selectedStudentModal.id);
+    if (currentIndex > 0) {
+      const prevStudent = students[currentIndex - 1];
+      setSelectedStudentModal(prevStudent);
+      setModalAttendance(attendanceMap[prevStudent.id] || 'present');
+      setModalDeposit(depositsMap[prevStudent.id] || 0);
+    }
+  };
+
   // Load data for the selected date (Req 7: ให้ขึ้นสถานะมาเรียน ม อัตโนมัติเองเลย)
   const loadDayData = (date: string) => {
     const dayData = dataService.getDayAttendanceAndBank(date);
@@ -657,54 +714,65 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       <td className="py-2 px-2.5 text-center text-slate-500 font-medium">{index + 1}</td>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
-                            <ImageWithFallback
-                              src={student.photoUrl}
-                              alt={student.firstName}
-                              isAvatar={true}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-800 text-xs truncate">
-                                {student.prefix}{student.firstName} {student.lastName}
-                              </span>
-                              {student.nickname && (
-                                <span className="text-[10px] text-slate-500 shrink-0">({student.nickname})</span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nameToCopy = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
-                                  navigator.clipboard.writeText(nameToCopy).then(() => {
-                                    setCopiedStudentId(student.id);
-                                    dataService.notifyToast('success', 'คัดลอกชื่อนักเรียนแล้ว', nameToCopy);
-                                    setTimeout(() => setCopiedStudentId(null), 2000);
-                                  }).catch(() => {
-                                    // Fallback if clipboard API is constrained
-                                    dataService.notifyToast('info', 'คัดลอกชื่อนักเรียน', nameToCopy);
-                                  });
-                                }}
-                                className="p-1 text-slate-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
-                                title="คัดลอกชื่อ-นามสกุลนักเรียน"
-                              >
-                                {copiedStudentId === student.id ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenStudentModal(student)}
+                            className="flex items-center gap-2.5 text-left group/std hover:opacity-90 transition-all cursor-pointer min-w-0"
+                            title="กดเพื่อเปิดป๊อปอัปเช็คชื่อและฝากเงิน (ม, ป, ล, ข)"
+                          >
+                            <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 group-hover/std:border-emerald-500 bg-slate-100 shrink-0 transition-colors shadow-2xs">
+                              <ImageWithFallback
+                                src={student.photoUrl}
+                                alt={student.firstName}
+                                isAvatar={true}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
-                            <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
-                              <span>#{student.studentCode}</span>
-                              {student.gradeLevel && (
-                                <span className="px-1 py-0.2 bg-purple-50 text-purple-600 rounded font-medium text-[8.5px]">
-                                  {student.gradeLevel}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-800 text-xs truncate group-hover/std:text-emerald-700 underline decoration-slate-300 group-hover/std:decoration-emerald-500 underline-offset-2">
+                                  {student.prefix}{student.firstName} {student.lastName}
                                 </span>
-                              )}
+                                {student.nickname && (
+                                  <span className="text-[10px] text-slate-500 shrink-0">({student.nickname})</span>
+                                )}
+                                <span className="inline-flex md:hidden text-[9px] bg-emerald-50 text-emerald-700 px-1 py-0.2 rounded font-medium border border-emerald-200 shrink-0">
+                                  กดบันทึก
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                                <span>#{student.studentCode}</span>
+                                {student.gradeLevel && (
+                                  <span className="px-1 py-0.2 bg-purple-50 text-purple-600 rounded font-medium text-[8.5px]">
+                                    {student.gradeLevel}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nameToCopy = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
+                              navigator.clipboard.writeText(nameToCopy).then(() => {
+                                setCopiedStudentId(student.id);
+                                dataService.notifyToast('success', 'คัดลอกชื่อนักเรียนแล้ว', nameToCopy);
+                                setTimeout(() => setCopiedStudentId(null), 2000);
+                              }).catch(() => {
+                                // Fallback if clipboard API is constrained
+                                dataService.notifyToast('info', 'คัดลอกชื่อนักเรียน', nameToCopy);
+                              });
+                            }}
+                            className="p-1 text-slate-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0 ml-auto"
+                            title="คัดลอกชื่อ-นามสกุลนักเรียน"
+                          >
+                            {copiedStudentId === student.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
                         </div>
                       </td>
 
@@ -1676,6 +1744,243 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         isOpen={showCopyAllStudentsModal}
         onClose={() => setShowCopyAllStudentsModal(false)}
       />
+
+      {/* Mobile / Fullscreen Student Pop-up Modal for Bank & Attendance (Req: เมื่อกดชื่อ จะแสดงpop-up หน้าเต็มพอดี และมีกรอกใส่เงินฝาก หรือ เลือก ม,ป,ล,ข ลงเสร็จกดบันทึก) */}
+      {selectedStudentModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full h-full md:h-auto md:max-w-lg md:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-6 duration-200">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 text-white flex items-center justify-between shrink-0 shadow-md">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-white/20 border-2 border-white/50 shadow-inner shrink-0">
+                  <ImageWithFallback
+                    src={selectedStudentModal.photoUrl}
+                    alt={selectedStudentModal.firstName}
+                    isAvatar={true}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] bg-white/25 px-2 py-0.5 rounded-full font-bold">
+                      เลขที่ {students.findIndex((s) => s.id === selectedStudentModal.id) + 1}
+                    </span>
+                    <span className="text-[11px] text-emerald-100 font-medium">
+                      {selectedStudentModal.gradeLevel || profile.classroomName || 'ป.6/1'}
+                    </span>
+                    <span className="text-[10px] text-emerald-200">
+                      (คนที่ {students.findIndex((s) => s.id === selectedStudentModal.id) + 1}/{students.length})
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white truncate mt-0.5">
+                    {selectedStudentModal.prefix}{selectedStudentModal.firstName} {selectedStudentModal.lastName}
+                  </h3>
+                  {selectedStudentModal.nickname && (
+                    <p className="text-xs text-emerald-100 font-normal">
+                      ชื่อเล่น: {selectedStudentModal.nickname}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedStudentModal(null)}
+                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer shrink-0"
+                aria-label="ปิดหน้าต่าง"
+                title="ปิดหน้าต่าง"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 sm:space-y-5 flex-1 bg-slate-50/50">
+              {/* Date Information Card */}
+              <div className="flex items-center justify-between bg-emerald-50/80 px-3.5 py-2.5 rounded-xl border border-emerald-200/80 text-xs text-emerald-900 shadow-2xs">
+                <span className="font-semibold flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>วันที่บันทึก:</span>
+                </span>
+                <span className="font-bold text-emerald-800">{formatThaiDate(selectedDate)}</span>
+              </div>
+
+              {/* 1. Attendance Status Selection (เลือก ม, ป, ล, ข) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+                <label className="block text-xs font-bold text-slate-700 mb-2.5">
+                  1. เลือกสถานะการมาเรียน (ม, ป, ล, ข):
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    {
+                      status: 'present',
+                      key: 'ม',
+                      label: 'มาเรียน',
+                      badge: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400',
+                      inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300',
+                    },
+                    {
+                      status: 'sick',
+                      key: 'ป',
+                      label: 'ป่วย',
+                      badge: 'bg-amber-500 text-white shadow-md shadow-amber-500/30 ring-2 ring-amber-300',
+                      inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-300',
+                    },
+                    {
+                      status: 'personal',
+                      key: 'ล',
+                      label: 'ลากิจ',
+                      badge: 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-300',
+                      inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-blue-50 hover:border-blue-300',
+                    },
+                    {
+                      status: 'absent',
+                      key: 'ข',
+                      label: 'ขาดเรียน',
+                      badge: 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-300',
+                      inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-rose-50 hover:border-rose-300',
+                    },
+                  ].map((item) => {
+                    const isSelected = modalAttendance === item.status;
+                    return (
+                      <button
+                        key={item.status}
+                        type="button"
+                        onClick={() => {
+                          setModalAttendance(item.status as AttendanceStatus);
+                          if (item.status !== 'present') {
+                            setModalDeposit(0);
+                          }
+                        }}
+                        className={`p-3 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                          isSelected ? item.badge : item.inactive
+                        }`}
+                      >
+                        <span className="text-2xl font-black">{item.key}</span>
+                        <span className={`text-[11px] font-semibold mt-1 ${isSelected ? 'text-white' : 'text-slate-500'}`}>
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Deposit Amount Input (กรอกใส่เงินฝาก) */}
+              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    2. กรอกจำนวนเงินฝากวันนี้ (บาท):
+                  </label>
+                  <span className="text-xs text-slate-500">
+                    ยอดสะสมเดิม: <strong className="text-emerald-700 font-bold">฿{(selectedStudentModal.currentSavings || 0).toLocaleString()}</strong>
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={modalDeposit === 0 ? '' : modalDeposit}
+                    onChange={(e) => {
+                      const val = Math.max(0, Number(e.target.value) || 0);
+                      setModalDeposit(val);
+                    }}
+                    placeholder="0"
+                    disabled={modalAttendance !== 'present'}
+                    className="w-full text-center text-3xl font-black text-slate-800 py-3 px-4 rounded-2xl border-2 border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 bg-white outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                    บาท
+                  </span>
+                </div>
+
+                {/* Quick amount chips */}
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-3 flex-wrap">
+                  {[0, 5, 10, 20, 50, 100].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      disabled={modalAttendance !== 'present'}
+                      onClick={() => setModalDeposit(amt)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        modalDeposit === amt
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      {amt === 0 ? '0 บ.' : `+${amt} บ.`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Student Cumulative Attendance Overview */}
+              <div className="bg-slate-100/70 p-3 rounded-xl border border-slate-200 flex items-center justify-around text-center text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 block">มาเรียนสะสม</span>
+                  <span className="font-bold text-emerald-700 text-sm">
+                    {studentCumulativeStats[selectedStudentModal.id]?.present || 0} วัน
+                  </span>
+                </div>
+                <div className="h-6 w-px bg-slate-300" />
+                <div>
+                  <span className="text-[10px] text-slate-500 block">ป่วย</span>
+                  <span className="font-bold text-amber-600 text-sm">
+                    {studentCumulativeStats[selectedStudentModal.id]?.sick || 0} วัน
+                  </span>
+                </div>
+                <div className="h-6 w-px bg-slate-300" />
+                <div>
+                  <span className="text-[10px] text-slate-500 block">ลากิจ</span>
+                  <span className="font-bold text-blue-600 text-sm">
+                    {studentCumulativeStats[selectedStudentModal.id]?.personal || 0} วัน
+                  </span>
+                </div>
+                <div className="h-6 w-px bg-slate-300" />
+                <div>
+                  <span className="text-[10px] text-slate-500 block">ขาดเรียน</span>
+                  <span className="font-bold text-rose-600 text-sm">
+                    {studentCumulativeStats[selectedStudentModal.id]?.absent || 0} วัน
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Bottom Footer Actions (ลงเสร็จกดบันทึก, หรือเปลี่ยนคนได้ทันที) */}
+            <div className="p-3.5 sm:p-4 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handlePrevStudentInModal}
+                disabled={students.findIndex((s) => s.id === selectedStudentModal.id) === 0}
+                className="px-3 sm:px-4 py-3 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-2xl font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="นักเรียนคนก่อนหน้า"
+              >
+                ◀ ก่อนหน้า
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveStudentModal}
+                className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-2xl font-bold text-sm shadow-md shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                <span>บันทึกข้อมูล</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextStudentInModal}
+                className="px-3 sm:px-4 py-3 text-emerald-800 bg-emerald-100/80 hover:bg-emerald-200 rounded-2xl font-bold text-xs transition-colors cursor-pointer"
+                title="บันทึกและไปคนถัดไป"
+              >
+                ถัดไป ▶
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

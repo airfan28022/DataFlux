@@ -22,7 +22,11 @@ import {
   CheckCircle2,
   Users,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Check
 } from 'lucide-react';
 
 interface WeightHeightViewProps {
@@ -95,6 +99,96 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
 
   // Filter list by grade level (ป.1 - ป.6)
   const [listGradeFilter, setListGradeFilter] = useState<'all' | GradeLevel>('all');
+
+  // Mobile / Pop-up Full Screen Modal State for Student Data Entry (Req: เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนน/น้ำหนักส่วนสูงให้เรียบร้อย ลงเสร็จก็กดบันทึก)
+  const [whModalIndex, setWhModalIndex] = useState<number | null>(null);
+  const [modalStudentName, setModalStudentName] = useState('');
+  const [modalGender, setModalGender] = useState<'ชาย' | 'หญิง' | undefined>(undefined);
+  const [modalAge, setModalAge] = useState<number | ''>('');
+  const [modalWeight, setModalWeight] = useState<number | ''>('');
+  const [modalHeight, setModalHeight] = useState<number | ''>('');
+
+  const handleOpenWHModal = (index: number) => {
+    const row = tableRows[index];
+    if (!row) return;
+    setWhModalIndex(index);
+    setModalStudentName(row.studentName || '');
+    setModalGender(row.gender);
+    setModalAge(row.age !== undefined ? row.age : '');
+    setModalWeight(row.weight !== undefined ? row.weight : '');
+    setModalHeight(row.height !== undefined ? row.height : '');
+  };
+
+  const handleSaveWHModal = (closeAfter = true) => {
+    if (whModalIndex === null) return;
+    const updated = [...tableRows];
+    const currentRow = { ...updated[whModalIndex] };
+    currentRow.studentName = modalStudentName;
+    currentRow.gender = modalGender;
+    currentRow.age = modalAge;
+    currentRow.weight = modalWeight;
+    currentRow.height = modalHeight;
+
+    if (typeof modalWeight === 'number' && typeof modalHeight === 'number' && modalHeight > 0) {
+      const bmiResult = calculateBMI(
+        modalWeight,
+        modalHeight,
+        modalGender,
+        typeof modalAge === 'number' ? modalAge : undefined
+      );
+      currentRow.bmi = bmiResult.bmi;
+      currentRow.status = bmiResult.status;
+    } else {
+      currentRow.bmi = undefined;
+      currentRow.status = undefined;
+    }
+
+    updated[whModalIndex] = currentRow;
+    setTableRows(updated);
+    triggerAutoSave(updated);
+    dataService.notifyToast(
+      'success',
+      'บันทึกสำเร็จ',
+      `บันทึกข้อมูลของ ${modalStudentName || 'นักเรียน'} เรียบร้อย`
+    );
+    if (closeAfter) {
+      setWhModalIndex(null);
+    }
+  };
+
+  const handleNextStudentWHModal = () => {
+    if (whModalIndex === null) return;
+    handleSaveWHModal(false);
+    if (whModalIndex < tableRows.length - 1) {
+      const nextIdx = whModalIndex + 1;
+      const nextRow = tableRows[nextIdx];
+      if (nextRow) {
+        setWhModalIndex(nextIdx);
+        setModalStudentName(nextRow.studentName || '');
+        setModalGender(nextRow.gender);
+        setModalAge(nextRow.age !== undefined ? nextRow.age : '');
+        setModalWeight(nextRow.weight !== undefined ? nextRow.weight : '');
+        setModalHeight(nextRow.height !== undefined ? nextRow.height : '');
+      }
+    }
+  };
+
+  const handlePrevStudentWHModal = () => {
+    if (whModalIndex === null) return;
+    handleSaveWHModal(false);
+    if (whModalIndex > 0) {
+      const prevIdx = whModalIndex - 1;
+      const prevRow = tableRows[prevIdx];
+      if (prevRow) {
+        setWhModalIndex(prevIdx);
+        setModalStudentName(prevRow.studentName || '');
+        setModalGender(prevRow.gender);
+        setModalAge(prevRow.age !== undefined ? prevRow.age : '');
+        setModalWeight(prevRow.weight !== undefined ? prevRow.weight : '');
+        setModalHeight(prevRow.height !== undefined ? prevRow.height : '');
+      }
+    }
+  };
 
   // เรียงลำดับวันที่เป็นปัจจุบันก่อนอยู่ด้านบน (descending)
   const sortedRecords = useMemo(() => {
@@ -336,7 +430,7 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 sm:space-y-6 pb-16 w-full max-w-full min-w-0">
       {/* Top Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-emerald-50 shadow-xs">
         <div className="flex items-center gap-3">
@@ -521,13 +615,19 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                   <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-2.5 px-3 text-center text-slate-500 font-medium">{index + 1}</td>
                     <td className="py-2.5 px-3">
-                      <input
-                        type="text"
-                        value={row.studentName}
-                        onChange={(e) => handleRowChange(index, 'studentName', e.target.value)}
-                        placeholder={`ระบุชื่อ-สกุล นักเรียนคนที่ ${index + 1}`}
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 focus:border-emerald-500 focus:bg-white text-xs outline-hidden"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenWHModal(index)}
+                          className="flex-1 text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-800 hover:text-emerald-800 hover:bg-emerald-50 transition-colors truncate cursor-pointer flex items-center justify-between gap-1 group/sname"
+                          title="กดที่ชื่อเพื่อเปิดหน้าต่างกรอกน้ำหนัก-ส่วนสูง (Pop-up เต็มจอ)"
+                        >
+                          <span className="truncate">{row.studentName || `ระบุชื่อคนที่ ${index + 1}`}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 group-hover/sname:bg-emerald-600 group-hover/sname:text-white transition-colors">
+                            กรอกข้อมูล
+                          </span>
+                        </button>
+                      </div>
                     </td>
                     <td className="py-2.5 px-2 text-center">
                       <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200 shadow-2xs">
@@ -890,6 +990,313 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
           </PrintReportModal>
         );
       })()}
+
+      {/* Pop-up บันทึกน้ำหนัก-ส่วนสูงแบบเต็มจอสำหรับมือถือ (Req: เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนน/น้ำหนัก-ส่วนสูงให้เรียบร้อย ลงเสร็จก็กดบันทึก) */}
+      {whModalIndex !== null && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 md:p-4">
+          <div className="bg-white w-full h-full md:h-auto md:max-h-[92vh] md:max-w-md md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-4 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0 shadow-xs">
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                    คนที่ {whModalIndex + 1} จาก {tableRows.length}
+                  </span>
+                  <span className="text-emerald-100 text-xs">
+                    {selectedGrade} ({formatThaiDate(selectedDate)})
+                  </span>
+                </div>
+                <h3 className="text-base font-bold truncate mt-0.5">
+                  {modalStudentName || `นักเรียนคนที่ ${whModalIndex + 1}`}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWhModalIndex(null)}
+                className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
+                title="ปิดหน้าต่าง"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/60">
+              {/* ชื่อ-สกุล */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  ชื่อ - นามสกุล นักเรียน
+                </label>
+                <input
+                  type="text"
+                  value={modalStudentName}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setModalStudentName(name);
+                    if (
+                      name.startsWith('เด็กชาย') ||
+                      name.includes('เด็กชาย') ||
+                      name.startsWith('ด.ช.') ||
+                      name.includes('ด.ช.') ||
+                      name.startsWith('นาย ') ||
+                      name.startsWith('นาย')
+                    ) {
+                      setModalGender('ชาย');
+                    } else if (
+                      name.startsWith('เด็กหญิง') ||
+                      name.includes('เด็กหญิง') ||
+                      name.startsWith('ด.ญ.') ||
+                      name.includes('ด.ญ.') ||
+                      name.startsWith('นางสาว') ||
+                      name.startsWith('น.ส.')
+                    ) {
+                      setModalGender('หญิง');
+                    }
+                  }}
+                  placeholder="ระบุชื่อ-นามสกุล..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-emerald-500 focus:bg-white text-xs font-semibold outline-hidden"
+                />
+              </div>
+
+              {/* เพศ และ อายุ */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* เพศ */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    เพศ
+                  </label>
+                  <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setModalGender('ชาย')}
+                      className={`py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                        modalGender === 'ชาย'
+                          ? 'bg-sky-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-sky-700'
+                      }`}
+                    >
+                      👦 ชาย
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalGender('หญิง')}
+                      className={`py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                        modalGender === 'หญิง'
+                          ? 'bg-rose-500 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-rose-700'
+                      }`}
+                    >
+                      👧 หญิง
+                    </button>
+                  </div>
+                </div>
+
+                {/* อายุ */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-2xs space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    อายุ (ปี)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cur = typeof modalAge === 'number' ? modalAge : 10;
+                        setModalAge(Math.max(3, cur - 1));
+                      }}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 flex items-center justify-center cursor-pointer transition-colors"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="3"
+                      max="20"
+                      value={modalAge}
+                      onChange={(e) => setModalAge(e.target.value ? Number(e.target.value) : '')}
+                      placeholder="10"
+                      className="flex-1 text-center py-1.5 px-1 rounded-lg border border-slate-200 focus:border-emerald-500 text-xs font-bold outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const cur = typeof modalAge === 'number' ? modalAge : 10;
+                        setModalAge(Math.min(20, cur + 1));
+                      }}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 flex items-center justify-center cursor-pointer transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* น้ำหนัก และ ส่วนสูง */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* น้ำหนัก */}
+                <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-emerald-950">
+                      น้ำหนัก (กก.)
+                    </label>
+                    <span className="text-[11px] font-bold text-emerald-700">
+                      kg
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="5"
+                    max="150"
+                    value={modalWeight}
+                    onChange={(e) => setModalWeight(e.target.value ? Number(e.target.value) : '')}
+                    placeholder="0.0"
+                    className="w-full text-center text-xl font-black py-2 rounded-xl border-2 border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-hidden bg-emerald-50/20"
+                  />
+                  {/* Quick adjustments */}
+                  <div className="grid grid-cols-4 gap-1 pt-0.5">
+                    {[-1, -0.5, +0.5, +1].map((delta) => (
+                      <button
+                        key={`w-delta-${delta}`}
+                        type="button"
+                        onClick={() => {
+                          const cur = typeof modalWeight === 'number' ? modalWeight : 30;
+                          const next = Math.max(0, Number((cur + delta).toFixed(1)));
+                          setModalWeight(next);
+                        }}
+                        className="py-1 text-[10px] font-bold rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 cursor-pointer"
+                      >
+                        {delta > 0 ? `+${delta}` : delta}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ส่วนสูง */}
+                <div className="bg-white p-3.5 rounded-xl border border-teal-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-teal-950">
+                      ส่วนสูง (ซม.)
+                    </label>
+                    <span className="text-[11px] font-bold text-teal-700">
+                      cm
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="50"
+                    max="220"
+                    value={modalHeight}
+                    onChange={(e) => setModalHeight(e.target.value ? Number(e.target.value) : '')}
+                    placeholder="0.0"
+                    className="w-full text-center text-xl font-black py-2 rounded-xl border-2 border-teal-300 focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-hidden bg-teal-50/20"
+                  />
+                  {/* Quick adjustments */}
+                  <div className="grid grid-cols-4 gap-1 pt-0.5">
+                    {[-1, -0.5, +0.5, +1].map((delta) => (
+                      <button
+                        key={`h-delta-${delta}`}
+                        type="button"
+                        onClick={() => {
+                          const cur = typeof modalHeight === 'number' ? modalHeight : 130;
+                          const next = Math.max(0, Number((cur + delta).toFixed(1)));
+                          setModalHeight(next);
+                        }}
+                        className="py-1 text-[10px] font-bold rounded-md bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 cursor-pointer"
+                      >
+                        {delta > 0 ? `+${delta}` : delta}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* BMI & ภาวะโภชนาการ Preview */}
+              {(() => {
+                const liveBMI =
+                  typeof modalWeight === 'number' &&
+                  typeof modalHeight === 'number' &&
+                  modalHeight > 0
+                    ? calculateBMI(
+                        modalWeight,
+                        modalHeight,
+                        modalGender,
+                        typeof modalAge === 'number' ? modalAge : undefined
+                      )
+                    : null;
+
+                if (!liveBMI) {
+                  return (
+                    <div className="bg-slate-100/80 p-3 rounded-xl border border-slate-200 text-center text-xs text-slate-500 font-medium">
+                      กรอกน้ำหนักและส่วนสูงเพื่อประเมินค่า BMI และภาวะโภชนาการ
+                    </div>
+                  );
+                }
+
+                let colorClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
+                if (liveBMI.status.includes('ผอม')) {
+                  colorClass = 'bg-sky-50 border-sky-200 text-sky-900';
+                } else if (liveBMI.status.includes('อ้วน') || liveBMI.status.includes('เกิน')) {
+                  colorClass = 'bg-amber-50 border-amber-200 text-amber-900';
+                }
+
+                return (
+                  <div className={`p-3.5 rounded-xl border ${colorClass} shadow-2xs flex items-center justify-between`}>
+                    <div>
+                      <span className="text-[11px] font-semibold opacity-75 block">
+                        ดัชนีมวลกาย (BMI)
+                      </span>
+                      <span className="text-xl font-black">
+                        {liveBMI.bmi} <span className="text-xs font-normal opacity-70">กก./ม.²</span>
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[11px] font-semibold opacity-75 block">
+                        การแปลผลโภชนาการ
+                      </span>
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/80 shadow-2xs border border-current">
+                        {liveBMI.status}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-white border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handlePrevStudentWHModal}
+                disabled={whModalIndex === 0}
+                className="flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">ก่อนหน้า</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveWHModal(true)}
+                className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>บันทึกข้อมูล</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextStudentWHModal}
+                disabled={whModalIndex === tableRows.length - 1}
+                className="flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              >
+                <span className="hidden sm:inline">คนถัดไป</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -29,7 +29,10 @@ import {
   Maximize2,
   Minimize2,
   Copy,
-  Users
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Check
 } from 'lucide-react';
 
 interface GradeScoreViewProps {
@@ -131,6 +134,164 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   // Fullscreen Table State: ขยายเต็มตารางคะแนน
   const [isTableFullscreen, setIsTableFullscreen] = useState(false);
+
+  // Mobile / Fullscreen Student Score Pop-up Modal (Req: หน้ากรอกคะแนน - ส่วนสูง แสดงหน้าเต็ม mobile พอดี เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนนให้เรียบร้อย ลงเสร็จก็กดบันทึก)
+  const [selectedScoreModalStudent, setSelectedScoreModalStudent] = useState<SheetStudent | null>(null);
+  const [modalActiveTab, setModalActiveTab] = useState<'chapter' | 'final'>('chapter');
+  const [modalSelectedChapterIdx, setModalSelectedChapterIdx] = useState<number>(0);
+  const [modalTopicScores, setModalTopicScores] = useState<(number | '-')[]>([]);
+  const [modalFinalScore, setModalFinalScore] = useState<number | ''>('');
+
+  const handleOpenScoreModal = (student: SheetStudent) => {
+    setSelectedScoreModalStudent(student);
+
+    let chIdx = 0;
+    if (typeof activeChapterTab === 'number') {
+      chIdx = Math.max(0, Math.min(currentChapters.length - 1, activeChapterTab - 1));
+      setModalActiveTab('chapter');
+    } else if (activeChapterTab === 'final') {
+      setModalActiveTab('final');
+    } else {
+      setModalActiveTab('chapter');
+    }
+    setModalSelectedChapterIdx(chIdx);
+
+    const targetCh = currentChapters[chIdx];
+    const initialTopics = targetCh && targetCh.scores[student.id]
+      ? [...targetCh.scores[student.id]]
+      : Array(targetCh ? targetCh.topics.length : 10).fill('-');
+
+    setModalTopicScores(initialTopics);
+
+    const initialExam = activeSheet?.finalExamScores?.[student.id];
+    setModalFinalScore(typeof initialExam === 'number' ? initialExam : '');
+  };
+
+  const handleSwitchModalChapter = (newChIdx: number) => {
+    if (!selectedScoreModalStudent) return;
+    setModalSelectedChapterIdx(newChIdx);
+    setModalActiveTab('chapter');
+    const targetCh = currentChapters[newChIdx];
+    const newTopics = targetCh && targetCh.scores[selectedScoreModalStudent.id]
+      ? [...targetCh.scores[selectedScoreModalStudent.id]]
+      : Array(targetCh ? targetCh.topics.length : 10).fill('-');
+    setModalTopicScores(newTopics);
+  };
+
+  const handleSaveScoreModal = () => {
+    if (!selectedScoreModalStudent || !activeSheet) return;
+    const sId = selectedScoreModalStudent.id;
+
+    let updatedChapters = [...currentChapters];
+    if (modalActiveTab === 'chapter' && modalSelectedChapterIdx >= 0 && modalSelectedChapterIdx < currentChapters.length) {
+      const chNum = currentChapters[modalSelectedChapterIdx].chapterNumber;
+      updatedChapters = updatedChapters.map((ch) => {
+        if (ch.chapterNumber === chNum) {
+          return {
+            ...ch,
+            scores: {
+              ...ch.scores,
+              [sId]: [...modalTopicScores],
+            },
+          };
+        }
+        return ch;
+      });
+    }
+
+    let updatedFinalScores = { ...(activeSheet.finalExamScores || {}) };
+    if (modalActiveTab === 'final' || modalFinalScore !== '') {
+      if (typeof modalFinalScore === 'number') {
+        updatedFinalScores[sId] = modalFinalScore;
+      }
+    }
+
+    const updatedSheet: ScoreSheet = {
+      ...activeSheet,
+      chapters: updatedChapters,
+      finalExamScores: updatedFinalScores,
+      updatedAt: new Date().toISOString(),
+    };
+
+    dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
+    dataService.notifyToast(
+      'success',
+      `บันทึกคะแนน ${selectedScoreModalStudent.prefix || ''}${selectedScoreModalStudent.firstName} เรียบร้อยแล้ว`
+    );
+    setSelectedScoreModalStudent(null);
+  };
+
+  const handleNextStudentInScoreModal = () => {
+    if (!selectedScoreModalStudent || !activeSheet) return;
+    const sId = selectedScoreModalStudent.id;
+    let updatedChapters = [...currentChapters];
+    if (modalActiveTab === 'chapter' && modalSelectedChapterIdx >= 0 && modalSelectedChapterIdx < currentChapters.length) {
+      const chNum = currentChapters[modalSelectedChapterIdx].chapterNumber;
+      updatedChapters = updatedChapters.map((ch) => {
+        if (ch.chapterNumber === chNum) {
+          return {
+            ...ch,
+            scores: {
+              ...ch.scores,
+              [sId]: [...modalTopicScores],
+            },
+          };
+        }
+        return ch;
+      });
+    }
+
+    let updatedFinalScores = { ...(activeSheet.finalExamScores || {}) };
+    if (typeof modalFinalScore === 'number') {
+      updatedFinalScores[sId] = modalFinalScore;
+    }
+
+    const updatedSheet: ScoreSheet = {
+      ...activeSheet,
+      chapters: updatedChapters,
+      finalExamScores: updatedFinalScores,
+      updatedAt: new Date().toISOString(),
+    };
+    dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
+
+    const currIdx = currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id);
+    if (currIdx < currentSheetStudents.length - 1) {
+      const nextStd = currentSheetStudents[currIdx + 1];
+      setSelectedScoreModalStudent(nextStd);
+
+      const targetCh = updatedChapters[modalSelectedChapterIdx];
+      const nextTopics = targetCh && targetCh.scores[nextStd.id]
+        ? [...targetCh.scores[nextStd.id]]
+        : Array(targetCh ? targetCh.topics.length : 10).fill('-');
+      setModalTopicScores(nextTopics);
+
+      const nextExam = updatedFinalScores[nextStd.id];
+      setModalFinalScore(typeof nextExam === 'number' ? nextExam : '');
+    } else {
+      setSelectedScoreModalStudent(null);
+      dataService.notifyToast('success', 'บันทึกคะแนนครบทุกคนแล้ว');
+    }
+  };
+
+  const handlePrevStudentInScoreModal = () => {
+    if (!selectedScoreModalStudent || !activeSheet) return;
+    const currIdx = currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id);
+    if (currIdx > 0) {
+      const prevStd = currentSheetStudents[currIdx - 1];
+      setSelectedScoreModalStudent(prevStd);
+
+      const targetCh = currentChapters[modalSelectedChapterIdx];
+      const prevTopics = targetCh && targetCh.scores[prevStd.id]
+        ? [...targetCh.scores[prevStd.id]]
+        : Array(targetCh ? targetCh.topics.length : 10).fill('-');
+      setModalTopicScores(prevTopics);
+
+      const prevExam = activeSheet.finalExamScores?.[prevStd.id];
+      setModalFinalScore(typeof prevExam === 'number' ? prevExam : '');
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -966,7 +1127,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   }, [activeScorePopover]);
 
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-3.5 sm:space-y-4 pb-16 w-full max-w-full min-w-0">
       {/* Top Header Card - Single row compact bar for tablet & clean layout */}
       <div className="flex items-center justify-between gap-2.5 bg-white px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1399,26 +1560,19 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       </td>
                       <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
                         <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
-                            key={`ch-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
-                            onBlur={(e) => {
-                              const val = e.target.value.trim();
-                              const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
-                              if (val && val !== cur) {
-                                handleUpdateStudentName(student.id, val);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            placeholder="พิมพ์ชื่อ - นามสกุล..."
-                            className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
-                            title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => handleOpenScoreModal(student)}
+                            className="flex-1 text-left px-2 py-1 rounded-lg text-xs font-semibold text-slate-800 hover:text-purple-700 hover:bg-purple-50 transition-colors truncate cursor-pointer flex items-center justify-between gap-1 group/sname"
+                            title="กดที่ชื่อเพื่อเปิดหน้าต่างลงคะแนน (Pop-up เต็มจอ)"
+                          >
+                            <span className="truncate">
+                              {`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim() || 'ระบุชื่อ...'}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md font-semibold bg-purple-50 text-purple-700 border border-purple-200 shrink-0 group-hover/sname:bg-purple-600 group-hover/sname:text-white transition-colors">
+                              ลงคะแนน
+                            </span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -1677,26 +1831,19 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       </td>
                       <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
                         <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            defaultValue={`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()}
-                            key={`exam-std-${student.id}-${student.prefix}-${student.firstName}-${student.lastName}`}
-                            onBlur={(e) => {
-                              const val = e.target.value.trim();
-                              const cur = `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim();
-                              if (val && val !== cur) {
-                                handleUpdateStudentName(student.id, val);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            placeholder="พิมพ์ชื่อ - นามสกุล..."
-                            className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
-                            title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => handleOpenScoreModal(student)}
+                            className="flex-1 text-left px-2 py-1 rounded-lg text-xs font-semibold text-slate-800 hover:text-amber-800 hover:bg-amber-50 transition-colors truncate cursor-pointer flex items-center justify-between gap-1 group/sname"
+                            title="กดที่ชื่อเพื่อเปิดหน้าต่างลงคะแนนสอบ (Pop-up เต็มจอ)"
+                          >
+                            <span className="truncate">
+                              {`${student.prefix || ''}${student.firstName} ${student.lastName}`.trim() || 'ระบุชื่อ...'}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0 group-hover/sname:bg-amber-600 group-hover/sname:text-white transition-colors">
+                              ลงคะแนนสอบ
+                            </span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -1944,25 +2091,20 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </td>
                     <td className="py-1.5 px-2 sticky left-12 z-10 bg-white border-r border-slate-100 min-w-[190px]">
                       <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          defaultValue={row.studentName}
-                          key={`sum-std-${row.studentId}-${row.studentName}`}
-                          onBlur={(e) => {
-                            const val = e.target.value.trim();
-                            if (val && val !== row.studentName) {
-                              handleUpdateStudentName(row.studentId, val);
-                            }
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const std = currentSheetStudents.find((s) => s.id === row.studentId);
+                            if (std) handleOpenScoreModal(std);
                           }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur();
-                            }
-                          }}
-                          placeholder="พิมพ์ชื่อ - นามสกุล..."
-                          className="w-full px-2 py-1 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400 rounded-lg text-xs font-semibold text-slate-800 transition-all outline-hidden border border-transparent hover:border-slate-300"
-                          title="คลิกเพื่อแก้ไขชื่อ-สกุลได้ทุกเมื่อ (กด Enter หรือคลิกออกเพื่อบันทึกอัตโนมัติ)"
-                        />
+                          className="flex-1 text-left px-2 py-1 rounded-lg text-xs font-semibold text-slate-800 hover:text-emerald-800 hover:bg-emerald-50 transition-colors truncate cursor-pointer flex items-center justify-between gap-1 group/sname"
+                          title="กดที่ชื่อเพื่อเปิดหน้าต่างลงคะแนน (Pop-up เต็มจอ)"
+                        >
+                          <span className="truncate">{row.studentName}</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-md font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 group-hover/sname:bg-emerald-600 group-hover/sname:text-white transition-colors">
+                            ลงคะแนน
+                          </span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -2567,6 +2709,230 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         description={targetStudentRowId ? 'คลิกที่นักเรียนเพื่อนำชื่อมาใส่ในแถวนี้ทันที' : 'เลือกรายคน หรือคัดลอกทั้งชั้นเรียนเพื่อนำชื่อลงในตารางคะแนน'}
         enableMultiple={!targetStudentRowId}
       />
+
+      {/* Pop-up กรอกคะแนนแบบเต็มจอสำหรับมือถือ / กรอกสะดวก (Req: เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนนให้เรียบร้อย ลงเสร็จก็กดบันทึก) */}
+      {selectedScoreModalStudent && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 md:p-4">
+          <div className="bg-white w-full h-full md:h-auto md:max-h-[92vh] md:max-w-lg md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-4 py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between shrink-0 shadow-xs">
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className="bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
+                    คนที่ {currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id) + 1} จาก {currentSheetStudents.length}
+                  </span>
+                  <span className="text-purple-200 text-xs truncate">
+                    {activeSheet?.subjectName || 'รายวิชา'}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold truncate mt-0.5">
+                  {selectedScoreModalStudent.prefix}{selectedScoreModalStudent.firstName} {selectedScoreModalStudent.lastName}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedScoreModalStudent(null)}
+                className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
+                title="ปิดหน้าต่าง"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Navigation Chapter / Final Tabs in Modal */}
+            <div className="bg-purple-50/70 px-3 py-2 border-b border-purple-100 flex items-center gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
+              {currentChapters.map((ch, idx) => (
+                <button
+                  key={`modal-ch-tab-${ch.chapterNumber}`}
+                  type="button"
+                  onClick={() => handleSwitchModalChapter(idx)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                    modalActiveTab === 'chapter' && modalSelectedChapterIdx === idx
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'bg-white text-purple-900 hover:bg-purple-100/70 border border-purple-200'
+                  }`}
+                >
+                  บทที่ {ch.chapterNumber}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setModalActiveTab('final')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  modalActiveTab === 'final'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white text-amber-900 hover:bg-amber-100/70 border border-amber-200'
+                }`}
+              >
+                สอบปลายภาค (ส)
+              </button>
+            </div>
+
+            {/* Modal Body - Score Inputs */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/60">
+              {modalActiveTab === 'chapter' && (
+                <div className="space-y-3">
+                  <div className="bg-white p-3 rounded-xl border border-purple-150 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-950">
+                        {currentChapters[modalSelectedChapterIdx]?.title || `บทที่ ${modalSelectedChapterIdx + 1}`}
+                      </span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-100 text-purple-800">
+                        คะแนนรวมบทนี้:{' '}
+                        {modalTopicScores.reduce<number>((acc, cur) => (typeof cur === 'number' ? acc + cur : acc), 0)} /{' '}
+                        {currentChapters[modalSelectedChapterIdx]?.topics.filter((t) => !!t.trim()).length * 5} คะแนน
+                      </span>
+                    </div>
+                  </div>
+
+                  {currentChapters[modalSelectedChapterIdx]?.topics.map((topicTitle, tIdx) => {
+                    const currentVal = modalTopicScores[tIdx];
+                    return (
+                      <div
+                        key={`modal-topic-${tIdx}`}
+                        className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800">
+                            เรื่องที่ {tIdx + 1}: {topicTitle || `กิจกรรมการเรียนรู้ที่ ${tIdx + 1}`}
+                          </span>
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                            คะแนน: {currentVal !== undefined && currentVal !== '-' ? `${currentVal} / 5` : 'ยังไม่ลงคะแนน'}
+                          </span>
+                        </div>
+
+                        {/* Quick Selection Pills: 5, 4, 3, 2, 1, 0, - */}
+                        <div className="grid grid-cols-7 gap-1 pt-1">
+                          {[5, 4, 3, 2, 1, 0, '-'].map((val) => {
+                            const isSelected = currentVal === val;
+                            return (
+                              <button
+                                key={`val-btn-${val}`}
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...modalTopicScores];
+                                  while (updated.length <= tIdx) updated.push('-');
+                                  updated[tIdx] = val as number | '-';
+                                  setModalTopicScores(updated);
+                                }}
+                                className={`py-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center ${
+                                  isSelected
+                                    ? val === '-'
+                                      ? 'bg-slate-700 text-white ring-2 ring-slate-400'
+                                      : 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300 scale-102'
+                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                }`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {modalActiveTab === 'final' && (
+                <div className="bg-white p-4 rounded-xl border border-amber-200 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-amber-950">คะแนนสอบปลายภาค (Final Exam)</h4>
+                      <p className="text-xs text-amber-800">
+                        คะแนนเต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30} คะแนน
+                      </p>
+                    </div>
+                    <span className="text-lg font-black text-amber-700">
+                      {modalFinalScore !== '' ? modalFinalScore : '-'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      ระบุคะแนนสอบที่ได้
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30}
+                      value={modalFinalScore}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '') {
+                          setModalFinalScore('');
+                        } else {
+                          const n = Number(v);
+                          const max = activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30;
+                          setModalFinalScore(Math.max(0, Math.min(max, n)));
+                        }
+                      }}
+                      placeholder="0"
+                      className="w-full text-center text-xl font-bold py-2.5 px-3 rounded-xl border-2 border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-hidden"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1">
+                      ปุ่มลัดคะแนนสอบ:
+                    </span>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[
+                        activeSheet?.finalExamMaxScore || 30,
+                        Math.round((activeSheet?.finalExamMaxScore || 30) * 0.8),
+                        Math.round((activeSheet?.finalExamMaxScore || 30) * 0.7),
+                        Math.round((activeSheet?.finalExamMaxScore || 30) * 0.5),
+                        0,
+                      ].map((presetVal) => (
+                        <button
+                          key={`final-preset-${presetVal}`}
+                          type="button"
+                          onClick={() => setModalFinalScore(presetVal)}
+                          className="py-1.5 text-xs font-bold rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors cursor-pointer"
+                        >
+                          {presetVal}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer: Prev / Save / Next */}
+            <div className="p-3 bg-white border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handlePrevStudentInScoreModal}
+                disabled={currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id) === 0}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">ก่อนหน้า</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveScoreModal}
+                className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>บันทึกคะแนน</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextStudentInScoreModal}
+                disabled={currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id) === currentSheetStudents.length - 1}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-purple-700 hover:bg-purple-50 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+              >
+                <span className="hidden sm:inline">คนถัดไป</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
