@@ -9,6 +9,7 @@ import {
 import { dataService } from '../services/dataService';
 import { formatThaiDate, calculateBMI } from '../utils/helpers';
 import { PrintReportModal } from '../components/PrintReportModal';
+import { CopyAllStudentsModal } from '../components/CopyAllStudentsModal';
 import {
   Activity,
   Plus,
@@ -26,7 +27,8 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Check
+  Check,
+  Copy
 } from 'lucide-react';
 
 interface WeightHeightViewProps {
@@ -47,7 +49,8 @@ const extractGradeFromClassroom = (classroomName?: string): GradeLevel => {
 const createRowsForGrade = (grade: GradeLevel, allStudents: Student[]): WeightHeightRow[] => {
   const gradeStudents = allStudents.filter((s) => s.gradeLevel === grade);
   const studentsToUse = gradeStudents.length > 0 ? gradeStudents : allStudents;
-  const rowsCount = Math.max(studentsToUse.length, 15);
+  // ตามจำนวนจริงของแต่ละชั้นที่เลือก โดยไม่มีการเติมแถวว่าง
+  const rowsCount = studentsToUse.length;
   const rows: WeightHeightRow[] = [];
 
   for (let i = 0; i < rowsCount; i++) {
@@ -62,10 +65,10 @@ const createRowsForGrade = (grade: GradeLevel, allStudents: Student[]): WeightHe
     }
 
     rows.push({
-      id: `row-${Date.now()}-${i + 1}`,
+      id: `row-${Date.now()}-${i + 1}-${Math.random().toString(36).slice(2, 6)}`,
       order: i + 1,
       studentId: student?.id,
-      studentName: student ? `${student.prefix}${student.firstName} ${student.lastName}` : '',
+      studentName: student ? `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim() : '',
       gender: initialGender,
       age: student ? student.age : '',
       weight: '',
@@ -99,6 +102,44 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
 
   // Filter list by grade level (ป.1 - ป.6)
   const [listGradeFilter, setListGradeFilter] = useState<'all' | GradeLevel>('all');
+
+  // Modal สำหรับคัดลอกรายชื่อนักเรียนทั้งหมดตามชั้นเพื่อแทนที่ข้อมูลเดิมทันที
+  const [showCopyAllStudentsModal, setShowCopyAllStudentsModal] = useState(false);
+
+  // นำรายชื่อที่คัดลอกมาแทนที่ข้อมูลเดิมทันทีตามจำนวนจริงของชั้นที่เลือก
+  const handleApplyStudentsFromCopy = (selectedStudents: Student[], gradeLabel: string) => {
+    const targetGrade = (selectedStudents[0]?.gradeLevel as GradeLevel) || selectedGrade;
+    const newRows: WeightHeightRow[] = selectedStudents.map((student, idx) => {
+      let initialGender: 'ชาย' | 'หญิง' | undefined = undefined;
+      if (student.prefix === 'เด็กชาย' || student.prefix === 'นาย' || student.gender === 'male') {
+        initialGender = 'ชาย';
+      } else if (student.prefix === 'เด็กหญิง' || student.prefix === 'นางสาว' || student.gender === 'female') {
+        initialGender = 'หญิง';
+      }
+      return {
+        id: `row-${Date.now()}-${idx + 1}-${Math.random().toString(36).slice(2, 6)}`,
+        order: idx + 1,
+        studentId: student.id,
+        studentName: `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim(),
+        gender: initialGender,
+        age: student.age || '',
+        weight: '',
+        height: '',
+        bmi: undefined,
+        status: undefined,
+      };
+    });
+
+    setTableRows(newRows);
+    setSelectedGrade(targetGrade);
+    triggerAutoSave(newRows, targetGrade);
+    dataService.notifyToast(
+      'success',
+      'คัดลอกรายชื่อสำเร็จ',
+      `คัดลอกรายชื่อนักเรียนชั้น ${gradeLabel} (${newRows.length} คน) เรียบร้อยแล้ว`
+    );
+    setShowCopyAllStudentsModal(false);
+  };
 
   // Mobile / Pop-up Full Screen Modal State for Student Data Entry (Req: เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนน/น้ำหนักส่วนสูงให้เรียบร้อย ลงเสร็จก็กดบันทึก)
   const [whModalIndex, setWhModalIndex] = useState<number | null>(null);
@@ -546,6 +587,19 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                 />
               </div>
 
+              {/* ปุ่มสัญลักษณ์คัดลอกรายชื่อตามชั้นเรียน (เฉพาะไอคอน ไม่มีข้อความ เพื่อความสวยงาม) */}
+              <div className="self-end pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCopyAllStudentsModal(true)}
+                  className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-700 transition-all shadow-2xs hover:scale-105 active:scale-95 cursor-pointer shrink-0"
+                  title="คัดลอกรายชื่อตามชั้น"
+                  aria-label="คัดลอกรายชื่อตามชั้น"
+                >
+                  <Copy className="w-4 h-4 text-purple-600" />
+                </button>
+              </div>
+
               {/* ปุ่มช่วยดึงรายชื่อตามชั้นเรียนที่เลือก */}
               <div className="self-end pb-0.5">
                 <button
@@ -591,6 +645,9 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
 
           {/* Mobile Student List (Full width, no horizontal scroll, touch-friendly) */}
           <div className="md:hidden space-y-2">
+            <div className="flex items-center justify-between px-1 py-0.5 text-xs text-slate-600 font-bold">
+              <span>รายชื่อนักเรียน ({tableRows.length} คน)</span>
+            </div>
             {tableRows.map((row, index) => {
               const hasData = (row.weight && Number(row.weight) > 0) || (row.height && Number(row.height) > 0);
               return (
@@ -692,7 +749,9 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold">
                   <th className="py-3 px-3 w-12 text-center">ลำดับ</th>
-                  <th className="py-3 px-3 min-w-[210px]">ชื่อ-สกุล นักเรียน</th>
+                  <th className="py-3 px-3 min-w-[210px]">
+                    <span>ชื่อ-สกุล นักเรียน</span>
+                  </th>
                   <th className="py-3 px-2 w-28 text-center">เพศ (ชาย/หญิง)</th>
                   <th className="py-3 px-2 w-16 text-center">อายุ (ปี)</th>
                   <th className="py-3 px-2 w-28 text-center">น้ำหนัก (กก.)</th>
@@ -1402,6 +1461,15 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
           </div>
         </div>
       )}
+      {/* Modal คัดลอกรายชื่อทั้งหมดตามระดับชั้น เพื่อแทนที่ข้อมูลเดิมทันทีตามจำนวนจริง */}
+      <CopyAllStudentsModal
+        isOpen={showCopyAllStudentsModal}
+        onClose={() => setShowCopyAllStudentsModal(false)}
+        defaultGrade={selectedGrade}
+        onApplyStudents={handleApplyStudentsFromCopy}
+        title="คัดลอกรายชื่อนักเรียน (หน้าน้ำหนัก-ส่วนสูง)"
+        subtitle="เลือกชั้นเรียนเพื่อคัดลอกรายชื่อทั้งหมด"
+      />
     </div>
   );
 };

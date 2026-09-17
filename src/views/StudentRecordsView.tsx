@@ -341,6 +341,7 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
         }
         return s;
       });
+      newFullStudents = newFullStudents.map((s, idx) => ({ ...s, order: idx + 1 }));
     }
 
     setStudents(newFullStudents);
@@ -402,54 +403,70 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
     isDraggingActiveRef.current = false;
     activeDragIdRef.current = null;
     dragStartPosRef.current = null;
+    dragOverStudentIdRef.current = null;
     setDraggingStudentId(null);
     setDragOverStudentId(null);
   };
 
-  // 1. Desktop Mouse Handlers (Press-and-Hold or Click-and-Drag)
-  const handleMouseDown = (studentId: string, e: React.MouseEvent, isHandle = false) => {
-    // Only primary left-click
+  // Unified Pointer Handlers (Desktop Mouse + Mobile Touch with Press-and-Hold & Drag)
+  const handleRowPointerDown = (studentId: string, e: React.PointerEvent, isHandle = false) => {
+    // Only primary button (left click on mouse or touch)
     if (e.button !== 0) return;
 
     const target = e.target as HTMLElement;
+    // Don't drag if clicking buttons, links, inputs, or interactive items
     if (!isHandle && target.closest('button, a, input, select, textarea, [data-interactive="true"]')) {
       return;
     }
 
-    dragStartPosRef.current = { x: e.clientX, y: e.clientY };
+    const startX = e.clientX;
+    const startY = e.clientY;
+    dragStartPosRef.current = { x: startX, y: startY };
 
     if (pressTimerRef.current) {
       clearTimeout(pressTimerRef.current);
       pressTimerRef.current = null;
     }
 
+    const activateDrag = () => {
+      startDragging(studentId);
+    };
+
     if (isHandle) {
       // Immediate response on grip handle
-      startDragging(studentId);
+      activateDrag();
     } else {
-      // 150ms press-and-hold on Desktop row
+      // กดค้าง 140ms เพื่อเปิดโหมดลากเลื่อน
       pressTimerRef.current = setTimeout(() => {
-        startDragging(studentId);
-      }, 150);
+        activateDrag();
+      }, 140);
     }
 
-    const onWindowMouseMove = (moveEvent: MouseEvent) => {
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = Math.abs(moveEvent.clientX - startX);
+      const dy = Math.abs(moveEvent.clientY - startY);
+
       if (!isDraggingActiveRef.current) {
-        if (dragStartPosRef.current) {
-          const dx = Math.abs(moveEvent.clientX - dragStartPosRef.current.x);
-          const dy = Math.abs(moveEvent.clientY - dragStartPosRef.current.y);
-          if (dx > 4 || dy > 4) {
-            if (pressTimerRef.current) {
-              clearTimeout(pressTimerRef.current);
-              pressTimerRef.current = null;
-            }
-            startDragging(studentId);
+        // Desktop mouse: if moved > 4px while held, start dragging immediately
+        if (moveEvent.pointerType === 'mouse' && (dx > 4 || dy > 4)) {
+          if (pressTimerRef.current) {
+            clearTimeout(pressTimerRef.current);
+            pressTimerRef.current = null;
+          }
+          activateDrag();
+        } else if (moveEvent.pointerType === 'touch' && (dx > 8 || dy > 8)) {
+          // Mobile: cancel press-and-hold if user is scrolling
+          if (pressTimerRef.current) {
+            clearTimeout(pressTimerRef.current);
+            pressTimerRef.current = null;
           }
         }
       }
 
       if (isDraggingActiveRef.current) {
-        moveEvent.preventDefault();
+        if (moveEvent.cancelable) {
+          moveEvent.preventDefault();
+        }
 
         // Edge scrolling
         const scrollMargin = 70;
@@ -461,122 +478,26 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
 
         const targetId = findTargetStudentIdAt(moveEvent.clientX, moveEvent.clientY, activeDragIdRef.current);
         if (targetId && targetId !== dragOverStudentIdRef.current) {
+          dragOverStudentIdRef.current = targetId;
           setDragOverStudentId(targetId);
         }
       }
     };
 
-    const onWindowMouseUp = () => {
-      window.removeEventListener('mousemove', onWindowMouseMove);
-      window.removeEventListener('mouseup', onWindowMouseUp);
+    const onPointerUp = () => {
+      if (pressTimerRef.current) {
+        clearTimeout(pressTimerRef.current);
+        pressTimerRef.current = null;
+      }
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       endDragging();
     };
 
-    window.addEventListener('mousemove', onWindowMouseMove);
-    window.addEventListener('mouseup', onWindowMouseUp);
-  };
-
-  // 2. Native HTML5 Drag and Drop Handlers (Desktop fallback)
-  const handleDragStart = (e: React.DragEvent, studentId: string) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('button, a, input, select, textarea, [data-interactive="true"]')) {
-      e.preventDefault();
-      return;
-    }
-    e.dataTransfer.setData('text/plain', studentId);
-    e.dataTransfer.effectAllowed = 'move';
-    activeDragIdRef.current = studentId;
-    isDraggingActiveRef.current = true;
-    setDraggingStudentId(studentId);
-  };
-
-  const handleDragOver = (e: React.DragEvent, studentId: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverStudentId !== studentId && activeDragIdRef.current !== studentId) {
-      setDragOverStudentId(studentId);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent, targetStudentId: string) => {
-    e.preventDefault();
-    const sourceStudentId = e.dataTransfer.getData('text/plain') || activeDragIdRef.current;
-    if (sourceStudentId && targetStudentId && sourceStudentId !== targetStudentId) {
-      const fromIdx = filteredStudents.findIndex((s) => s.id === sourceStudentId);
-      const toIdx = filteredStudents.findIndex((s) => s.id === targetStudentId);
-      if (fromIdx >= 0 && toIdx >= 0) {
-        handleMoveStudent(fromIdx, toIdx);
-      }
-    }
-    endDragging();
-  };
-
-  const handleDragEnd = () => {
-    endDragging();
-  };
-
-  // 3. Touch Press-and-Hold Handlers (Mobile)
-  const handleTouchStart = (studentId: string, e: React.TouchEvent, isDirectHandle = false) => {
-    const target = e.target as HTMLElement;
-    if (!isDirectHandle && target.closest('button, a, input, select, [data-interactive="true"]')) {
-      return;
-    }
-
-    const touch = e.touches[0];
-    if (!touch) return;
-    dragStartPosRef.current = { x: touch.clientX, y: touch.clientY };
-
-    if (pressTimerRef.current) {
-      clearTimeout(pressTimerRef.current);
-      pressTimerRef.current = null;
-    }
-
-    if (isDirectHandle) {
-      startDragging(studentId);
-    } else {
-      pressTimerRef.current = setTimeout(() => {
-        startDragging(studentId);
-      }, 180);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    if (!isDraggingActiveRef.current) {
-      if (dragStartPosRef.current) {
-        const dx = Math.abs(touch.clientX - dragStartPosRef.current.x);
-        const dy = Math.abs(touch.clientY - dragStartPosRef.current.y);
-        if (dx > 8 || dy > 8) {
-          if (pressTimerRef.current) {
-            clearTimeout(pressTimerRef.current);
-            pressTimerRef.current = null;
-          }
-        }
-      }
-      return;
-    }
-
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
-    const scrollMargin = 75;
-    if (touch.clientY < scrollMargin) {
-      window.scrollBy({ top: -8, behavior: 'auto' });
-    } else if (touch.clientY > window.innerHeight - scrollMargin) {
-      window.scrollBy({ top: 8, behavior: 'auto' });
-    }
-
-    const targetId = findTargetStudentIdAt(touch.clientX, touch.clientY, activeDragIdRef.current);
-    if (targetId && targetId !== dragOverStudentIdRef.current) {
-      setDragOverStudentId(targetId);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    endDragging();
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   };
 
   return (
@@ -694,17 +615,8 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                 <div
                   key={student.id}
                   data-student-id={student.id}
-                  draggable={true}
-                  onDragStart={(e) => handleDragStart(e, student.id)}
-                  onDragOver={(e) => handleDragOver(e, student.id)}
-                  onDrop={(e) => handleDrop(e, student.id)}
-                  onDragEnd={handleDragEnd}
-                  onMouseDown={(e) => handleMouseDown(student.id, e, false)}
-                  onTouchStart={(e) => handleTouchStart(student.id, e, false)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
-                  onTouchCancel={handleTouchEnd}
-                  className={`px-3 py-2 sm:px-3.5 sm:py-2.5 transition-all flex items-center justify-between gap-2.5 sm:gap-3 text-xs select-none cursor-grab active:cursor-grabbing ${
+                  onPointerDown={(e) => handleRowPointerDown(student.id, e, false)}
+                  className={`px-3 py-2 sm:px-3.5 sm:py-2.5 transition-all flex items-center justify-between gap-2.5 sm:gap-3 text-xs select-none touch-pan-y cursor-grab active:cursor-grabbing ${
                     isDraggingThis
                       ? 'opacity-40 bg-blue-50 border-y-2 border-dashed border-blue-500 scale-[0.99] shadow-inner'
                       : isOverThis
@@ -716,13 +628,9 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
                   <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     {/* Drag Handle */}
                     <div
-                      onMouseDown={(e) => {
+                      onPointerDown={(e) => {
                         e.stopPropagation();
-                        handleMouseDown(student.id, e, true);
-                      }}
-                      onTouchStart={(e) => {
-                        e.stopPropagation();
-                        handleTouchStart(student.id, e, true);
+                        handleRowPointerDown(student.id, e, true);
                       }}
                       className={`p-1.5 rounded-lg transition-colors cursor-grab active:cursor-grabbing select-none flex items-center justify-center ${
                         isDraggingThis

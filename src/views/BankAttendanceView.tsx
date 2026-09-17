@@ -49,6 +49,23 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   const [profile, setProfile] = useState<TeacherProfile>(dataService.getProfile());
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
+  // Custom Copied Students filter state (เพื่อแทนที่รายชื่อตามจำนวนจริงของชั้นที่เลือก)
+  const [customCopiedGrade, setCustomCopiedGrade] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('bank_copied_grade') || null;
+    } catch {
+      return null;
+    }
+  });
+  const [customCopiedStudentIds, setCustomCopiedStudentIds] = useState<string[] | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('bank_copied_students');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   // Current day's attendance, deposit & note state
   const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceStatus>>({});
   const [depositsMap, setDepositsMap] = useState<Record<string, number>>({});
@@ -156,7 +173,13 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     const initialAtt: Record<string, AttendanceStatus> = {};
     const initialDep: Record<string, number> = {};
 
-    const currentStudents = dataService.getStudents();
+    const allStudents = dataService.getStudents();
+    const currentStudents = customCopiedStudentIds && customCopiedStudentIds.length > 0
+      ? allStudents.filter((s) => customCopiedStudentIds.includes(s.id))
+      : allStudents;
+    
+    setStudents(currentStudents);
+
     let hasUnsetAttendance = false;
     currentStudents.forEach((s) => {
       if (!dayData.attendance || !dayData.attendance[s.id]) {
@@ -180,18 +203,57 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   useEffect(() => {
     loadDayData(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, customCopiedStudentIds]);
 
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
-      setStudents(dataService.getStudents());
+      const all = dataService.getStudents();
+      if (customCopiedStudentIds && customCopiedStudentIds.length > 0) {
+        setStudents(all.filter((s) => customCopiedStudentIds.includes(s.id)));
+      } else {
+        setStudents(all);
+      }
       setProfile(dataService.getProfile());
       setWithdrawalLogs(dataService.getWithdrawalLogs());
       setAllHistoryRecords(dataService.getAllAttendanceAndBank());
       setPendingWithdrawals(dataService.getWithdrawalPendingDays());
     });
     return unsub;
-  }, []);
+  }, [customCopiedStudentIds]);
+
+  // นำรายชื่อที่คัดลอกมาแทนที่ข้อมูลเดิมทันทีตามจำนวนจริงของชั้นที่เลือก
+  const handleApplyStudentsBank = (selectedStudents: Student[], gradeLabel: string) => {
+    const newIds = selectedStudents.map((s) => s.id);
+    setCustomCopiedGrade(gradeLabel);
+    setCustomCopiedStudentIds(newIds);
+    setStudents(selectedStudents);
+    try {
+      sessionStorage.setItem('bank_copied_grade', gradeLabel);
+      sessionStorage.setItem('bank_copied_students', JSON.stringify(newIds));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    const newAtt: Record<string, AttendanceStatus> = {};
+    const newDep: Record<string, number> = {};
+    selectedStudents.forEach((s) => {
+      newAtt[s.id] = attendanceMap[s.id] || 'present';
+      newDep[s.id] = depositsMap[s.id] || 0;
+    });
+
+    setAttendanceMap(newAtt);
+    setDepositsMap(newDep);
+
+    dataService.saveDayAttendanceAndBank(selectedDate, newAtt, newDep, dayNote, true);
+    setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+
+    dataService.notifyToast(
+      'success',
+      'คัดลอกรายชื่อสำเร็จ',
+      `คัดลอกรายชื่อนักเรียนชั้น ${gradeLabel} (${selectedStudents.length} คน) เรียบร้อยแล้ว`
+    );
+    setShowCopyAllStudentsModal(false);
+  };
 
   // Handle Note input change (auto-saves silently)
   const handleNoteChange = (text: string) => {
@@ -618,6 +680,16 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               >
                 <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-700" />
               </button>
+
+              {customCopiedGrade && (
+                <div 
+                  onClick={() => setShowCopyAllStudentsModal(true)}
+                  className="flex items-center bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-0.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer hover:bg-purple-100 transition-colors"
+                  title="กดเพื่อเปลี่ยนชั้นเรียนหรือคัดลอกรายชื่อใหม่"
+                >
+                  <span>ชั้น {customCopiedGrade} ({students.length} คน)</span>
+                </div>
+              )}
             </div>
 
             {/* Right side controls: เลื่อนวัน ซ้าย-ขวา (ไม่มีคำว่าวันนี้), จำนวนนักเรียน, ปุ่มขยายตารางเฉพาะไอคอน (แก้8) */}
@@ -679,18 +751,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-semibold sticky top-0 bg-slate-50 z-10">
                   <th className="py-2.5 px-2.5 w-12 text-center">ลำดับ</th>
                   <th className="py-2.5 px-3 min-w-[200px]">
-                    <div className="flex items-center justify-between gap-1.5">
-                      <span>รูป / ชื่อ-สกุล นักเรียน</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowCopyAllStudentsModal(true)}
-                        className="p-1 text-slate-400 hover:text-purple-700 hover:bg-purple-100 rounded-md transition-colors cursor-pointer shrink-0"
-                        title="คัดลอกรายชื่อนักเรียนทั้งหมด จากหน้าข้อมูลนักเรียน (เลือกชั้นได้ เช่น ป.1, ป.2...)"
-                        aria-label="คัดลอกรายชื่อทั้งหมด"
-                      >
-                        <Copy className="w-3.5 h-3.5 text-purple-600" />
-                      </button>
-                    </div>
+                    <span>รูป / ชื่อ-สกุล นักเรียน</span>
                   </th>
                   <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
                   <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
@@ -1743,6 +1804,9 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       <CopyAllStudentsModal
         isOpen={showCopyAllStudentsModal}
         onClose={() => setShowCopyAllStudentsModal(false)}
+        onApplyStudents={handleApplyStudentsBank}
+        title="คัดลอกรายชื่อนักเรียน (หน้าเงินฝาก/เช็คชื่อ)"
+        subtitle="เลือกชั้นเรียนเพื่อคัดลอกรายชื่อทั้งหมด"
       />
 
       {/* Mobile / Fullscreen Student Pop-up Modal for Bank & Attendance (Req: เมื่อกดชื่อ จะแสดงpop-up หน้าเต็มพอดี และมีกรอกใส่เงินฝาก หรือ เลือก ม,ป,ล,ข ลงเสร็จกดบันทึก) */}

@@ -17,6 +17,9 @@ interface CopyAllStudentsModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultGrade?: 'all' | GradeLevel;
+  onApplyStudents?: (students: Student[], gradeLabel: string) => void;
+  title?: string;
+  subtitle?: string;
 }
 
 const GRADES_LIST: GradeLevel[] = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'];
@@ -25,6 +28,9 @@ export const CopyAllStudentsModal: React.FC<CopyAllStudentsModalProps> = ({
   isOpen,
   onClose,
   defaultGrade = 'all',
+  onApplyStudents,
+  title = 'คัดลอกรายชื่อนักเรียน จากทะเบียนประวัติ',
+  subtitle = 'เลือกชั้นเรียนเพื่อคัดลอกรายชื่อทั้งหมด',
 }) => {
   const [allStudents, setAllStudents] = useState<Student[]>(() => dataService.getStudents());
   const [selectedGrade, setSelectedGrade] = useState<'all' | GradeLevel>(defaultGrade);
@@ -85,25 +91,41 @@ export const CopyAllStudentsModal: React.FC<CopyAllStudentsModalProps> = ({
     setSelectedStudentIds([]);
   };
 
-  const handleCopyAll = async () => {
-    if (!formattedText) {
+  // Main Action: คัดลอกและแทนที่ข้อมูลเดิมทันที ตามจำนวนจริงของแต่ละชั้นที่เลือก
+  const handleApplyAndCopy = async () => {
+    const studentsToApply = filteredStudents.filter((s) => selectedStudentIds.includes(s.id));
+    if (studentsToApply.length === 0) {
       dataService.notifyToast('warning', 'ไม่มีรายชื่อนักเรียน', 'กรุณาเลือกนักเรียนอย่างน้อย 1 คน');
       return;
     }
 
-    try {
-      await navigator.clipboard.writeText(formattedText);
+    const gradeLabel = selectedGrade === 'all' ? 'ทุกชั้น' : selectedGrade;
+
+    // 1. คัดลอกข้อความลง Clipboard เผื่อนำไปวางภายนอก
+    if (formattedText) {
+      try {
+        await navigator.clipboard.writeText(formattedText);
+      } catch (err) {
+        console.warn('Clipboard write error', err);
+      }
+    }
+
+    // 2. นำรายชื่อไปแทนที่ข้อมูลเดิมทันที ข้อมูลชื่อเก่าจะถูกลบอัตโนมัติ และชื่อใหม่มาแทนที่ตามจำนวนจริง
+    if (onApplyStudents) {
+      onApplyStudents(studentsToApply, gradeLabel);
       setIsCopied(true);
-      const count = filteredStudents.filter((s) => selectedStudentIds.includes(s.id)).length;
-      const gradeLabel = selectedGrade === 'all' ? 'ทุกชั้น' : selectedGrade;
+      setTimeout(() => {
+        setIsCopied(false);
+        onClose();
+      }, 400);
+    } else {
+      setIsCopied(true);
       dataService.notifyToast(
         'success',
         'คัดลอกรายชื่อสำเร็จ',
-        `คัดลอกรายชื่อนักเรียนชั้น ${gradeLabel} จำนวน ${count} คนแล้ว`
+        `คัดลอกรายชื่อนักเรียนชั้น ${gradeLabel} จำนวน ${studentsToApply.length} คนแล้ว`
       );
-      setTimeout(() => setIsCopied(false), 2500);
-    } catch {
-      dataService.notifyToast('info', 'คัดลอกรายชื่อนักเรียน', formattedText.slice(0, 50) + '...');
+      setTimeout(() => setIsCopied(false), 2000);
     }
   };
 
@@ -133,10 +155,10 @@ export const CopyAllStudentsModal: React.FC<CopyAllStudentsModalProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="font-bold text-slate-800 text-sm sm:text-base truncate">
-                คัดลอกรายชื่อนักเรียน จากหน้าข้อมูลนักเรียน
+                {title}
               </h3>
               <p className="text-xs text-slate-500 truncate">
-                เลือกชั้นเรียนเพื่อคัดลอกรายชื่อ
+                {subtitle}
               </p>
             </div>
           </div>
@@ -332,12 +354,14 @@ export const CopyAllStudentsModal: React.FC<CopyAllStudentsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
-          <div className="text-xs text-slate-600 font-medium">
-            เลือก: <span className="font-bold text-purple-700">{selectedCount}</span> / {filteredStudents.length} คน
+        <div className="p-3.5 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex items-center justify-between sm:justify-start gap-2 text-xs text-slate-600 font-medium">
+            <span>
+              เลือก: <strong className="font-bold text-purple-700">{selectedCount}</strong> / {filteredStudents.length} คน
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2 flex-wrap">
             <button
               type="button"
               onClick={onClose}
@@ -346,11 +370,12 @@ export const CopyAllStudentsModal: React.FC<CopyAllStudentsModalProps> = ({
               ปิดหน้าต่าง
             </button>
 
+            {/* ปุ่มหลัก: คัดลอกรายชื่อ (โดยการแทนที่ในตารางจะทำงานอัตโนมัติในระบบหลังบ้าน) */}
             <button
               type="button"
-              onClick={handleCopyAll}
+              onClick={handleApplyAndCopy}
               disabled={selectedCount === 0}
-              className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+              className={`px-4 sm:px-5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
                 selectedCount > 0
                   ? isCopied
                     ? 'bg-emerald-600 text-white shadow-emerald-600/20'

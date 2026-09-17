@@ -10,6 +10,7 @@ import { dataService } from '../services/dataService';
 import { calculateGradeFromPercent } from '../utils/helpers';
 import { PrintReportModal } from '../components/PrintReportModal';
 import { CopyStudentModal } from '../components/CopyStudentModal';
+import { CopyAllStudentsModal } from '../components/CopyAllStudentsModal';
 import confetti from 'canvas-confetti';
 import {
   FileSpreadsheet,
@@ -126,6 +127,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   // Copy Student Modal State (แก้5: คัดลอก/ดึงข้อมูลนักเรียนจากทะเบียนนักเรียน)
   const [showCopyStudentModal, setShowCopyStudentModal] = useState(false);
+  const [showCopyAllStudentsModal, setShowCopyAllStudentsModal] = useState(false);
   const [targetStudentRowId, setTargetStudentRowId] = useState<string | null>(null);
 
   // Auto-Save Status (Req 4: บันทึกข้อมูลอัตโนมัติ)
@@ -661,44 +663,39 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     }
   };
 
-  // Bulk import students from a grade level or multiple selection
-  const handleCopyMultipleStudents = (selectedStudents: Student[]) => {
+  // Bulk import students from a grade level or multiple selection (แทนที่ข้อมูลเดิมทันทีตามจำนวนจริงของแต่ละชั้นที่เลือก)
+  const handleCopyMultipleStudents = (selectedStudents: Student[], gradeLabel?: string) => {
     if (!activeSheet || selectedStudents.length === 0) return;
-    const currentList = currentSheetStudents;
-    const existingIds = new Set(currentList.map((s) => s.id));
-    const newItems: SheetStudent[] = [];
 
-    let currentOrder = currentList.length;
-    selectedStudents.forEach((st) => {
-      // If student not already in table, append
-      if (!existingIds.has(st.id)) {
-        currentOrder += 1;
-        newItems.push({
-          id: st.id,
-          order: currentOrder,
-          prefix: st.prefix || '',
-          firstName: st.firstName,
-          lastName: st.lastName,
-          nickname: st.nickname || '',
-        });
-        existingIds.add(st.id);
-      }
-    });
+    // ข้อมูลชื่อเก่าจะถูกลบอัตโนมัติ และชื่อคัดลอกใหม่จะมาแทนที่ ตามจำนวนจริงของแต่ละชั้นที่เลือก
+    const updatedList: SheetStudent[] = selectedStudents.map((st, idx) => ({
+      id: st.id,
+      order: idx + 1,
+      prefix: st.prefix || '',
+      firstName: st.firstName,
+      lastName: st.lastName,
+      nickname: st.nickname || '',
+    }));
 
-    if (newItems.length === 0) {
-      dataService.notifyToast('info', 'มีรายชื่อนักเรียนเหล่านี้อยู่แล้วในตาราง');
-      return;
-    }
+    const detectedGrade = selectedStudents[0]?.gradeLevel;
+    const finalGradeLabel = gradeLabel || detectedGrade || activeSheet.classroom;
 
-    const updatedList = [...currentList, ...newItems];
     const updatedSheet: ScoreSheet = {
       ...activeSheet,
+      classroom: detectedGrade || activeSheet.classroom,
       studentList: updatedList,
       updatedAt: new Date().toISOString(),
     };
     dataService.saveScoreSheet(updatedSheet, true);
+    setScoreSheets(dataService.getScoreSheets());
     triggerAutoSaveEffect();
-    dataService.notifyToast('success', 'ดึงรายชื่อสำเร็จ', `ดึงนักเรียนเพิ่ม ${newItems.length} คน`);
+    dataService.notifyToast(
+      'success',
+      'คัดลอกรายชื่อสำเร็จ',
+      `คัดลอกรายชื่อนักเรียนชั้น ${finalGradeLabel} (${updatedList.length} คน) เรียบร้อยแล้ว`
+    );
+    setShowCopyStudentModal(false);
+    setShowCopyAllStudentsModal(false);
   };
 
   // Add a new student row to this specific class/sheet
@@ -1409,10 +1406,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   type="button"
                   onClick={() => {
                     setTargetStudentRowId(null);
-                    setShowCopyStudentModal(true);
+                    setShowCopyAllStudentsModal(true);
                   }}
                   className="w-7 h-7 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-300 flex items-center justify-center shrink-0 cursor-pointer transition-all shadow-2xs hover:scale-105 active:scale-95 ml-0.5"
-                  title="คัดลอกรายชื่อจากชั้นเรียน (ทะเบียนประวัติ)"
+                  title="คัดลอกรายชื่อจากชั้นเรียน"
                   aria-label="คัดลอกรายชื่อจากชั้นเรียน"
                 >
                   <Copy className="w-3.5 h-3.5" />
@@ -2708,6 +2705,16 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         title={targetStudentRowId ? 'เลือกนักเรียนเพื่อเปลี่ยนชื่อแถวนี้' : 'เลือกรายชื่อนักเรียนลงตารางคะแนน'}
         description={targetStudentRowId ? 'คลิกที่นักเรียนเพื่อนำชื่อมาใส่ในแถวนี้ทันที' : 'เลือกรายคน หรือคัดลอกทั้งชั้นเรียนเพื่อนำชื่อลงในตารางคะแนน'}
         enableMultiple={!targetStudentRowId}
+      />
+
+      {/* Modal คัดลอกรายชื่อนักเรียนทั้งหมดตามชั้นเรียน (แทนที่ข้อมูลเดิมทันทีตามจำนวนจริง) */}
+      <CopyAllStudentsModal
+        isOpen={showCopyAllStudentsModal}
+        onClose={() => setShowCopyAllStudentsModal(false)}
+        defaultGrade={(activeSheet?.classroom as any) || 'all'}
+        onApplyStudents={handleCopyMultipleStudents}
+        title="คัดลอกรายชื่อนักเรียน (หน้ากรอกคะแนน)"
+        subtitle="เลือกชั้นเรียนเพื่อคัดลอกรายชื่อทั้งหมด"
       />
 
       {/* Pop-up กรอกคะแนนแบบเต็มจอสำหรับมือถือ / กรอกสะดวก (Req: เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนนให้เรียบร้อย ลงเสร็จก็กดบันทึก) */}
