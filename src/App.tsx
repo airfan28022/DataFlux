@@ -133,7 +133,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Left Sidebar Navigation (Sticky h-screen on tablet & desktop, emerald green theme) */}
+      {/* Left Sidebar Navigation (Fixed on tablet & desktop, does not move when scrolling) */}
       <Navigation
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -142,8 +142,8 @@ export default function App() {
         onLogout={() => handleLogout('manual')}
       />
 
-      {/* Main Right Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden">
+      {/* Main Right Content Area (With left margin/padding on md+ to offset fixed sidebar) */}
+      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden md:pl-64 lg:pl-72 xl:pl-80">
         {/* Top Header */}
         <Header
           isAdmin={isAdmin}

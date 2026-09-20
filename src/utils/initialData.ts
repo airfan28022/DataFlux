@@ -1,4 +1,4 @@
-import { Student, WeightHeightRecord, DayAttendanceAndBank, ScoreSheet, CalendarEvent, ActivityPhoto, TeacherProfile, WithdrawalLog } from '../types';
+import { Student, WeightHeightRecord, DayAttendanceAndBank, ScoreSheet, CalendarEvent, ActivityPhoto, TeacherProfile, WithdrawalLog, DashboardNote } from '../types';
 import { DEFAULT_DRIVE_FOLDER_ID } from './helpers';
 
 export const INITIAL_STUDENTS: Student[] = [
@@ -652,5 +652,41 @@ export const INITIAL_WITHDRAWAL_LOGS: WithdrawalLog[] = [
     reason: 'นำไปซื้อรองเท้านักเรียนใหม่เนื่องจากคู่เดิมขาด',
     adminName: 'ครูสมศรี ใจดีงาม',
     createdAt: new Date(Date.now() - 86400000 * 8).toISOString(),
+  }
+];
+
+export const INITIAL_DASHBOARD_NOTES: DashboardNote[] = [
+  {
+    id: 'note-1',
+    title: 'เตรียมเอกสาร ปพ.5 และตัดเกรด',
+    content: 'รวบรวมคะแนนเก็บและเช็คเวลาเรียนของนักเรียนให้ครบถ้วนก่อนส่งฝ่ายวิชาการ',
+    fontWeight: 'bold',
+    icon: 'pin',
+    color: 'amber',
+    isPinned: true,
+    createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+  },
+  {
+    id: 'note-2',
+    title: 'นัดหมายประชุมผู้ปกครอง',
+    content: 'จัดเตรียมห้องเรียนและสไลด์สรุปผลการเรียนภาคเรียนที่ 1',
+    fontWeight: 'semibold',
+    icon: 'bell',
+    color: 'blue',
+    isPinned: true,
+    createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+  },
+  {
+    id: 'note-3',
+    title: 'ตรวจสมุดการบ้านคณิตศาสตร์',
+    content: 'แบบฝึกหัดบทที่ 2 เรื่องการคูณและการหาร (หน้า 35-42)',
+    fontWeight: 'normal',
+    icon: 'book',
+    color: 'emerald',
+    isPinned: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 ];

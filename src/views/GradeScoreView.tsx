@@ -33,6 +33,9 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Search,
   Check
 } from 'lucide-react';
 
@@ -136,6 +139,15 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   // Fullscreen Table State: ขยายเต็มตารางคะแนน
   const [isTableFullscreen, setIsTableFullscreen] = useState(false);
+
+  // State for "เลือกวิชา" Dropdown (ไม่ต้องเลื่อนซ้าย-ขวา)
+  const [isSubjectDropdownOpen, setIsSubjectDropdownOpen] = useState(false);
+  const [subjectSearchQuery, setSubjectSearchQuery] = useState('');
+  const subjectDropdownRef = useRef<HTMLDivElement>(null);
+
+  // State for expanding topic full text in table header ("กดตรงเรื่องแล้วแสดงข้อความแบบเต็มๆ")
+  const [expandedTopicIdx, setExpandedTopicIdx] = useState<number | null>(null);
+  const topicPopoverRef = useRef<HTMLDivElement>(null);
 
   // Mobile / Fullscreen Student Score Pop-up Modal (Req: หน้ากรอกคะแนน - ส่วนสูง แสดงหน้าเต็ม mobile พอดี เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนนให้เรียบร้อย ลงเสร็จก็กดบันทึก)
   const [selectedScoreModalStudent, setSelectedScoreModalStudent] = useState<SheetStudent | null>(null);
@@ -1107,21 +1119,57 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     });
   };
 
-  // Close popover when clicking outside
+  // Filter subjects in active term by search query
+  const filteredTermSheets = useMemo(() => {
+    if (!subjectSearchQuery.trim()) return currentTermSheets;
+    const q = subjectSearchQuery.toLowerCase().trim();
+    return currentTermSheets.filter(
+      (s) =>
+        s.subjectName.toLowerCase().includes(q) ||
+        (s.subjectCode && s.subjectCode.toLowerCase().includes(q)) ||
+        (s.classroom && s.classroom.toLowerCase().includes(q))
+    );
+  }, [currentTermSheets, subjectSearchQuery]);
+
+  // Navigate to previous/next subject
+  const handlePrevSubject = () => {
+    if (currentTermSheets.length <= 1) return;
+    const currentIdx = currentTermSheets.findIndex((s) => s.id === activeSheetId);
+    const newIdx = currentIdx <= 0 ? currentTermSheets.length - 1 : currentIdx - 1;
+    setActiveSheetId(currentTermSheets[newIdx].id);
+    setActiveChapterTab(1);
+  };
+
+  const handleNextSubject = () => {
+    if (currentTermSheets.length <= 1) return;
+    const currentIdx = currentTermSheets.findIndex((s) => s.id === activeSheetId);
+    const newIdx = currentIdx >= currentTermSheets.length - 1 ? 0 : currentIdx + 1;
+    setActiveSheetId(currentTermSheets[newIdx].id);
+    setActiveChapterTab(1);
+  };
+
+  // Close popover, subject dropdown, and topic popup when clicking outside
   const popoverRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (popoverRef.current && !popoverRef.current.contains(target)) {
         setActiveScorePopover(null);
       }
+      if (subjectDropdownRef.current && !subjectDropdownRef.current.contains(target)) {
+        setIsSubjectDropdownOpen(false);
+      }
+      if (topicPopoverRef.current && !topicPopoverRef.current.contains(target)) {
+        if (!(e.target as HTMLElement).closest('.topic-toggle-btn')) {
+          setExpandedTopicIdx(null);
+        }
+      }
     };
-    if (activeScorePopover) {
-      document.addEventListener('mousedown', handleOutsideClick);
-    }
+    document.addEventListener('mousedown', handleOutsideClick);
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
-  }, [activeScorePopover]);
+  }, []);
 
   return (
     <div className="space-y-3.5 sm:space-y-4 pb-16 w-full max-w-full min-w-0">
@@ -1173,135 +1221,295 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         </div>
       </div>
 
-      {/* SUBJECT TABS BAR WITH COMPACT TERM BUTTONS IN FRONT OF SUBJECTS (Req: ปรับขนาดเล็กนิดหนึ่ง และปรับเป็นสีเขียวอ่อน) */}
+      {/* SUBJECT SELECTOR BAR: แทนที่การเลื่อนซ้าย-ขวา ด้วยเมนูดรอปดาวน์ "เลือกวิชา" ที่กดแล้วแสดงรายการวิชาลงมาให้เลือกทันที */}
       <div className="bg-emerald-50/80 p-2 sm:p-2.5 rounded-2xl border border-emerald-200/90 shadow-2xs">
-        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-thin">
-          {/* Small Compact Term Selector Buttons in front of subjects */}
-          <div className="inline-flex items-center p-0.5 bg-white/90 rounded-lg border border-emerald-200/90 shrink-0">
-            <button
-              type="button"
-              onClick={() => handleSwitchTerm('1')}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                activeTermTab === '1'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70'
-              }`}
-              title="สลับไปภาคเรียนที่ 1"
-            >
-              <span>ภาคเรียนที่ 1</span>
-              <span
-                className={`text-[9px] px-1 py-0.2 rounded-full font-semibold ${
-                  activeTermTab === '1' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                }`}
-              >
-                {term1Sheets.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSwitchTerm('2')}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                activeTermTab === '2'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70'
-              }`}
-              title="สลับไปภาคเรียนที่ 2"
-            >
-              <span>ภาคเรียนที่ 2</span>
-              <span
-                className={`text-[9px] px-1 py-0.2 rounded-full font-semibold ${
-                  activeTermTab === '2' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                }`}
-              >
-                {term2Sheets.length}
-              </span>
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-emerald-200 shrink-0 mx-0.5" />
-
-          {/* Subjects in the Active Term */}
-          <span className="text-xs font-bold text-emerald-900 pl-0.5 shrink-0">รายวิชา:</span>
-          {currentTermSheets.length > 0 ? (
-            currentTermSheets.map((sheet) => {
-              const isActive = sheet.id === activeSheetId;
-              return (
-                <div
-                  key={sheet.id}
-                  className={`group flex items-center rounded-xl transition-all ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white text-emerald-950 hover:bg-emerald-100/70 border border-emerald-200/80'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveSheetId(sheet.id);
-                      setActiveChapterTab(1);
-                    }}
-                    className="px-3 py-1.5 text-xs font-bold whitespace-nowrap cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>{sheet.subjectName}</span>
-                    {sheet.subjectCode && (
-                      <span className="text-[10px] opacity-80 font-normal">({sheet.subjectCode})</span>
-                    )}
-                    {sheet.classroom && (
-                      <span
-                        className={`text-[9px] px-1.5 py-0.2 rounded-md font-semibold ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : 'bg-emerald-100/90 text-emerald-800'
-                        }`}
-                      >
-                        {sheet.classroom.replace('ชั้นประถมศึกษาปีที่ ', 'ป.')}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Delete button on active tab or on hover (Req 5) */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteSubject(sheet.id);
-                    }}
-                    className={`p-1 mr-1 rounded-lg transition-colors cursor-pointer ${
-                      isActive
-                        ? 'text-emerald-200 hover:text-white hover:bg-emerald-700'
-                        : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                    }`}
-                    title={`ลบรายวิชา "${sheet.subjectName}"`}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })
-          ) : (
-            <div className="flex items-center gap-2 py-1 px-3 bg-white/90 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-medium">
-              <span>ยังไม่มีรายวิชาในภาคเรียนที่ {activeTermTab}</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Left: Term selector + "เลือกวิชา" Dropdown */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {/* Compact Term Selector Buttons */}
+            <div className="inline-flex items-center p-0.5 bg-white/90 rounded-lg border border-emerald-200/90 shrink-0 shadow-2xs">
               <button
                 type="button"
-                onClick={() => handleOpenCreateModal(activeTermTab)}
-                className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-0.5 ml-1 cursor-pointer"
+                onClick={() => handleSwitchTerm('1')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeTermTab === '1'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70'
+                }`}
+                title="สลับไปภาคเรียนที่ 1"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>เพิ่มวิชาในภาคเรียนที่ {activeTermTab}</span>
+                <span>ภาคเรียนที่ 1</span>
+                <span
+                  className={`text-[9px] px-1.5 py-0.2 rounded-full font-semibold ${
+                    activeTermTab === '1' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                  }`}
+                >
+                  {term1Sheets.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSwitchTerm('2')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  activeTermTab === '2'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70'
+                }`}
+                title="สลับไปภาคเรียนที่ 2"
+              >
+                <span>ภาคเรียนที่ 2</span>
+                <span
+                  className={`text-[9px] px-1.5 py-0.2 rounded-full font-semibold ${
+                    activeTermTab === '2' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                  }`}
+                >
+                  {term2Sheets.length}
+                </span>
               </button>
             </div>
-          )}
 
-          {/* Quick Plus Button in tabs bar */}
-          <button
-            type="button"
-            onClick={() => handleOpenCreateModal(activeTermTab)}
-            className="p-1.5 rounded-xl bg-white text-emerald-700 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer shrink-0 ml-1"
-            title={`เพิ่มรายวิชาใหม่ในภาคเรียนที่ ${activeTermTab} (+)`}
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+            <div className="h-5 w-px bg-emerald-300/80 shrink-0 hidden sm:block mx-0.5" />
+
+            {/* "เลือกวิชา" Dropdown Menu Component (กดแล้วแสดงลงมาให้เลือก ไม่ต้องเลื่อนซ้าย-ขวา) */}
+            <div className="relative shrink-0" ref={subjectDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSubjectDropdownOpen((prev) => !prev);
+                  setSubjectSearchQuery('');
+                }}
+                className={`px-3 py-1.5 bg-white hover:bg-emerald-50/90 active:scale-[0.99] text-emerald-950 border rounded-xl transition-all shadow-2xs cursor-pointer flex items-center justify-between gap-2.5 min-w-[200px] sm:min-w-[260px] max-w-[340px] sm:max-w-md ${
+                  isSubjectDropdownOpen ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-emerald-300'
+                }`}
+                title="คลิกเพื่อเลือกรายวิชาที่จะกรอกคะแนน (แสดงรายการลงมาให้เลือก)"
+                aria-expanded={isSubjectDropdownOpen}
+                aria-haspopup="listbox"
+                aria-label="เลือกวิชาที่จะกรอกคะแนน"
+              >
+                <div className="flex items-center gap-2 min-w-0 text-left">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                    <BookOpen className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-medium text-emerald-800 shrink-0">วิชา:</span>
+                      <span className="text-xs font-bold text-emerald-950 truncate max-w-[140px] sm:max-w-[190px]">
+                        {activeSheet?.subjectName || 'เลือกวิชา...'}
+                      </span>
+                      {activeSheet?.subjectCode && (
+                        <span className="text-[10px] text-emerald-700 opacity-80 font-normal shrink-0">
+                          ({activeSheet.subjectCode})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {activeSheet?.classroom && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-md font-semibold bg-emerald-100 text-emerald-800 shrink-0">
+                      {activeSheet.classroom.replace('ชั้นประถมศึกษาปีที่ ', 'ป.')}
+                    </span>
+                  )}
+                  <ChevronDown
+                    className={`w-4 h-4 text-emerald-700 transition-transform duration-200 ${
+                      isSubjectDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </div>
+              </button>
+
+              {/* Dropdown Popover แสดงรายการวิชาลงมาให้เลือก */}
+              {isSubjectDropdownOpen && (
+                <div className="absolute left-0 top-full mt-1.5 z-40 w-80 sm:w-96 bg-white rounded-2xl border border-emerald-200 shadow-xl p-2.5 animate-in fade-in zoom-in-95 duration-150">
+                  {/* Dropdown Header */}
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 px-1">
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-emerald-700" />
+                      <span className="text-xs font-bold text-slate-800">
+                        เลือกวิชาที่จะกรอกคะแนน (ภาคเรียนที่ {activeTermTab})
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {currentTermSheets.length} วิชา
+                    </span>
+                  </div>
+
+                  {/* Search box if 4 or more subjects */}
+                  {currentTermSheets.length >= 4 && (
+                    <div className="relative mb-2">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={subjectSearchQuery}
+                        onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                        placeholder="พิมพ์เพื่อค้นหารายวิชา..."
+                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 rounded-xl border border-slate-200 focus:border-emerald-500 focus:bg-white outline-hidden"
+                        autoFocus
+                      />
+                      {subjectSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSubjectSearchQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* List of Subjects */}
+                  <div className="max-h-64 overflow-y-auto space-y-1 pr-0.5">
+                    {filteredTermSheets.length > 0 ? (
+                      filteredTermSheets.map((sheet) => {
+                        const isActive = sheet.id === activeSheetId;
+                        const totalMax =
+                          (sheet.chapters || []).reduce((sum, c) => sum + (c.maxScore || 15), 0) +
+                          (sheet.finalExamMaxScore ?? 30);
+
+                        return (
+                          <div
+                            key={sheet.id}
+                            onClick={() => {
+                              setActiveSheetId(sheet.id);
+                              setActiveChapterTab(1);
+                              setIsSubjectDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-xl transition-all cursor-pointer group ${
+                              isActive
+                                ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                                : 'hover:bg-emerald-50 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                              <div
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs ${
+                                  isActive ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                                }`}
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs truncate">{sheet.subjectName}</span>
+                                  {sheet.subjectCode && (
+                                    <span
+                                      className={`text-[10px] px-1.5 py-0.2 rounded font-normal ${
+                                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                                      }`}
+                                    >
+                                      {sheet.subjectCode}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] mt-0.5 opacity-80">
+                                  {sheet.classroom && (
+                                    <span>{sheet.classroom.replace('ชั้นประถมศึกษาปีที่ ', 'ป.')}</span>
+                                  )}
+                                  <span>•</span>
+                                  <span>{sheet.chapters?.length || sheet.chapterCount || 0} บท</span>
+                                  <span>•</span>
+                                  <span>เต็ม {totalMax} คะแนน</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isActive && <Check className="w-4 h-4 text-white mr-1" />}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSubject(sheet.id);
+                                }}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                  isActive
+                                    ? 'text-emerald-200 hover:text-white hover:bg-emerald-700'
+                                    : 'text-slate-300 hover:text-rose-600 hover:bg-rose-50'
+                                }`}
+                                title={`ลบรายวิชา "${sheet.subjectName}"`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-6 text-xs text-slate-500">
+                        {subjectSearchQuery ? 'ไม่พบรายวิชาที่ตรงกับการค้นหา' : 'ยังไม่มีรายวิชาในภาคเรียนนี้'}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dropdown Footer Actions */}
+                  <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSubjectDropdownOpen(false);
+                        handleOpenCreateModal(activeTermTab);
+                      }}
+                      className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
+                      <span>เพิ่มรายวิชาใหม่ (+)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSubjectDropdownOpen(false);
+                        handleOpenEditModal();
+                      }}
+                      className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="แก้ไขข้อมูลวิชานี้และบทเรียน"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>แก้ไขวิชา</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ปุ่มกดสลับวิชาก่อนหน้า/ถัดไป สะดวกไม่ต้องเปิดเมนูก็เปลี่ยนวิชาได้ */}
+            {currentTermSheets.length > 1 && (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handlePrevSubject}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white text-emerald-800 hover:bg-emerald-100/80 border border-emerald-300/80 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title="สลับไปวิชาก่อนหน้า"
+                  aria-label="วิชาก่อนหน้า"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextSubject}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-white text-emerald-800 hover:bg-emerald-100/80 border border-emerald-300/80 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title="สลับไปวิชาถัดไป"
+                  aria-label="วิชาถัดไป"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* ปุ่มบวกเพิ่มวิชาด่วน */}
+            <button
+              type="button"
+              onClick={() => handleOpenCreateModal(activeTermTab)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-white text-emerald-700 hover:bg-emerald-100 border border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+              title={`เพิ่มรายวิชาใหม่ในภาคเรียนที่ ${activeTermTab} (+)`}
+              aria-label="เพิ่มรายวิชาใหม่"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1463,22 +1671,43 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                           ชื่อ - นามสกุล นักเรียน
                         </th>
 
-                  {/* Dynamic Topic Columns (แคบเหมือนเดิม แต่ 2-3 บรรทัด) */}
+                  {/* Dynamic Topic Columns: กดตรงเรื่องแล้วแสดงข้อความแบบเต็มๆ ถ้าไม่กดก็แสดงปกติเหมือนหน้าปัจจุบัน */}
                   {currentActiveChapter.topics.map((topicTitle, i) => {
                     const isTopicActive = !!topicTitle.trim();
+                    const isExpanded = expandedTopicIdx === i;
 
                     return (
                       <th
                         key={`topic-head-${i}`}
-                        className={`py-1.5 px-0.5 text-center w-16 min-w-[66px] sm:min-w-[72px] max-w-[80px] align-top sticky top-0 z-20 border-r border-slate-200/80 transition-colors ${
-                          isTopicActive ? 'bg-sky-50/95' : 'bg-slate-100/95 opacity-80'
+                        className={`py-1.5 px-0.5 text-center align-top sticky top-0 z-20 border-r border-slate-200/80 transition-all ${
+                          isExpanded
+                            ? 'bg-sky-100/95 ring-2 ring-sky-500 z-30 w-44 min-w-[170px]'
+                            : isTopicActive
+                            ? 'bg-sky-50/95 w-16 min-w-[66px] sm:min-w-[72px] max-w-[80px]'
+                            : 'bg-slate-100/95 opacity-80 w-16 min-w-[66px] sm:min-w-[72px] max-w-[80px]'
                         }`}
                       >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center justify-between px-0.5">
-                            <span className="text-[9px] text-slate-500 font-bold block leading-none">
-                              เรื่อง {i + 1}
-                            </span>
+                        <div className="space-y-0.5 relative">
+                          {/* Header row: Clickable "เรื่อง i+1" button */}
+                          <div className="flex items-center justify-between px-0.5 gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedTopicIdx(isExpanded ? null : i)}
+                              className={`topic-toggle-btn text-[9px] font-bold px-1 py-0.5 rounded transition-all cursor-pointer flex items-center gap-0.5 ${
+                                isExpanded
+                                  ? 'bg-sky-700 text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-sky-900 bg-white/70 hover:bg-sky-100 border border-slate-200/80'
+                              }`}
+                              title={isExpanded ? 'คลิกเพื่อย่อกลับ' : 'คลิกเพื่อแสดงข้อความแบบเต็มๆ'}
+                            >
+                              <span>เรื่อง {i + 1}</span>
+                              {isExpanded ? (
+                                <ChevronUp className="w-2.5 h-2.5" />
+                              ) : (
+                                <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                              )}
+                            </button>
+
                             {currentActiveChapter.topics.length > 1 && (
                               <button
                                 type="button"
@@ -1490,28 +1719,118 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                               </button>
                             )}
                           </div>
-                          <textarea
-                            rows={2}
-                            value={topicTitle}
-                            onChange={(e) =>
-                              handleUpdateTopicTitle(
-                                currentActiveChapter.chapterNumber,
-                                i,
-                                e.target.value
-                              )
-                            }
-                            placeholder="ชื่อเรื่อง..."
-                            className="w-full px-1 py-0.5 text-center font-bold text-[10px] rounded-md border border-slate-300 focus:border-sky-500 bg-white outline-hidden shadow-2xs resize-none leading-tight break-words"
-                            title="พิมพ์ชื่อเรื่อง (เว้นว่างไว้จะไม่คิดคะแนน)"
-                          />
-                          {isTopicActive ? (
-                            <span className="inline-block text-[8px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded leading-tight">
-                              เต็ม 5
-                            </span>
-                          ) : (
-                            <span className="inline-block text-[8px] font-medium text-slate-400 bg-slate-200/80 px-1 py-0.2 rounded leading-tight">
-                              ไม่คิดคะแนน
-                            </span>
+
+                          {/* When NOT expanded: แสดงปกติเหมือนหน้าปัจจุบัน */}
+                          {!isExpanded && (
+                            <>
+                              <textarea
+                                rows={2}
+                                value={topicTitle}
+                                onChange={(e) =>
+                                  handleUpdateTopicTitle(
+                                    currentActiveChapter.chapterNumber,
+                                    i,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="ชื่อเรื่อง..."
+                                className="w-full px-1 py-0.5 text-center font-bold text-[10px] rounded-md border border-slate-300 focus:border-sky-500 bg-white outline-hidden shadow-2xs resize-none leading-tight break-words"
+                                title="พิมพ์ชื่อเรื่อง (หรือคลิกที่ 'เรื่อง' ด้านบนเพื่อดูข้อความเต็ม)"
+                              />
+                              {isTopicActive ? (
+                                <span className="inline-block text-[8px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded leading-tight">
+                                  เต็ม 5
+                                </span>
+                              ) : (
+                                <span className="inline-block text-[8px] font-medium text-slate-400 bg-slate-200/80 px-1 py-0.2 rounded leading-tight">
+                                  ไม่คิดคะแนน
+                                </span>
+                              )}
+                            </>
+                          )}
+
+                          {/* When EXPANDED: แสดงข้อความแบบเต็มๆ พร้อมช่องแก้ไขแบบกว้าง */}
+                          {isExpanded && (
+                            <div className="space-y-1.5 p-1 bg-white rounded-lg border border-sky-300 shadow-sm text-left">
+                              <div className="p-1.5 bg-sky-50/70 rounded-md border border-sky-100">
+                                <span className="text-[9px] font-bold text-sky-800 block mb-0.5">
+                                  ข้อความเต็ม:
+                                </span>
+                                <p className="text-[11px] font-semibold text-slate-800 break-words leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto">
+                                  {topicTitle.trim() || '(ยังไม่ได้ระบุชื่อเรื่อง)'}
+                                </p>
+                              </div>
+
+                              <textarea
+                                rows={3}
+                                value={topicTitle}
+                                onChange={(e) =>
+                                  handleUpdateTopicTitle(
+                                    currentActiveChapter.chapterNumber,
+                                    i,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="แก้ไขชื่อเรื่องเต็ม..."
+                                className="w-full px-1.5 py-1 text-left font-semibold text-[10px] rounded-md border border-slate-200 focus:border-sky-500 bg-slate-50 focus:bg-white outline-hidden shadow-2xs resize-none leading-tight break-words"
+                                title="แก้ไขชื่อเรื่อง"
+                              />
+
+                              <div className="flex items-center justify-between text-[9px] pt-0.5 border-t border-slate-100">
+                                <span className="font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">
+                                  เต็ม 5 คะแนน
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedTopicIdx(null)}
+                                  className="text-sky-700 font-bold hover:underline cursor-pointer"
+                                >
+                                  ย่อกลับ
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Floating Popover: แสดงป๊อปอัปข้อความเต็มเมื่อกด เพื่อความชัดเจนบนหน้าจอที่มีการเลื่อน */}
+                          {isExpanded && (
+                            <div
+                              ref={topicPopoverRef}
+                              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-slate-900 text-white p-3 rounded-2xl shadow-2xl border border-slate-700 w-72 text-left animate-in fade-in zoom-in-95 duration-150"
+                            >
+                              <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-700">
+                                <span className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                                  <BookOpen className="w-3.5 h-3.5 text-sky-400" />
+                                  เรื่องที่ {i + 1} (ข้อความเต็ม)
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedTopicIdx(null)}
+                                  className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer"
+                                  title="ปิด"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              <div className="py-1">
+                                <p className="text-xs font-medium text-slate-100 leading-relaxed break-words max-h-48 overflow-y-auto whitespace-pre-wrap">
+                                  {topicTitle.trim() || 'ยังไม่ได้ระบุชื่อเรื่อง (เว้นว่างไว้จะไม่คิดคะแนน)'}
+                                </p>
+                              </div>
+
+                              <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+                                <span>
+                                  คะแนนเต็ม: <strong className="text-emerald-400 font-bold">5 คะแนน</strong>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedTopicIdx(null)}
+                                  className="text-sky-300 hover:text-sky-200 hover:underline font-bold cursor-pointer"
+                                >
+                                  ย่อกลับปกติ
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </th>

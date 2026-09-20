@@ -48,12 +48,6 @@ export const Navigation: React.FC<NavigationProps> = ({
   const femaleCount = students.filter((s) => s.gender === 'female' || s.prefix === 'ด.ญ.' || s.prefix === 'นางสาว').length;
   const totalSavings = students.reduce((sum, s) => sum + (s.currentSavings || 0), 0);
 
-  // Today attendance
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const allAtt = dataService.getAllAttendanceAndBank();
-  const todayAtt = allAtt[todayStr]?.attendance || {};
-  const presentCount = Object.values(todayAtt).filter((v) => v === 'present').length || totalStudents;
-
   const navItems = [
     {
       id: 'dashboard',
@@ -103,8 +97,8 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   return (
     <>
-      {/* Left Sidebar Navigation (Tablet & Desktop only: md:flex, sticky h-screen) */}
-      <aside className="hidden md:flex md:w-64 lg:w-72 xl:w-80 shrink-0 bg-gradient-to-b from-emerald-900 via-[#064E3B] to-[#022c22] text-white border-r border-emerald-700/50 shadow-xl md:sticky md:top-0 md:h-screen flex-col justify-between z-30 overflow-y-auto scrollbar-none select-none">
+      {/* Left Sidebar Navigation (Tablet & Desktop only: md:fixed, stays fixed at left) */}
+      <aside className="hidden md:flex md:w-64 lg:w-72 xl:w-80 shrink-0 bg-gradient-to-b from-emerald-900 via-[#064E3B] to-[#022c22] text-white border-r border-emerald-700/50 shadow-xl md:fixed md:top-0 md:left-0 md:bottom-0 md:h-screen flex-col justify-between z-30 overflow-y-auto scrollbar-none select-none">
       {/* Top Branding Section */}
       <div className="p-4 sm:p-5 border-b border-emerald-700/40 bg-emerald-950/40">
         <div className="flex items-center gap-3">
@@ -212,12 +206,6 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
 
           <div className="space-y-1.5 text-[11px] text-emerald-100/90 pt-1">
-            <div className="flex items-center justify-between">
-              <span className="text-emerald-300/70">เช็คชื่อวันนี้:</span>
-              <span className="font-semibold text-emerald-200">
-                มาเรียน {presentCount} / {totalStudents} คน
-              </span>
-            </div>
             <div className="flex items-center justify-between">
               <span className="text-emerald-300/70">Google Sheets:</span>
               <span className="text-emerald-300 font-bold flex items-center gap-1">

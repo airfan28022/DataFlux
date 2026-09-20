@@ -205,3 +205,15 @@ export interface SweetAlertOptions {
   onConfirm?: () => void;
   onCancel?: () => void;
 }
+
+export interface DashboardNote {
+  id: string;
+  title: string;
+  content: string;
+  fontWeight: 'normal' | 'semibold' | 'bold'; // ปรับความเข้มข้อความได้
+  icon: string; // ใส่ไอคอนได้
+  color: 'amber' | 'emerald' | 'blue' | 'rose' | 'purple' | 'slate';
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -30,7 +30,8 @@ import {
   Minimize2,
   Copy,
   Check,
-  FileText
+  FileText,
+  UserCheck
 } from 'lucide-react';
 
 interface BankAttendanceViewProps {
@@ -90,8 +91,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   // Print PDF Modal
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  // Reset All Savings Modal State (Req 4: ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ ยืนยันด้วย Password)
+  // Reset / Delete Modal State (เลือก มา, ขาด, ป่วย, ลา, เงินออม และ All สำหรับลบทั้งหมด)
+  type DeleteTarget = 'all' | 'savings' | 'present' | 'absent' | 'sick' | 'personal';
+
   const [showResetModal, setShowResetModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>('all');
+  const [deleteScope, setDeleteScope] = useState<'day' | 'all'>('day');
   const [resetPassword, setResetPassword] = useState('');
   const [resetError, setResetError] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -112,24 +117,34 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   // Mobile / Full-screen Student Pop-up Modal (Req: ตรงหน้าฝากเงิน & เช็คชื่อ เมื่อกดชื่อ จะแสดงpop-up หน้าเต็มพอดี และมีกรอกใส่เงินฝาก หรือ เลือก ม,ป,ล,ข ลงเสร็จกดบันทึก)
   const [selectedStudentModal, setSelectedStudentModal] = useState<Student | null>(null);
-  const [modalAttendance, setModalAttendance] = useState<AttendanceStatus>('present');
+  const [modalAttendance, setModalAttendance] = useState<AttendanceStatus | null>('present');
   const [modalDeposit, setModalDeposit] = useState<number>(0);
 
   const handleOpenStudentModal = (student: Student) => {
     setSelectedStudentModal(student);
-    setModalAttendance(attendanceMap[student.id] || 'present');
+    setModalAttendance(attendanceMap[student.id] || null);
     setModalDeposit(depositsMap[student.id] || 0);
   };
 
   const handleSaveStudentModal = () => {
     if (!selectedStudentModal) return;
     const sId = selectedStudentModal.id;
-    handleAttendanceChange(sId, modalAttendance);
+    if (modalAttendance) {
+      handleAttendanceChange(sId, modalAttendance);
+    } else {
+      const updatedAtt = { ...attendanceMap };
+      delete updatedAtt[sId];
+      setAttendanceMap(updatedAtt);
+      dataService.saveDayAttendanceAndBank(selectedDate, updatedAtt, depositsMap, dayNote, true);
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+    }
     handleDepositChange(sId, modalDeposit);
     dataService.notifyToast(
       'success',
       `บันทึกข้อมูล ${selectedStudentModal.prefix || ''}${selectedStudentModal.firstName} แล้ว`,
-      `สถานะ: ${modalAttendance === 'present' ? 'มาเรียน' : modalAttendance === 'sick' ? 'ป่วย' : modalAttendance === 'personal' ? 'ลากิจ' : 'ขาดเรียน'} | เงินฝาก: ${modalDeposit} บาท`
+      modalAttendance
+        ? `สถานะ: ${modalAttendance === 'present' ? 'มาเรียน' : modalAttendance === 'sick' ? 'ป่วย' : modalAttendance === 'personal' ? 'ลากิจ' : 'ขาดเรียน'} | เงินฝาก: ${modalDeposit} บาท`
+        : `ลบ/ยกเลิกสถานะการเช็คชื่อแล้ว | เงินฝาก: ${modalDeposit} บาท`
     );
     setSelectedStudentModal(null);
   };
@@ -137,14 +152,22 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   const handleNextStudentInModal = () => {
     if (!selectedStudentModal) return;
     const sId = selectedStudentModal.id;
-    handleAttendanceChange(sId, modalAttendance);
+    if (modalAttendance) {
+      handleAttendanceChange(sId, modalAttendance);
+    } else {
+      const updatedAtt = { ...attendanceMap };
+      delete updatedAtt[sId];
+      setAttendanceMap(updatedAtt);
+      dataService.saveDayAttendanceAndBank(selectedDate, updatedAtt, depositsMap, dayNote, true);
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+    }
     handleDepositChange(sId, modalDeposit);
 
     const currentIndex = students.findIndex((s) => s.id === selectedStudentModal.id);
     if (currentIndex < students.length - 1) {
       const nextStudent = students[currentIndex + 1];
       setSelectedStudentModal(nextStudent);
-      setModalAttendance(attendanceMap[nextStudent.id] || 'present');
+      setModalAttendance(attendanceMap[nextStudent.id] || null);
       setModalDeposit(depositsMap[nextStudent.id] || 0);
     } else {
       setSelectedStudentModal(null);
@@ -155,20 +178,30 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   const handlePrevStudentInModal = () => {
     if (!selectedStudentModal) return;
     const sId = selectedStudentModal.id;
-    handleAttendanceChange(sId, modalAttendance);
+    if (modalAttendance) {
+      handleAttendanceChange(sId, modalAttendance);
+    } else {
+      const updatedAtt = { ...attendanceMap };
+      delete updatedAtt[sId];
+      setAttendanceMap(updatedAtt);
+      dataService.saveDayAttendanceAndBank(selectedDate, updatedAtt, depositsMap, dayNote, true);
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+    }
     handleDepositChange(sId, modalDeposit);
 
     const currentIndex = students.findIndex((s) => s.id === selectedStudentModal.id);
     if (currentIndex > 0) {
       const prevStudent = students[currentIndex - 1];
       setSelectedStudentModal(prevStudent);
-      setModalAttendance(attendanceMap[prevStudent.id] || 'present');
+      setModalAttendance(attendanceMap[prevStudent.id] || null);
       setModalDeposit(depositsMap[prevStudent.id] || 0);
     }
   };
 
-  // Load data for the selected date (Req 7: ให้ขึ้นสถานะมาเรียน ม อัตโนมัติเองเลย)
+  // Load data for the selected date
   const loadDayData = (date: string) => {
+    const allRecords = dataService.getAllAttendanceAndBank();
+    const isExistingRecord = !!allRecords[date];
     const dayData = dataService.getDayAttendanceAndBank(date);
     const initialAtt: Record<string, AttendanceStatus> = {};
     const initialDep: Record<string, number> = {};
@@ -180,24 +213,31 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     
     setStudents(currentStudents);
 
-    let hasUnsetAttendance = false;
-    currentStudents.forEach((s) => {
-      if (!dayData.attendance || !dayData.attendance[s.id]) {
+    if (isExistingRecord) {
+      // If the date already exists in records (saved, created, or reset),
+      // respect stored attendance exactly without re-injecting 'present' if deleted/unset.
+      currentStudents.forEach((s) => {
+        if (dayData.attendance && dayData.attendance[s.id]) {
+          initialAtt[s.id] = dayData.attendance[s.id];
+        }
+        initialDep[s.id] = dayData.deposits && dayData.deposits[s.id] !== undefined ? dayData.deposits[s.id] : 0;
+      });
+
+      setAttendanceMap(initialAtt);
+      setDepositsMap(initialDep);
+      setDayNote(dayData.note || '');
+    } else {
+      // First time opening a brand-new day: auto-mark 'present' for convenience
+      currentStudents.forEach((s) => {
         initialAtt[s.id] = 'present';
-        hasUnsetAttendance = true;
-      } else {
-        initialAtt[s.id] = dayData.attendance[s.id];
-      }
-      initialDep[s.id] = dayData.deposits && dayData.deposits[s.id] !== undefined ? dayData.deposits[s.id] : 0;
-    });
+        initialDep[s.id] = 0;
+      });
 
-    setAttendanceMap(initialAtt);
-    setDepositsMap(initialDep);
-    setDayNote(dayData.note || '');
+      setAttendanceMap(initialAtt);
+      setDepositsMap(initialDep);
+      setDayNote('');
 
-    // Auto-mark present silently if first time opening day
-    if (hasUnsetAttendance) {
-      dataService.saveDayAttendanceAndBank(date, initialAtt, initialDep, dayData.note || '', true);
+      dataService.saveDayAttendanceAndBank(date, initialAtt, initialDep, '', true);
     }
   };
 
@@ -237,7 +277,9 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     const newAtt: Record<string, AttendanceStatus> = {};
     const newDep: Record<string, number> = {};
     selectedStudents.forEach((s) => {
-      newAtt[s.id] = attendanceMap[s.id] || 'present';
+      if (attendanceMap[s.id]) {
+        newAtt[s.id] = attendanceMap[s.id];
+      }
       newDep[s.id] = depositsMap[s.id] || 0;
     });
 
@@ -263,13 +305,20 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   };
 
   // Attendance status handler (ม, ป, ล, ข)
+  // When clicking the active status again, toggle it off (delete/clear attendance for this student)
   // When status is sick (ป), personal (ล), or absent (ข), deposit for today is reset to 0
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
-    const updatedAtt = { ...attendanceMap, [studentId]: status };
+    const isCurrent = attendanceMap[studentId] === status;
+    const updatedAtt = { ...attendanceMap };
+    if (isCurrent) {
+      delete updatedAtt[studentId];
+    } else {
+      updatedAtt[studentId] = status;
+    }
     setAttendanceMap(updatedAtt);
 
     let updatedDep = { ...depositsMap };
-    if (status === 'sick' || status === 'personal' || status === 'absent') {
+    if (!isCurrent && (status === 'sick' || status === 'personal' || status === 'absent')) {
       updatedDep = { ...updatedDep, [studentId]: 0 };
       setDepositsMap(updatedDep);
     }
@@ -284,29 +333,26 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     setAllHistoryRecords(dataService.getAllAttendanceAndBank());
   };
 
-  // Confirm Reset All Savings (Req 4)
-  const handleConfirmResetSavings = (e: React.FormEvent) => {
+  // Confirm Delete Bank & Attendance Data (มา, ขาด, ป่วย, ลา, เงินออม, All)
+  const handleConfirmDeleteData = (e: React.FormEvent) => {
     e.preventDefault();
     if (!resetPassword) {
       setResetError('กรุณากรอก Password เข้าสู่ระบบ');
       return;
     }
-    const res = dataService.resetAllStudentsSavings(resetPassword);
+    const res = dataService.deleteBankAttendanceData({
+      target: deleteTarget,
+      scope: deleteScope,
+      date: selectedDate,
+      password: resetPassword,
+    });
     if (res.success) {
       setShowResetModal(false);
       setResetPassword('');
       setResetError('');
-      const currentStudents = dataService.getStudents();
-      const allPresent: Record<string, AttendanceStatus> = {};
-      const allZeroDep: Record<string, number> = {};
-      currentStudents.forEach((s) => {
-        allPresent[s.id] = 'present';
-        allZeroDep[s.id] = 0;
-      });
-      setAttendanceMap(allPresent);
-      setDepositsMap(allZeroDep);
-      setDayNote('');
       loadDayData(selectedDate);
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+      setStudents(dataService.getStudents());
       confetti({
         particleCount: 50,
         spread: 60,
@@ -314,6 +360,39 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       });
     } else {
       setResetError(res.message);
+    }
+  };
+
+  // Handler to mark all students as present ('present') for today (ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ทุกคนมาเรียน)
+  const handleMarkAllPresent = () => {
+    if (!students || students.length === 0) {
+      dataService.notifyToast('warning', 'ไม่พบข้อมูลนักเรียน');
+      return;
+    }
+
+    const updatedAtt: Record<string, AttendanceStatus> = { ...attendanceMap };
+    students.forEach((s) => {
+      updatedAtt[s.id] = 'present';
+    });
+
+    setAttendanceMap(updatedAtt);
+    dataService.saveDayAttendanceAndBank(selectedDate, updatedAtt, depositsMap, dayNote, true);
+    setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+
+    dataService.notifyToast(
+      'success',
+      'ทุกคนมาเรียนทั้งหมด',
+      `ปรับสถานะนักเรียนเป็นมาเรียนทุกคน (${students.length} คน) เรียบร้อยแล้ว`
+    );
+
+    try {
+      confetti({
+        particleCount: 40,
+        spread: 60,
+        origin: { y: 0.7 },
+      });
+    } catch {
+      // Ignore confetti fallback
     }
   };
 
@@ -544,17 +623,29 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* แก้2: ปุ่มลบ ให้มีเฉพาะสัญลักษณ์ เอาออกข้อความเพื่อให้ปุ่มแคบ */}
+          {/* ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ทุกคนมาเรียน */}
+          <button
+            type="button"
+            onClick={handleMarkAllPresent}
+            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all cursor-pointer"
+            title="กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)"
+            aria-label="ทุกคนมาเรียนทั้งหมด"
+          >
+            <UserCheck className="w-4 h-4 text-emerald-700" />
+          </button>
+
+          {/* ปุ่มลบข้อมูล (เลือก มา, ขาด, ป่วย, ลา, เงินออม และ All) */}
           <button
             type="button"
             onClick={() => {
+              setDeleteTarget('all');
               setResetPassword('');
               setResetError('');
               setShowResetModal(true);
             }}
             className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
-            title="ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ (ต้องยืนยันด้วย Password)"
-            aria-label="ลบเงินฝากทั้งหมด"
+            title="ลบข้อมูล (เลือก มา, ขาด, ป่วย, ลา, เงินออม หรือ All)"
+            aria-label="ลบข้อมูล"
           >
             <Trash2 className="w-4 h-4 text-rose-600" />
           </button>
@@ -681,6 +772,17 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-700" />
               </button>
 
+              {/* ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ทุกคนมาเรียน */}
+              <button
+                type="button"
+                onClick={handleMarkAllPresent}
+                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all cursor-pointer shrink-0"
+                title="กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)"
+                aria-label="ทุกคนมาเรียนทั้งหมด"
+              >
+                <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700" />
+              </button>
+
               {customCopiedGrade && (
                 <div 
                   onClick={() => setShowCopyAllStudentsModal(true)}
@@ -753,7 +855,20 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   <th className="py-2.5 px-3 min-w-[200px]">
                     <span>รูป / ชื่อ-สกุล นักเรียน</span>
                   </th>
-                  <th className="py-2.5 px-2 w-36 text-center">สถานะมาเรียน</th>
+                  <th className="py-2.5 px-2 w-36 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>สถานะมาเรียน</span>
+                      <button
+                        type="button"
+                        onClick={handleMarkAllPresent}
+                        className="w-5 h-5 flex items-center justify-center rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-all cursor-pointer active:scale-90"
+                        title="กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)"
+                        aria-label="ทุกคนมาเรียนทั้งหมด"
+                      >
+                        <UserCheck className="w-3 h-3 text-emerald-700" />
+                      </button>
+                    </div>
+                  </th>
                   <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
                   <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม</th>
                   <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม</th>
@@ -766,7 +881,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {students.map((student, index) => {
-                  const currentStatus = attendanceMap[student.id] || 'present';
+                  const currentStatus = attendanceMap[student.id];
                   const currentDeposit = depositsMap[student.id] || 0;
                   const stats = studentCumulativeStats[student.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
 
@@ -848,7 +963,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                                 ? 'bg-emerald-600 text-white shadow-2xs'
                                 : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50'
                             }`}
-                            title="มาเรียน (ม)"
+                            title={currentStatus === 'present' ? 'คลิกเพื่อลบ/ยกเลิกสถานะมาเรียน (ม)' : 'มาเรียน (ม)'}
                           >
                             ม
                           </button>
@@ -860,7 +975,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                                 ? 'bg-amber-500 text-white shadow-2xs'
                                 : 'text-slate-600 hover:text-amber-700 hover:bg-amber-50'
                             }`}
-                            title="ป่วย (ป)"
+                            title={currentStatus === 'sick' ? 'คลิกเพื่อลบ/ยกเลิกสถานะป่วย (ป)' : 'ป่วย (ป)'}
                           >
                             ป
                           </button>
@@ -872,7 +987,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                                 ? 'bg-blue-500 text-white shadow-2xs'
                                 : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50'
                             }`}
-                            title="ลากิจ (ล)"
+                            title={currentStatus === 'personal' ? 'คลิกเพื่อลบ/ยกเลิกสถานะลา (ล)' : 'ลากิจ (ล)'}
                           >
                             ล
                           </button>
@@ -884,7 +999,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                                 ? 'bg-rose-600 text-white shadow-2xs'
                                 : 'text-slate-600 hover:text-rose-700 hover:bg-rose-50'
                             }`}
-                            title="ขาดเรียน (ข)"
+                            title={currentStatus === 'absent' ? 'คลิกเพื่อลบ/ยกเลิกสถานะขาด (ข)' : 'ขาดเรียน (ข)'}
                           >
                             ข
                           </button>
@@ -1546,39 +1661,231 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         );
       })()}
 
-      {/* RESET ALL SAVINGS CONFIRMATION MODAL (Req 4: ลบเงินฝากของนักเรียนทั้งหมด เพื่อเริ่มฝากใหม่ ยืนยันด้วย Password) */}
+      {/* DELETE / RESET DATA CONFIRMATION MODAL (Req: เลือกว่าจะลบ มา, ขาด, ป่วย, ลา, เงินออม และ All สำหรับลบทั้งหมด) */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-rose-100 max-w-md w-full animate-bounce-short">
-            <div className="flex items-start gap-3.5 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-inner">
-                <Trash2 className="w-6 h-6" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-rose-100 max-w-lg w-full animate-bounce-short my-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-inner">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                    เลือกลบข้อมูล
+                  </h3>
+                  <p className="text-xs text-rose-600 font-medium mt-0.5">
+                    เลือกว่าจะลบ มา, ขาด, ป่วย, ลา, เงินออม หรือ All
+                  </p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetModal(false);
+                  setResetPassword('');
+                  setResetError('');
+                }}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDeleteData} className="space-y-4">
+              {/* Scope Selector: เฉพาะวันที่เลือก VS ทุกวันในระบบ */}
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                  ลบเงินฝากของนักเรียนทั้งหมด
-                </h3>
-                <p className="text-xs text-rose-600 font-semibold mt-0.5">
-                  เพื่อเริ่มฝากใหม่ (ต้องยืนยันด้วย Password เข้าสู่ระบบ)
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  1. เลือกขอบเขตที่ต้องการลบ:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteScope('day')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      deleteScope === 'day'
+                        ? 'border-indigo-500 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-bold text-slate-900">เฉพาะวันที่เลือก</span>
+                      {deleteScope === 'day' && <Check className="w-3.5 h-3.5 text-indigo-600 stroke-[3]" />}
+                    </div>
+                    <div className="text-[10.5px] text-slate-500 truncate">{formatThaiDate(selectedDate)}</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeleteScope('all')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      deleteScope === 'all'
+                        ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs font-bold text-slate-900">ทุกวันในระบบ</span>
+                      {deleteScope === 'all' && <Check className="w-3.5 h-3.5 text-rose-600 stroke-[3]" />}
+                    </div>
+                    <div className="text-[10.5px] text-slate-500">รีเซ็ตเริ่มต้นใหม่ทั้งหมด</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option Selector Grid: มา, ขาด, ป่วย, ลา, เงินออม, All */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  2. เลือกรายการที่ต้องการลบ ({deleteScope === 'day' ? `เฉพาะวันที่ ${formatThaiDate(selectedDate)}` : 'ทุกวันในระบบ'}):
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    {
+                      id: 'all' as DeleteTarget,
+                      label: 'All (ลบทั้งหมด)',
+                      sub: 'มา, ขาด, ป่วย, ลา, เงินออม',
+                      badge: 'All',
+                      badgeClass: 'px-2 py-0.5 bg-rose-100 text-rose-700 border-rose-200',
+                      activeBorder: 'border-rose-500',
+                      activeBg: 'bg-rose-50/70',
+                      activeRing: 'ring-rose-500/20',
+                      checkBg: 'bg-rose-600',
+                    },
+                    {
+                      id: 'savings' as DeleteTarget,
+                      label: 'เงินออม',
+                      sub: 'ลบยอดเงินฝากเป็น 0 ฿',
+                      badge: '฿',
+                      badgeClass: 'w-6 h-6 bg-amber-100 text-amber-700 border-amber-200',
+                      activeBorder: 'border-amber-500',
+                      activeBg: 'bg-amber-50/70',
+                      activeRing: 'ring-amber-500/20',
+                      checkBg: 'bg-amber-600',
+                    },
+                    {
+                      id: 'present' as DeleteTarget,
+                      label: 'มา',
+                      sub: 'ลบสถานะมาเรียน (ม)',
+                      badge: 'ม',
+                      badgeClass: 'w-6 h-6 bg-emerald-100 text-emerald-700 border-emerald-200',
+                      activeBorder: 'border-emerald-500',
+                      activeBg: 'bg-emerald-50/70',
+                      activeRing: 'ring-emerald-500/20',
+                      checkBg: 'bg-emerald-600',
+                    },
+                    {
+                      id: 'absent' as DeleteTarget,
+                      label: 'ขาด',
+                      sub: 'ลบสถานะขาดเรียน (ข)',
+                      badge: 'ข',
+                      badgeClass: 'w-6 h-6 bg-rose-100 text-rose-700 border-rose-200',
+                      activeBorder: 'border-rose-500',
+                      activeBg: 'bg-rose-50/70',
+                      activeRing: 'ring-rose-500/20',
+                      checkBg: 'bg-rose-600',
+                    },
+                    {
+                      id: 'sick' as DeleteTarget,
+                      label: 'ป่วย',
+                      sub: 'ลบสถานะลาป่วย (ป)',
+                      badge: 'ป',
+                      badgeClass: 'w-6 h-6 bg-amber-100 text-amber-700 border-amber-200',
+                      activeBorder: 'border-amber-500',
+                      activeBg: 'bg-amber-50/70',
+                      activeRing: 'ring-amber-500/20',
+                      checkBg: 'bg-amber-600',
+                    },
+                    {
+                      id: 'personal' as DeleteTarget,
+                      label: 'ลา',
+                      sub: 'ลบสถานะลากิจ (ล)',
+                      badge: 'ล',
+                      badgeClass: 'w-6 h-6 bg-blue-100 text-blue-700 border-blue-200',
+                      activeBorder: 'border-blue-500',
+                      activeBg: 'bg-blue-50/70',
+                      activeRing: 'ring-blue-500/20',
+                      checkBg: 'bg-blue-600',
+                    },
+                  ].map((opt) => {
+                    const isSelected = deleteTarget === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setDeleteTarget(opt.id)}
+                        className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer relative ${
+                          isSelected
+                            ? `${opt.activeBorder} ${opt.activeBg} ring-2 ${opt.activeRing}`
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                          <span
+                            className={`inline-flex items-center justify-center font-bold rounded-lg border text-xs ${opt.badgeClass}`}
+                          >
+                            {opt.badge}
+                          </span>
+                          {isSelected && (
+                            <span
+                              className={`w-4 h-4 rounded-full flex items-center justify-center text-white ${opt.checkBg}`}
+                            >
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-slate-900">{opt.label}</div>
+                          <div className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                            {opt.sub}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Dynamic Warning / Information Box */}
+              <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl text-xs text-slate-700 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>
+                    สรุปรายการที่จะลบ ({deleteScope === 'day' ? `เฉพาะวันที่ ${formatThaiDate(selectedDate)}` : 'ทุกวันในระบบ เพื่อเริ่มใหม่'}):
+                  </span>
+                </div>
+                <p className="leading-relaxed text-slate-600 text-[11px]">
+                  {deleteScope === 'day'
+                    ? deleteTarget === 'all'
+                      ? `รีเซ็ตข้อมูลเช็คชื่อ (มา, ขาด, ป่วย, ลา) และเงินฝากทั้งหมดของวันที่ ${formatThaiDate(selectedDate)}`
+                      : deleteTarget === 'savings'
+                      ? `รีเซ็ตยอดเงินฝากของวันที่ ${formatThaiDate(selectedDate)} เป็น 0 บาท`
+                      : deleteTarget === 'absent'
+                      ? `ลบสถานะ "ขาดเรียน (ข)" ของวันที่ ${formatThaiDate(selectedDate)}`
+                      : deleteTarget === 'sick'
+                      ? `ลบสถานะ "ป่วย (ป)" ของวันที่ ${formatThaiDate(selectedDate)}`
+                      : deleteTarget === 'personal'
+                      ? `ลบสถานะ "ลา (ล)" ของวันที่ ${formatThaiDate(selectedDate)}`
+                      : `ลบสถานะ "มาเรียน (ม)" ของวันที่ ${formatThaiDate(selectedDate)}`
+                    : deleteTarget === 'all'
+                    ? 'รีเซ็ตข้อมูลเช็คชื่อและยอดเงินฝากทั้งหมดทุกวันในระบบให้เป็น 0 บาทเพื่อเริ่มใหม่'
+                    : deleteTarget === 'savings'
+                    ? 'รีเซ็ตยอดเงินฝากทั้งหมดทุกวันในระบบเป็น 0 บาท'
+                    : deleteTarget === 'absent'
+                    ? 'ลบสถานะ "ขาดเรียน (ข)" ทุกวันในระบบ'
+                    : deleteTarget === 'sick'
+                    ? 'ลบสถานะ "ป่วย (ป)" ทุกวันในระบบ'
+                    : deleteTarget === 'personal'
+                    ? 'ลบสถานะ "ลา (ล)" ทุกวันในระบบ'
+                    : 'ลบสถานะ "มาเรียน (ม)" ทุกวันในระบบเพื่อเริ่มเช็คชื่อใหม่'}
                 </p>
               </div>
-            </div>
 
-            <div className="p-3 bg-rose-50/80 border border-rose-200/80 rounded-2xl mb-4 text-xs text-rose-900 space-y-1">
-              <div className="flex items-center gap-1.5 font-bold text-rose-700">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>คำเตือนสำคัญ:</span>
-              </div>
-              <p className="leading-relaxed text-rose-800/90 text-[11px]">
-                การดำเนินการนี้จะรีเซ็ตยอดเงินฝากของนักเรียนทุกคนเป็น 0 บาท และปรับสถานะเป็นมาเรียนทั้งหมด (ลบการไม่มีเรียน ขาด ป่วย ลา ทั้งหมด) อัตโนมัติ เพื่อให้คุณครูเริ่มต้นบันทึกรอบใหม่ได้ทันที
-              </p>
-            </div>
-
-            <form onSubmit={handleConfirmResetSavings} className="space-y-4">
+              {/* Password confirmation */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-slate-500" />
-                  <span>กรุณากรอกรหัสผ่านเข้าสู่ระบบ (Password)</span>
+                  <span>กรุณากรอกรหัสผ่าน (Password) เพื่อยืนยัน</span>
                 </label>
                 <div className="relative">
                   <input
@@ -1588,7 +1895,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       setResetPassword(e.target.value);
                       if (resetError) setResetError('');
                     }}
-                    placeholder="กรอก Password เพื่อยืนยัน"
+                    placeholder="กรอก Password เช่น 456789 หรือ 1234"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-rose-500 focus:bg-white transition-all outline-hidden pr-10"
                     autoFocus
                   />
@@ -1608,6 +1915,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 )}
               </div>
 
+              {/* Modal Buttons */}
               <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -1625,7 +1933,19 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>ยืนยันลบเงินฝากทั้งหมด</span>
+                  <span>
+                    {deleteTarget === 'all'
+                      ? `ยืนยันลบ: All ทั้งหมด (${deleteScope === 'day' ? 'เฉพาะวันนี้' : 'ทุกวันในระบบ'})`
+                      : deleteTarget === 'savings'
+                      ? `ยืนยันลบ: เงินออม (${deleteScope === 'day' ? 'เฉพาะวันนี้' : 'ทุกวันในระบบ'})`
+                      : deleteTarget === 'present'
+                      ? `ยืนยันลบ: มา (${deleteScope === 'day' ? 'เฉพาะวันนี้' : 'ทุกวันในระบบ'})`
+                      : deleteTarget === 'absent'
+                      ? `ยืนยันลบ: ขาด (${deleteScope === 'day' ? 'เฉพาะวันนี้' : 'ทุกวันในระบบ'})`
+                      : deleteTarget === 'sick'
+                      ? `ยืนยันลบ: ป่วย (${deleteScope === 'day' ? 'เฉพาะวันนี้' : 'ทุกวันในระบบ'})`
+                      : `ยืนยันลบ: ลา (${deleteScope === 'day' ? 'เฉพาะวันนี้' : 'ทุกวันในระบบ'})`}
+                  </span>
                 </button>
               </div>
             </form>
@@ -1910,14 +2230,19 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                         key={item.status}
                         type="button"
                         onClick={() => {
-                          setModalAttendance(item.status as AttendanceStatus);
-                          if (item.status !== 'present') {
-                            setModalDeposit(0);
+                          if (modalAttendance === item.status) {
+                            setModalAttendance(null);
+                          } else {
+                            setModalAttendance(item.status as AttendanceStatus);
+                            if (item.status !== 'present') {
+                              setModalDeposit(0);
+                            }
                           }
                         }}
                         className={`p-3 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
                           isSelected ? item.badge : item.inactive
                         }`}
+                        title={isSelected ? `คลิกเพื่อลบ/ยกเลิกสถานะ ${item.label}` : item.label}
                       >
                         <span className="text-2xl font-black">{item.key}</span>
                         <span className={`text-[11px] font-semibold mt-1 ${isSelected ? 'text-white' : 'text-slate-500'}`}>
@@ -1926,6 +2251,32 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100">
+                  <span className="text-[11px] text-slate-500">
+                    สถานะปัจจุบัน:{' '}
+                    <strong className="text-slate-800">
+                      {modalAttendance === 'present'
+                        ? 'มาเรียน (ม)'
+                        : modalAttendance === 'sick'
+                        ? 'ป่วย (ป)'
+                        : modalAttendance === 'personal'
+                        ? 'ลากิจ (ล)'
+                        : modalAttendance === 'absent'
+                        ? 'ขาดเรียน (ข)'
+                        : 'ยังไม่มีสถานะ (ลบ/ล้างแล้ว)'}
+                    </strong>
+                  </span>
+                  {modalAttendance && (
+                    <button
+                      type="button"
+                      onClick={() => setModalAttendance(null)}
+                      className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-0.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                    >
+                      ลบ/ล้างสถานะ
+                    </button>
+                  )}
                 </div>
               </div>
 

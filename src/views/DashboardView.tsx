@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Student,
   CalendarEvent,
-  TeacherProfile
+  TeacherProfile,
+  DashboardNote
 } from '../types';
 import { dataService } from '../services/dataService';
 import { formatThaiDate, formatThaiDateTime } from '../utils/helpers';
@@ -23,7 +24,19 @@ import {
   Pencil,
   X,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Pin,
+  Star,
+  Lightbulb,
+  Bell,
+  AlertCircle,
+  BookOpen,
+  Tag,
+  Target,
+  MessageSquare,
+  Heart,
+  StickyNote,
+  Check
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -58,26 +71,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
   const [modalEventColor, setModalEventColor] = useState<CalendarEvent['color']>('emerald');
   const [showModalAddForm, setShowModalAddForm] = useState<boolean>(false);
 
+  // Quick Notes state (สมุดโน๊ตบันทึกด่วน)
+  const [notes, setNotes] = useState<DashboardNote[]>(dataService.getNotes());
+  const [showNoteModal, setShowNoteModal] = useState<boolean>(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteTitle, setNoteTitle] = useState<string>('');
+  const [noteContent, setNoteContent] = useState<string>('');
+  const [noteFontWeight, setNoteFontWeight] = useState<'normal' | 'semibold' | 'bold'>('semibold');
+  const [noteIcon, setNoteIcon] = useState<string>('pin');
+  const [noteColor, setNoteColor] = useState<DashboardNote['color']>('amber');
+
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
       setStudents(dataService.getStudents());
       setEvents(dataService.getCalendarEvents());
       setProfile(dataService.getProfile());
+      setNotes(dataService.getNotes());
     });
     return unsub;
   }, []);
 
-  // Calculate statistics
-  const totalStudents = students.length;
-  const totalSavings = students.reduce((sum: number, s) => sum + (s.currentSavings || 0), 0);
-  const weightRecordsCount = dataService.getWeightHeightRecords().length;
-  const scoreSheetsCount = dataService.getScoreSheets().length;
-
-  // Attendance stats for today
   const todayDateStr = new Date().toISOString().slice(0, 10);
-  const allAtt = dataService.getAllAttendanceAndBank();
-  const todayAttObj = allAtt[todayDateStr]?.attendance || {};
-  const presentCount = Object.values(todayAttObj).filter(v => v === 'present').length || totalStudents;
 
   // Calendar calculations
   const year = currentDate.getFullYear();
@@ -220,6 +234,191 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
       default:
         return 'bg-emerald-500 text-white';
     }
+  };
+
+  // Note Handlers & Helpers
+  const NOTE_ICONS = [
+    { id: 'pin', label: 'หมุด', icon: Pin },
+    { id: 'star', label: 'ดาว', icon: Star },
+    { id: 'lightbulb', label: 'ไอเดีย', icon: Lightbulb },
+    { id: 'pencil', label: 'โน๊ต', icon: Pencil },
+    { id: 'bell', label: 'เตือน', icon: Bell },
+    { id: 'alert', label: 'ด่วน', icon: AlertCircle },
+    { id: 'check', label: 'สำเร็จ', icon: CheckCircle2 },
+    { id: 'book', label: 'วิชาการ', icon: BookOpen },
+    { id: 'tag', label: 'แท็ก', icon: Tag },
+    { id: 'target', label: 'เป้าหมาย', icon: Target },
+    { id: 'message', label: 'ข้อความ', icon: MessageSquare },
+    { id: 'heart', label: 'สำคัญ', icon: Heart },
+  ];
+
+  const NOTE_COLORS: Array<{ id: DashboardNote['color']; label: string; dot: string; bg: string }> = [
+    { id: 'amber', label: 'เหลือง/ส้ม', dot: 'bg-amber-400', bg: 'bg-amber-50 border-amber-300 text-amber-800' },
+    { id: 'emerald', label: 'เขียว', dot: 'bg-emerald-500', bg: 'bg-emerald-50 border-emerald-300 text-emerald-800' },
+    { id: 'blue', label: 'ฟ้า', dot: 'bg-sky-500', bg: 'bg-sky-50 border-sky-300 text-sky-800' },
+    { id: 'rose', label: 'ชมพู', dot: 'bg-rose-500', bg: 'bg-rose-50 border-rose-300 text-rose-800' },
+    { id: 'purple', label: 'ม่วง', dot: 'bg-purple-500', bg: 'bg-purple-50 border-purple-300 text-purple-800' },
+    { id: 'slate', label: 'เทา', dot: 'bg-slate-500', bg: 'bg-slate-50 border-slate-300 text-slate-800' },
+  ];
+
+  const renderNoteIcon = (iconName: string, className = 'w-4 h-4') => {
+    switch (iconName) {
+      case 'pin':
+        return <Pin className={className} />;
+      case 'star':
+        return <Star className={className} />;
+      case 'lightbulb':
+        return <Lightbulb className={className} />;
+      case 'pencil':
+        return <Pencil className={className} />;
+      case 'bell':
+        return <Bell className={className} />;
+      case 'alert':
+        return <AlertCircle className={className} />;
+      case 'check':
+        return <CheckCircle2 className={className} />;
+      case 'book':
+        return <BookOpen className={className} />;
+      case 'tag':
+        return <Tag className={className} />;
+      case 'target':
+        return <Target className={className} />;
+      case 'message':
+        return <MessageSquare className={className} />;
+      case 'heart':
+        return <Heart className={className} />;
+      default:
+        return <StickyNote className={className} />;
+    }
+  };
+
+  const getNoteColorStyles = (color: DashboardNote['color']) => {
+    switch (color) {
+      case 'amber':
+        return {
+          cardBg: 'bg-amber-50/75 hover:bg-amber-50 border-amber-200/90',
+          badge: 'bg-amber-100 text-amber-800 border border-amber-300/60',
+          accent: 'text-amber-700',
+        };
+      case 'emerald':
+        return {
+          cardBg: 'bg-emerald-50/75 hover:bg-emerald-50 border-emerald-200/90',
+          badge: 'bg-emerald-100 text-emerald-800 border border-emerald-300/60',
+          accent: 'text-emerald-700',
+        };
+      case 'blue':
+        return {
+          cardBg: 'bg-sky-50/75 hover:bg-sky-50 border-sky-200/90',
+          badge: 'bg-sky-100 text-sky-800 border border-sky-300/60',
+          accent: 'text-sky-700',
+        };
+      case 'rose':
+        return {
+          cardBg: 'bg-rose-50/75 hover:bg-rose-50 border-rose-200/90',
+          badge: 'bg-rose-100 text-rose-800 border border-rose-300/60',
+          accent: 'text-rose-700',
+        };
+      case 'purple':
+        return {
+          cardBg: 'bg-purple-50/75 hover:bg-purple-50 border-purple-200/90',
+          badge: 'bg-purple-100 text-purple-800 border border-purple-300/60',
+          accent: 'text-purple-700',
+        };
+      case 'slate':
+      default:
+        return {
+          cardBg: 'bg-slate-50/90 hover:bg-slate-100/80 border-slate-200',
+          badge: 'bg-slate-200/80 text-slate-800 border border-slate-300/60',
+          accent: 'text-slate-700',
+        };
+    }
+  };
+
+  const getFontWeightClass = (weight?: 'normal' | 'semibold' | 'bold') => {
+    switch (weight) {
+      case 'normal':
+        return 'font-normal';
+      case 'semibold':
+        return 'font-semibold';
+      case 'bold':
+        return 'font-bold';
+      default:
+        return 'font-semibold';
+    }
+  };
+
+  const formatNoteTime = (isoString?: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    const now = new Date();
+    const isSameDay = d.toDateString() === now.toDateString();
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} น.`;
+    if (isSameDay) {
+      return `วันนี้ ${timeStr}`;
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) {
+      return `เมื่อวาน ${timeStr}`;
+    }
+    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${timeStr}`;
+  };
+
+  const handleOpenAddNote = () => {
+    setEditingNoteId(null);
+    setNoteTitle('');
+    setNoteContent('');
+    setNoteFontWeight('semibold');
+    setNoteIcon('pin');
+    setNoteColor('amber');
+    setShowNoteModal(true);
+  };
+
+  const handleOpenEditNote = (note: DashboardNote) => {
+    setEditingNoteId(note.id);
+    setNoteTitle(note.title || '');
+    setNoteContent(note.content || '');
+    setNoteFontWeight(note.fontWeight || 'semibold');
+    setNoteIcon(note.icon || 'pin');
+    setNoteColor(note.color || 'amber');
+    setShowNoteModal(true);
+  };
+
+  const handleSaveNote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteTitle.trim() && !noteContent.trim()) {
+      dataService.notifyToast('warning', 'กรุณาระบุหัวข้อหรือข้อความในโน๊ต');
+      return;
+    }
+
+    const existingNote = editingNoteId ? notes.find((n) => n.id === editingNoteId) : null;
+
+    const noteObj: DashboardNote = {
+      id: editingNoteId || `note-${Date.now()}`,
+      title: noteTitle.trim(),
+      content: noteContent.trim(),
+      fontWeight: noteFontWeight,
+      icon: noteIcon,
+      color: noteColor,
+      isPinned: existingNote ? !!existingNote.isPinned : false,
+      createdAt: existingNote?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    dataService.saveNote(noteObj);
+    setShowNoteModal(false);
+  };
+
+  const handleDeleteNote = (id: string) => {
+    dataService.deleteNote(id);
+    if (editingNoteId === id) {
+      setShowNoteModal(false);
+    }
+  };
+
+  const handleTogglePin = (id: string) => {
+    dataService.togglePinNote(id);
   };
 
   return (
@@ -383,67 +582,153 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
           </div>
         </div>
 
-        {/* Right Column: Classroom Summary & Recent Log Feed (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col gap-3.5 sm:gap-4">
-          {/* Card 1: สรุปข้อมูลห้องเรียน */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs p-3.5 sm:p-5 flex flex-col shrink-0">
-            <h3 className="text-sm font-bold text-gray-900 mb-3">สรุปข้อมูลห้องเรียน</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">นักเรียนทั้งหมด</span>
-                <span className="text-xs font-bold text-gray-800">{totalStudents} คน</span>
+        {/* Right Column: Quick Notes / สมุดโน๊ตบันทึก (4 cols) */}
+        <div className="lg:col-span-4 flex flex-col bg-white border border-slate-200/80 rounded-2xl shadow-2xs p-3.5 sm:p-5 h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200/60 shadow-2xs">
+                <StickyNote className="w-4 h-4" />
               </div>
-              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full w-full"></div>
-              </div>
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs text-gray-500">ยอดเงินฝากรวม</span>
-                <span className="text-xs font-bold text-emerald-600">฿ {totalSavings.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">มาเรียนวันนี้</span>
-                <span className="text-xs font-bold text-blue-600">{presentCount}/{totalStudents} คน</span>
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                  <span>สมุดโน๊ตบันทึก</span>
+                  {notes.filter((n) => n.isPinned).length > 0 && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200/60">
+                      <Pin className="w-2.5 h-2.5 fill-amber-500" />
+                      {notes.filter((n) => n.isPinned).length}
+                    </span>
+                  )}
+                </h3>
+                <p className="text-[10px] text-gray-400">
+                  {notes.length} รายการ (คลิกเพื่อดู/แก้ไข)
+                </p>
               </div>
             </div>
+
+            {/* "+" Icon Button */}
+            <button
+              type="button"
+              onClick={handleOpenAddNote}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="เพิ่มโน๊ตใหม่ (+)"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span className="hidden sm:inline">เพิ่มโน๊ต</span>
+            </button>
           </div>
 
-          {/* Card 2: บันทึกล่าสุด */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl shadow-2xs p-3.5 sm:p-5 flex flex-col flex-grow overflow-hidden">
-            <h3 className="text-sm font-bold text-gray-900 mb-3">บันทึกล่าสุด</h3>
-            <div className="space-y-3 overflow-y-auto pr-1">
-              <div className="flex gap-3 items-center">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          {/* Compact Notes List */}
+          <div className="mt-3 flex-grow overflow-y-auto max-h-[580px] space-y-2 pr-1">
+            {notes.length === 0 ? (
+              <div className="text-center py-10 px-4 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-2.5">
+                  <StickyNote className="w-5 h-5" />
                 </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-800">อัปเดตน้ำหนัก-ส่วนสูง</p>
-                  <p className="text-[10px] text-gray-500">บันทึกผลตามเกณฑ์ BMI ประจำภาคเรียน</p>
-                  <p className="text-[9px] text-emerald-500 mt-0.5">ล่าสุด</p>
-                </div>
+                <p className="text-xs font-bold text-slate-700">ยังไม่มีบันทึกโน๊ต</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 max-w-[200px] mx-auto">
+                  กดปุ่ม "+" เพื่อจดบันทึกข้อความด่วน
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenAddNote}
+                  className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>เพิ่มโน๊ตข้อความแรก</span>
+                </button>
               </div>
+            ) : (
+              notes.map((note) => {
+                const colorStyle = getNoteColorStyles(note.color);
+                return (
+                  <div
+                    key={note.id}
+                    onClick={() => handleOpenEditNote(note)}
+                    className={`p-2.5 sm:p-3 rounded-xl border transition-all cursor-pointer group hover:shadow-xs relative flex flex-col gap-1.5 ${colorStyle.cardBg} ${
+                      note.isPinned ? 'ring-1 ring-amber-400/70 shadow-2xs' : ''
+                    }`}
+                    title="คลิกเพื่อดูและแก้ไขข้อความ"
+                  >
+                    {/* Top Row: Icon badge, Title, Pin toggle, Delete */}
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${colorStyle.badge}`}
+                          title={`ไอคอน: ${note.icon}`}
+                        >
+                          {renderNoteIcon(note.icon, 'w-3.5 h-3.5')}
+                        </div>
+                        <span
+                          className={`text-xs text-slate-900 truncate flex-1 ${getFontWeightClass(
+                            note.fontWeight
+                          )}`}
+                        >
+                          {note.title || 'โน๊ตไม่มีหัวข้อ'}
+                        </span>
+                      </div>
 
-              <div className="flex gap-3 items-center">
-                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                  <PiggyBank className="w-4 h-4 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-800">บันทึกเงินฝากสะสม</p>
-                  <p className="text-[10px] text-gray-500">เงินออมสะสมยอดรวม ฿ {totalSavings.toLocaleString()}</p>
-                  <p className="text-[9px] text-emerald-500 mt-0.5">ประจำวัน</p>
-                </div>
-              </div>
+                      {/* Action buttons on card */}
+                      <div
+                        className="flex items-center gap-0.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Pin Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePin(note.id)}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                            note.isPinned
+                              ? 'text-amber-600 bg-amber-100 hover:bg-amber-200 ring-1 ring-amber-300'
+                              : 'text-slate-400 hover:text-amber-600 hover:bg-white/80'
+                          }`}
+                          title={note.isPinned ? 'ยกเลิกการปักหมุด' : 'ปักหมุด'}
+                        >
+                          <Pin className={`w-3.5 h-3.5 ${note.isPinned ? 'fill-amber-500 text-amber-600' : ''}`} />
+                        </button>
 
-              <div className="flex gap-3 items-center">
-                <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
-                  <FileSpreadsheet className="w-4 h-4 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-800">ลงคะแนนสอบและตัดเกรด</p>
-                  <p className="text-[10px] text-gray-500">วิชาคณิตศาสตร์เบื้องต้น (ค16101)</p>
-                  <p className="text-[9px] text-emerald-500 mt-0.5">ระบบคำนวณอัตโนมัติ</p>
-                </div>
-              </div>
-            </div>
+                        {/* Quick Delete */}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNote(note.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white/80 rounded-lg transition-colors cursor-pointer"
+                          title="ลบโน๊ตนี้"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content preview with selected font weight */}
+                    {note.content && (
+                      <p
+                        className={`text-[11px] text-slate-600 line-clamp-2 leading-relaxed pl-8 whitespace-pre-line ${getFontWeightClass(
+                          note.fontWeight
+                        )}`}
+                      >
+                        {note.content}
+                      </p>
+                    )}
+
+                    {/* Footer Row: Timestamp & Pinned badge / hint */}
+                    <div className="flex items-center justify-between pl-8 pt-0.5 text-[10px] text-slate-400">
+                      <span className="flex items-center gap-1">
+                        {note.isPinned && (
+                          <span className="inline-flex items-center gap-0.5 text-amber-700 font-bold bg-amber-100/90 px-1 py-0.2 rounded">
+                            <Pin className="w-2.5 h-2.5 fill-amber-600" />
+                            ปักหมุด
+                          </span>
+                        )}
+                        <span>{formatNoteTime(note.updatedAt || note.createdAt)}</span>
+                      </span>
+                      <span className="opacity-0 group-hover:opacity-100 text-emerald-600 font-semibold flex items-center gap-0.5 transition-opacity">
+                        ดู/แก้ไข <Pencil className="w-2.5 h-2.5" />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -882,6 +1167,174 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                 ปิดหน้าต่าง
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note View & Edit Modal (ดู / แก้ไข / บันทึกโน๊ต) */}
+      {showNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-lg w-full shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200/60 shadow-2xs">
+                  {renderNoteIcon(noteIcon, 'w-4 h-4')}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">
+                    {editingNoteId ? 'ดูและแก้ไขบันทึกโน๊ต' : 'เพิ่มบันทึกโน๊ตใหม่'}
+                  </h3>
+                  <p className="text-[10px] text-gray-400">
+                    พิมพ์ข้อความ และเลือกไอคอนประจำโน๊ต
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowNoteModal(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable form) */}
+            <form onSubmit={handleSaveNote} className="space-y-3.5 text-xs py-3 overflow-y-auto flex-1 pr-1">
+              {/* Note Title */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  หัวข้อโน๊ต (Title)
+                </label>
+                <input
+                  type="text"
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  placeholder="เช่น เตรียมเอกสาร ปพ.5, การบ้านวิชาคณิตศาสตร์..."
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 text-xs outline-hidden transition-all font-semibold"
+                />
+              </div>
+
+              {/* Note Content */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  ข้อความ / รายละเอียดโน๊ต
+                </label>
+                <textarea
+                  rows={4}
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="พิมพ์ข้อความโน๊ตของคุณที่นี่..."
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 text-xs outline-hidden leading-relaxed transition-all"
+                />
+              </div>
+
+              {/* Icon Picker (ใส่ไอคอนได้) */}
+              <div>
+                <label className="block font-bold text-gray-700 mb-1.5">
+                  เลือกไอคอนประจำโน๊ต
+                </label>
+                <div className="grid grid-cols-6 sm:grid-cols-6 gap-1.5">
+                  {NOTE_ICONS.map((item) => {
+                    const IconComp = item.icon;
+                    const isSelected = noteIcon === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setNoteIcon(item.id)}
+                        className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-400/40 shadow-2xs'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                        }`}
+                        title={item.label}
+                      >
+                        <IconComp className={`w-4 h-4 ${isSelected ? 'stroke-[2.5]' : ''}`} />
+                        <span className="text-[9px] font-medium leading-none">{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Color Picker */}
+              <div className="pt-1">
+                <label className="block font-bold text-gray-700 mb-1.5">
+                  โทนสีของโน๊ต
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {NOTE_COLORS.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setNoteColor(c.id)}
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer ${c.dot} ${
+                        noteColor === c.id
+                          ? 'ring-2 ring-offset-2 ring-emerald-600 scale-110 shadow-xs'
+                          : 'opacity-70 hover:opacity-100 hover:scale-105'
+                      }`}
+                      title={c.label}
+                    >
+                      {noteColor === c.id && <Check className="w-3.5 h-3.5 text-white stroke-[3]" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Real-time Preview Box */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 block mb-1">
+                  ตัวอย่างการแสดงผล:
+                </span>
+                <div className={`flex items-start gap-2 p-2 rounded-lg border ${getNoteColorStyles(noteColor).cardBg}`}>
+                  <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${getNoteColorStyles(noteColor).badge}`}>
+                    {renderNoteIcon(noteIcon, 'w-3 h-3')}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-slate-900 truncate font-semibold">
+                      {noteTitle.trim() || 'ชื่อหัวข้อโน๊ต...'}
+                    </p>
+                    <p className="text-[11px] text-slate-600 line-clamp-2 mt-0.5 whitespace-pre-line font-normal">
+                      {noteContent.trim() || 'ข้อความโน๊ต...'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                {editingNoteId ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteNote(editingNoteId)}
+                    className="flex items-center gap-1 px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>ลบโน๊ต</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowNoteModal(false)}
+                    className="px-3.5 py-2 text-gray-600 hover:bg-gray-100 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>{editingNoteId ? 'บันทึกการแก้ไข' : 'บันทึกโน๊ต'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
