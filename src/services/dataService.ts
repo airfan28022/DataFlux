@@ -71,6 +71,7 @@ class DataService {
   private isScoresInitialized = false;
   private isEventsInitialized = false;
   private isProfileInitialized = false;
+  private isNotesInitialized = false;
 
   constructor() {
     this.initFirestoreRealtime();
@@ -222,6 +223,29 @@ class DataService {
         }
       }, (err) => console.warn('[Firestore] Profile listener warning:', err));
       this.firestoreListeners.push(unsubProfile);
+
+      // 9. Dashboard Notes Real-time listener
+      const unsubNotes = onSnapshot(collection(db, 'dashboardNotes'), (snap) => {
+        if (!snap.empty) {
+          this.isNotesInitialized = true;
+          const notes = snap.docs.map((d) => d.data() as DashboardNote);
+          // Sort pinned first, then newest
+          notes.sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+          });
+          localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
+          this.notifySubscribersOnly();
+        } else if (!this.isNotesInitialized) {
+          this.isNotesInitialized = true;
+          this.seedDashboardNotesToFirestore();
+        } else {
+          localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify([]));
+          this.notifySubscribersOnly();
+        }
+      }, (err) => console.warn('[Firestore] Dashboard notes listener warning:', err));
+      this.firestoreListeners.push(unsubNotes);
     } catch (e) {
       console.warn('[Firestore] Realtime setup warning:', e);
     }
@@ -288,6 +312,17 @@ class DataService {
       await setDoc(doc(db, 'settings', 'profile'), cleanForFirestore(p));
     } catch (e) {
       console.warn('[Firestore] Seed profile warning:', e);
+    }
+  }
+
+  private async seedDashboardNotesToFirestore() {
+    try {
+      const notes = this.getNotes();
+      for (const n of notes) {
+        await setDoc(doc(db, 'dashboardNotes', n.id), cleanForFirestore(n));
+      }
+    } catch (e) {
+      console.warn('[Firestore] Seed dashboardNotes warning:', e);
     }
   }
 
@@ -390,6 +425,7 @@ class DataService {
           Withdrawals: this.getWithdrawalLogs(),
           Scores: this.getScoreSheets(),
           Events: this.getCalendarEvents(),
+          Notes: this.getNotes(),
           Settings: [this.getProfile()],
         },
       };
@@ -1627,6 +1663,7 @@ class DataService {
           Withdrawals: this.getWithdrawalLogs(),
           Scores: this.getScoreSheets(),
           Events: this.getCalendarEvents(),
+          Notes: this.getNotes(),
           Settings: [this.getProfile()],
         },
       };
@@ -1662,6 +1699,7 @@ class DataService {
       withdrawals: this.getWithdrawalLogs(),
       scoreSheets: this.getScoreSheets(),
       events: this.getCalendarEvents(),
+      notes: this.getNotes(),
       photos: this.getActivityPhotos(),
       exportedAt: new Date().toISOString(),
     };
@@ -1714,6 +1752,14 @@ class DataService {
         if (Array.isArray(parsed.events)) {
           parsed.events.forEach((ev: CalendarEvent) => {
             setDoc(doc(db, 'calendarEvents', ev.id), cleanForFirestore(ev)).catch(() => {});
+          });
+        }
+      }
+      if (parsed.notes) {
+        localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(parsed.notes));
+        if (Array.isArray(parsed.notes)) {
+          parsed.notes.forEach((n: DashboardNote) => {
+            setDoc(doc(db, 'dashboardNotes', n.id), cleanForFirestore(n)).catch(() => {});
           });
         }
       }

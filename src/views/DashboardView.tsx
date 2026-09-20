@@ -600,8 +600,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, isAdmi
                     </span>
                   )}
                 </h3>
-                <p className="text-[10px] text-gray-400">
-                  {notes.length} รายการ (คลิกเพื่อดู/แก้ไข)
+                <p className="text-[10px] text-gray-400 flex items-center gap-1.5 flex-wrap">
+                  <span>{notes.length} รายการ (คลิกเพื่อดู/แก้ไข)</span>
+                  <span className="inline-flex items-center gap-1 text-[9px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    เชื่อมต่อ Google Sheets
+                  </span>
                 </p>
               </div>
             </div>
