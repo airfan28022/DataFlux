@@ -1125,6 +1125,81 @@ class DataService {
     return { success: true, affectedDates };
   }
 
+  public deleteWithdrawalLog(id: string): { success: boolean; message: string } {
+    const logs = this.getWithdrawalLogs();
+    const targetLog = logs.find((l) => l.id === id);
+    if (!targetLog) {
+      return { success: false, message: 'ไม่พบรายการประวัติการถอนเงิน' };
+    }
+
+    // 1. Find all pending deduction days associated with this withdrawal log
+    const pendingList = this.getWithdrawalPendingDays();
+    const associatedPending = pendingList.filter((p) => p.withdrawalLogId === id);
+    const remainingPending = pendingList.filter((p) => p.withdrawalLogId !== id);
+
+    // 2. If there are associated pending days, restore deposits back to those days
+    const allBank = this.getAllAttendanceAndBank();
+    const affectedDates: string[] = [];
+
+    if (associatedPending.length > 0) {
+      associatedPending.forEach((p) => {
+        const dStr = p.date;
+        if (allBank[dStr]) {
+          const dayData = allBank[dStr];
+          if (!dayData.deposits) dayData.deposits = {};
+          dayData.deposits[p.studentId] = (dayData.deposits[p.studentId] || 0) + (p.amount || 0);
+
+          // Clean up note if it contained the withdrawal note entry
+          if (dayData.note) {
+            const notePattern = `[ถอนเงิน ${p.amount} บาท (${p.studentName}) เหตุผล: ${p.reason}]`;
+            dayData.note = dayData.note.replace(notePattern, '').replace(/\s+/g, ' ').trim();
+          }
+          dayData.updatedAt = new Date().toISOString();
+          allBank[dStr] = dayData;
+          if (!affectedDates.includes(dStr)) {
+            affectedDates.push(dStr);
+          }
+        }
+      });
+    }
+
+    // Save updated allBank & sync to Firestore
+    if (affectedDates.length > 0) {
+      this._attendanceBankCache = allBank;
+      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+      affectedDates.forEach((dStr) => {
+        if (allBank[dStr]) {
+          setDoc(doc(db, 'attendanceBank', dStr), cleanForFirestore(allBank[dStr])).catch((e) =>
+            console.warn('[Firestore] Bank update after withdrawal delete warning:', e)
+          );
+        }
+      });
+    }
+
+    // 3. Save remaining pending days
+    this.saveWithdrawalPendingDays(remainingPending);
+
+    // 4. Remove withdrawal log from cache, local storage & Firestore
+    const updatedLogs = logs.filter((l) => l.id !== id);
+    this._withdrawalLogsCache = updatedLogs;
+    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(updatedLogs));
+    deleteDoc(doc(db, 'withdrawalLogs', id)).catch((e) =>
+      console.warn('[Firestore] Withdrawal log delete warning:', e)
+    );
+
+    // 5. Recalculate student savings to ensure total consistency
+    this.recalculateAllSavings(true);
+
+    this.notifyToast(
+      'success',
+      'ลบประวัติการถอนเงินเรียบร้อย',
+      `ลบรายการถอนเงิน ${targetLog.amount.toLocaleString()} บาท ของ ${targetLog.studentName} เรียบร้อยแล้ว`
+    );
+    this.notifyChanges(true);
+
+    return { success: true, message: 'ลบรายการสำเร็จ' };
+  }
+
   // Requirement 4: When clicking on a date with blue dot, deposit becomes 0 and note is updated with reason!
   public clearWithdrawalDate(date: string, studentId?: string): { success: boolean; clearedCount: number; message: string } {
     const pendingList = this.getWithdrawalPendingDays();

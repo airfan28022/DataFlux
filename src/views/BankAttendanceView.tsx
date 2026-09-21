@@ -107,6 +107,8 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   // History Log Modal State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [confirmDeleteLog, setConfirmDeleteLog] = useState<WithdrawalLog | null>(null);
+  const [isDeletingLog, setIsDeletingLog] = useState(false);
 
   // Print PDF Modal
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -494,6 +496,26 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       setPendingWithdrawals(dataService.getWithdrawalPendingDays());
       setAllHistoryRecords(dataService.getAllAttendanceAndBank());
       loadDayData(selectedDate);
+    }
+  };
+
+  // Handle Delete Withdrawal Log (มีกล่องยืนยันก่อนลบ)
+  const handleDeleteWithdrawalLog = (log: WithdrawalLog) => {
+    setIsDeletingLog(true);
+    try {
+      const res = dataService.deleteWithdrawalLog(log.id);
+      if (res.success) {
+        setWithdrawalLogs(dataService.getWithdrawalLogs());
+        setPendingWithdrawals(dataService.getWithdrawalPendingDays());
+        setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+        loadDayData(selectedDate);
+        setConfirmDeleteLog(null);
+      }
+    } catch (err) {
+      console.error(err);
+      dataService.notifyToast('error', 'เกิดข้อผิดพลาด', 'ไม่สามารถลบรายการได้');
+    } finally {
+      setIsDeletingLog(false);
     }
   };
 
@@ -1579,6 +1601,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-amber-600" />
                 <h3 className="font-bold text-slate-800 text-sm">ประวัติการถอนเงินออมนักเรียน (History Log)</h3>
+                <span className="text-xs text-slate-500 font-medium">({withdrawalLogs.length} รายการ)</span>
               </div>
               <button
                 onClick={() => setShowHistoryModal(false)}
@@ -1590,15 +1613,19 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
             <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5 text-xs flex-1">
               {withdrawalLogs.length === 0 ? (
-                <p className="text-center py-8 text-slate-400">ยังไม่มีประวัติการถอนเงินในห้องเรียน</p>
+                <div className="text-center py-10 text-slate-400">
+                  <History className="w-10 h-10 mx-auto mb-2 text-slate-300 stroke-[1.5]" />
+                  <p className="font-medium text-slate-500">ยังไม่มีประวัติการถอนเงินในห้องเรียน</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">รายการที่ทำเรื่องถอนเงินจะแสดงขึ้นที่นี่</p>
+                </div>
               ) : (
                 withdrawalLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 flex items-start justify-between gap-3"
+                    className="p-3.5 rounded-xl bg-slate-50 hover:bg-slate-100/70 transition-colors border border-slate-200/90 flex items-start justify-between gap-3"
                   >
-                    <div className="flex-1">
-                      <div className="font-bold text-slate-800 text-sm">{log.studentName}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-slate-800 text-sm truncate">{log.studentName}</div>
                       <div className="text-slate-500 text-[11px] mt-0.5">
                         {formatThaiDate(log.date, true)} เวลา {log.time} น.
                       </div>
@@ -1606,18 +1633,95 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                         <span className="text-[11px] text-amber-800 font-semibold block mb-0.5">
                           เหตุผลการถอนเงิน:
                         </span>
-                        <span className="text-sm font-bold text-slate-900 leading-snug">
+                        <span className="text-sm font-bold text-slate-900 leading-snug break-words">
                           {log.reason}
                         </span>
                       </div>
                     </div>
 
-                    <span className="font-black text-rose-600 text-sm shrink-0 bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200">
-                      -{log.amount.toLocaleString()} ฿
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                      <span className="font-black text-rose-600 text-sm bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200 whitespace-nowrap">
+                        -{log.amount.toLocaleString()} ฿
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteLog(log)}
+                        className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                        title="ลบรายการถอนเงินนี้"
+                        aria-label={`ลบรายการถอนเงินของ ${log.studentName}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM DELETE WITHDRAWAL LOG MODAL */}
+      {confirmDeleteLog && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-rose-100 max-w-md w-full my-auto animate-bounce-short">
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-inner">
+                <AlertTriangle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                  ยืนยันการลบประวัติการถอนเงิน?
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  ระบบจะลบประวัติรายการนี้ และคืนยอดเงินออมกลับสู่ระบบโดยอัตโนมัติ
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 mb-5 space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">นักเรียน:</span>
+                <span className="font-bold text-slate-800 text-sm">{confirmDeleteLog.studentName}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">ยอดเงินที่ถอน:</span>
+                <span className="font-bold text-rose-600 text-sm">
+                  {confirmDeleteLog.amount.toLocaleString()} บาท
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">วันที่ทำรายการ:</span>
+                <span className="font-medium text-slate-700">
+                  {formatThaiDate(confirmDeleteLog.date, true)} เวลา {confirmDeleteLog.time} น.
+                </span>
+              </div>
+              <div className="py-1">
+                <span className="text-slate-500 block mb-0.5">เหตุผล:</span>
+                <span className="font-medium text-slate-800 italic bg-white p-2 rounded-lg border border-slate-200 block">
+                  "{confirmDeleteLog.reason}"
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteLog(null)}
+                disabled={isDeletingLog}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteWithdrawalLog(confirmDeleteLog)}
+                disabled={isDeletingLog}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingLog ? 'กำลังลบ...' : 'ยืนยันลบ'}</span>
+              </button>
             </div>
           </div>
         </div>
