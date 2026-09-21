@@ -85,6 +85,19 @@
         "academicYear": { "type": "string" }
       },
       "required": ["teacherName", "classroomName"]
+    },
+    "dashboardNote": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "color": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "content"]
     }
   },
   "firestore": {
@@ -111,6 +124,10 @@
     "/calendarEvents/{eventId}": {
       "schema": "calendarEvent",
       "description": "Classroom calendar events"
+    },
+    "/dashboardNotes/{noteId}": {
+      "schema": "dashboardNote",
+      "description": "Teacher notes and reminders on dashboard"
     },
     "/settings/{settingId}": {
       "schema": "profile",
