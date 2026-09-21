@@ -74,7 +74,10 @@ export default function App() {
 
     const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     const handleUserActivity = () => {
-      lastActivityTimestamp.current = Date.now();
+      const now = Date.now();
+      if (now - lastActivityTimestamp.current > 2000) {
+        lastActivityTimestamp.current = now;
+      }
     };
 
     activityEvents.forEach((event) => {

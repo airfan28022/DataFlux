@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Student, TeacherProfile, AttendanceStatus, DayAttendanceAndBank, WithdrawalLog, WithdrawalPendingDay } from '../types';
 import { dataService } from '../services/dataService';
 import { formatThaiDate } from '../utils/helpers';
@@ -46,26 +46,46 @@ const THAI_MONTHS = [
 const WEEKDAY_NAMES = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
 export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin }) => {
-  const [students, setStudents] = useState<Student[]>(dataService.getStudents());
-  const [profile, setProfile] = useState<TeacherProfile>(dataService.getProfile());
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
-
-  // Custom Copied Students filter state (เพื่อแทนที่รายชื่อตามจำนวนจริงของชั้นที่เลือก)
+  // Custom Copied Students filter state (บันทึกลง localStorage เพื่อให้เป็นชั้นนั้นเป็นค่าเริ่มต้นทุกครั้งที่เปิดใช้งาน)
   const [customCopiedGrade, setCustomCopiedGrade] = useState<string | null>(() => {
     try {
-      return sessionStorage.getItem('bank_copied_grade') || null;
+      return localStorage.getItem('bank_copied_grade') || null;
     } catch {
       return null;
     }
   });
   const [customCopiedStudentIds, setCustomCopiedStudentIds] = useState<string[] | null>(() => {
     try {
-      const saved = sessionStorage.getItem('bank_copied_students');
+      const saved = localStorage.getItem('bank_copied_students');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   });
+
+  const [students, setStudents] = useState<Student[]>(() => {
+    const all = dataService.getStudents();
+    try {
+      const savedGrade = localStorage.getItem('bank_copied_grade');
+      const savedIdsStr = localStorage.getItem('bank_copied_students');
+      if (savedGrade && savedGrade !== 'ทุกชั้น') {
+        const filtered = all.filter((s) => s.gradeLevel === savedGrade);
+        if (filtered.length > 0) return filtered;
+      }
+      if (savedIdsStr) {
+        const ids: string[] = JSON.parse(savedIdsStr);
+        if (ids && ids.length > 0) {
+          const filtered = all.filter((s) => ids.includes(s.id));
+          if (filtered.length > 0) return filtered;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return all;
+  });
+  const [profile, setProfile] = useState<TeacherProfile>(dataService.getProfile());
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   // Current day's attendance, deposit & note state
   const [attendanceMap, setAttendanceMap] = useState<Record<string, AttendanceStatus>>({});
@@ -207,9 +227,17 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     const initialDep: Record<string, number> = {};
 
     const allStudents = dataService.getStudents();
-    const currentStudents = customCopiedStudentIds && customCopiedStudentIds.length > 0
-      ? allStudents.filter((s) => customCopiedStudentIds.includes(s.id))
-      : allStudents;
+    let currentStudents = allStudents;
+    if (customCopiedGrade && customCopiedGrade !== 'ทุกชั้น') {
+      const filtered = allStudents.filter((s) => s.gradeLevel === customCopiedGrade);
+      if (filtered.length > 0) {
+        currentStudents = filtered;
+      } else if (customCopiedStudentIds && customCopiedStudentIds.length > 0) {
+        currentStudents = allStudents.filter((s) => customCopiedStudentIds.includes(s.id));
+      }
+    } else if (customCopiedStudentIds && customCopiedStudentIds.length > 0) {
+      currentStudents = allStudents.filter((s) => customCopiedStudentIds.includes(s.id));
+    }
     
     setStudents(currentStudents);
 
@@ -243,12 +271,21 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
   useEffect(() => {
     loadDayData(selectedDate);
-  }, [selectedDate, customCopiedStudentIds]);
+  }, [selectedDate, customCopiedGrade, customCopiedStudentIds]);
 
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
       const all = dataService.getStudents();
-      if (customCopiedStudentIds && customCopiedStudentIds.length > 0) {
+      if (customCopiedGrade && customCopiedGrade !== 'ทุกชั้น') {
+        const filtered = all.filter((s) => s.gradeLevel === customCopiedGrade);
+        if (filtered.length > 0) {
+          setStudents(filtered);
+        } else if (customCopiedStudentIds && customCopiedStudentIds.length > 0) {
+          setStudents(all.filter((s) => customCopiedStudentIds.includes(s.id)));
+        } else {
+          setStudents(all);
+        }
+      } else if (customCopiedStudentIds && customCopiedStudentIds.length > 0) {
         setStudents(all.filter((s) => customCopiedStudentIds.includes(s.id)));
       } else {
         setStudents(all);
@@ -259,17 +296,17 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       setPendingWithdrawals(dataService.getWithdrawalPendingDays());
     });
     return unsub;
-  }, [customCopiedStudentIds]);
+  }, [customCopiedGrade, customCopiedStudentIds]);
 
-  // นำรายชื่อที่คัดลอกมาแทนที่ข้อมูลเดิมทันทีตามจำนวนจริงของชั้นที่เลือก
+  // นำรายชื่อที่คัดลอกมาแทนที่ข้อมูลเดิมทันทีตามจำนวนจริงของชั้นที่เลือก (บันทึกจำไว้ถาวร)
   const handleApplyStudentsBank = (selectedStudents: Student[], gradeLabel: string) => {
     const newIds = selectedStudents.map((s) => s.id);
     setCustomCopiedGrade(gradeLabel);
     setCustomCopiedStudentIds(newIds);
     setStudents(selectedStudents);
     try {
-      sessionStorage.setItem('bank_copied_grade', gradeLabel);
-      sessionStorage.setItem('bank_copied_students', JSON.stringify(newIds));
+      localStorage.setItem('bank_copied_grade', gradeLabel);
+      localStorage.setItem('bank_copied_students', JSON.stringify(newIds));
     } catch (e) {
       console.warn(e);
     }
@@ -292,9 +329,23 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     dataService.notifyToast(
       'success',
       'คัดลอกรายชื่อสำเร็จ',
-      `คัดลอกรายชื่อนักเรียนชั้น ${gradeLabel} (${selectedStudents.length} คน) เรียบร้อยแล้ว`
+      `คัดลอกรายชื่อนักเรียนชั้น ${gradeLabel} (${selectedStudents.length} คน) เรียบร้อยแล้ว (บันทึกเป็นค่าเริ่มต้น)`
     );
     setShowCopyAllStudentsModal(false);
+  };
+
+  const handleResetCopiedGrade = () => {
+    setCustomCopiedGrade(null);
+    setCustomCopiedStudentIds(null);
+    try {
+      localStorage.removeItem('bank_copied_grade');
+      localStorage.removeItem('bank_copied_students');
+    } catch (e) {
+      console.warn(e);
+    }
+    const all = dataService.getStudents();
+    setStudents(all);
+    dataService.notifyToast('info', 'แสดงนักเรียนทั้งหมด', `แสดงรายชื่อนักเรียนทุกชั้น (${all.length} คน)`);
   };
 
   // Handle Note input change (auto-saves silently)
@@ -326,11 +377,27 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     setAllHistoryRecords(dataService.getAllAttendanceAndBank());
   };
 
+  const depositSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (depositSaveTimeoutRef.current) {
+        clearTimeout(depositSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleDepositChange = (studentId: string, amount: number) => {
     const updated = { ...depositsMap, [studentId]: Math.max(0, amount) };
     setDepositsMap(updated);
-    dataService.saveDayAttendanceAndBank(selectedDate, attendanceMap, updated, dayNote, true);
-    setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+
+    if (depositSaveTimeoutRef.current) {
+      clearTimeout(depositSaveTimeoutRef.current);
+    }
+    depositSaveTimeoutRef.current = setTimeout(() => {
+      dataService.saveDayAttendanceAndBank(selectedDate, attendanceMap, updated, dayNote, true);
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+    }, 250);
   };
 
   // Confirm Delete Bank & Attendance Data (มา, ขาด, ป่วย, ลา, เงินออม, All)
@@ -447,8 +514,10 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   // Cumulative student attendance statistics across all saved dates (ม, ป, ล, ข)
   const studentCumulativeStats = useMemo(() => {
     const stats: Record<string, { present: number; sick: number; personal: number; absent: number }> = {};
+    const studentIds = new Set<string>();
     students.forEach((s) => {
       stats[s.id] = { present: 0, sick: 0, personal: 0, absent: 0 };
+      studentIds.add(s.id);
     });
 
     const allDates = new Set(Object.keys(allHistoryRecords));
@@ -456,14 +525,14 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
     allDates.forEach((dateKey) => {
       const att = dateKey === selectedDate ? attendanceMap : (allHistoryRecords[dateKey]?.attendance || {});
-      Object.entries(att).forEach(([studentId, st]) => {
-        if (stats[studentId]) {
+      for (const [studentId, st] of Object.entries(att)) {
+        if (studentIds.has(studentId)) {
           if (st === 'present') stats[studentId].present += 1;
           else if (st === 'sick') stats[studentId].sick += 1;
           else if (st === 'personal') stats[studentId].personal += 1;
           else if (st === 'absent') stats[studentId].absent += 1;
         }
-      });
+      }
     });
 
     return stats;
@@ -472,8 +541,10 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   // Real-time cumulative savings for each student across all recorded dates
   const studentCumulativeSavings = useMemo(() => {
     const savings: Record<string, number> = {};
+    const studentIds = new Set<string>();
     students.forEach((s) => {
       savings[s.id] = 0;
+      studentIds.add(s.id);
     });
 
     const allDates = new Set(Object.keys(allHistoryRecords));
@@ -481,12 +552,14 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
     allDates.forEach((dateKey) => {
       const dayDeposits = dateKey === selectedDate ? depositsMap : (allHistoryRecords[dateKey]?.deposits || {});
-      Object.entries(dayDeposits).forEach(([sId, amt]) => {
-        const val = Number(amt) || 0;
-        if (val > 0) {
-          savings[sId] = (savings[sId] || 0) + val;
+      for (const [sId, amt] of Object.entries(dayDeposits)) {
+        if (studentIds.has(sId)) {
+          const val = Number(amt) || 0;
+          if (val > 0) {
+            savings[sId] = (savings[sId] || 0) + val;
+          }
         }
-      });
+      }
     });
 
     return savings;
@@ -785,11 +858,27 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
               {customCopiedGrade && (
                 <div 
-                  onClick={() => setShowCopyAllStudentsModal(true)}
-                  className="flex items-center bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-0.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer hover:bg-purple-100 transition-colors"
-                  title="กดเพื่อเปลี่ยนชั้นเรียนหรือคัดลอกรายชื่อใหม่"
+                  className="flex items-center gap-1.5 bg-purple-50 text-purple-700 border border-purple-200 pl-2.5 pr-1.5 py-0.5 rounded-lg text-xs font-semibold shrink-0 transition-colors"
                 >
-                  <span>ชั้น {customCopiedGrade} ({students.length} คน)</span>
+                  <span 
+                    onClick={() => setShowCopyAllStudentsModal(true)}
+                    className="cursor-pointer hover:underline"
+                    title="กดเพื่อเปลี่ยนชั้นเรียนหรือคัดลอกรายชื่อใหม่"
+                  >
+                    ชั้น {customCopiedGrade} ({students.length} คน)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleResetCopiedGrade();
+                    }}
+                    className="p-0.5 text-purple-400 hover:text-purple-700 hover:bg-purple-200/60 rounded-full cursor-pointer transition-colors"
+                    title="ล้างการเลือกและแสดงนักเรียนทั้งหมด"
+                    aria-label="ล้างการเลือกชั้นเรียน"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
               )}
             </div>
@@ -2125,6 +2214,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         isOpen={showCopyAllStudentsModal}
         onClose={() => setShowCopyAllStudentsModal(false)}
         onApplyStudents={handleApplyStudentsBank}
+        defaultGrade={customCopiedGrade && customCopiedGrade !== 'ทุกชั้น' ? (customCopiedGrade as any) : 'all'}
         title="คัดลอกรายชื่อนักเรียน (หน้าเงินฝาก/เช็คชื่อ)"
         subtitle="เลือกชั้นเรียนเพื่อคัดลอกรายชื่อทั้งหมด"
       />
