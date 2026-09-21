@@ -334,20 +334,6 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     setShowCopyAllStudentsModal(false);
   };
 
-  const handleResetCopiedGrade = () => {
-    setCustomCopiedGrade(null);
-    setCustomCopiedStudentIds(null);
-    try {
-      localStorage.removeItem('bank_copied_grade');
-      localStorage.removeItem('bank_copied_students');
-    } catch (e) {
-      console.warn(e);
-    }
-    const all = dataService.getStudents();
-    setStudents(all);
-    dataService.notifyToast('info', 'แสดงนักเรียนทั้งหมด', `แสดงรายชื่อนักเรียนทุกชั้น (${all.length} คน)`);
-  };
-
   // Handle Note input change (auto-saves silently)
   const handleNoteChange = (text: string) => {
     setDayNote(text);
@@ -858,27 +844,11 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
               {customCopiedGrade && (
                 <div 
-                  className="flex items-center gap-1.5 bg-purple-50 text-purple-700 border border-purple-200 pl-2.5 pr-1.5 py-0.5 rounded-lg text-xs font-semibold shrink-0 transition-colors"
+                  onClick={() => setShowCopyAllStudentsModal(true)}
+                  className="flex items-center bg-purple-50 text-purple-700 border border-purple-200 px-2.5 py-0.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer hover:bg-purple-100 transition-colors"
+                  title="กดเพื่อเปลี่ยนชั้นเรียนหรือคัดลอกรายชื่อใหม่"
                 >
-                  <span 
-                    onClick={() => setShowCopyAllStudentsModal(true)}
-                    className="cursor-pointer hover:underline"
-                    title="กดเพื่อเปลี่ยนชั้นเรียนหรือคัดลอกรายชื่อใหม่"
-                  >
-                    ชั้น {customCopiedGrade} ({students.length} คน)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleResetCopiedGrade();
-                    }}
-                    className="p-0.5 text-purple-400 hover:text-purple-700 hover:bg-purple-200/60 rounded-full cursor-pointer transition-colors"
-                    title="ล้างการเลือกและแสดงนักเรียนทั้งหมด"
-                    aria-label="ล้างการเลือกชั้นเรียน"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  <span>ชั้น {customCopiedGrade} ({students.length} คน)</span>
                 </div>
               )}
             </div>
