@@ -3212,42 +3212,50 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                         className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2.5"
                       >
                         {/* Topic Title with Edit Icon */}
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2">
                           {isEditingThis ? (
-                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                              <input
-                                type="text"
+                            <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                              <textarea
+                                rows={2}
                                 value={modalEditingTopicText}
                                 onChange={(e) => setModalEditingTopicText(e.target.value)}
                                 placeholder={`ชื่อเรื่องที่ ${tIdx + 1}`}
-                                className="flex-1 text-xs px-2.5 py-1 rounded-lg border border-purple-400 bg-purple-50/40 focus:outline-none focus:ring-1 focus:ring-purple-500 font-semibold text-slate-800"
+                                className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-purple-400 bg-purple-50/40 focus:outline-none focus:ring-1 focus:ring-purple-500 font-semibold text-slate-800 resize-none leading-snug"
                                 autoFocus
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveModalTopicTitle(tIdx);
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveModalTopicTitle(tIdx);
+                                  }
                                   if (e.key === 'Escape') setModalEditingTopicIdx(null);
                                 }}
                               />
-                              <button
-                                type="button"
-                                onClick={() => handleSaveModalTopicTitle(tIdx)}
-                                className="p-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0"
-                                title="บันทึกชื่อเรื่อง"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setModalEditingTopicIdx(null)}
-                                className="p-1 rounded-md bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors cursor-pointer shrink-0"
-                                title="ยกเลิก"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex flex-col gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveModalTopicTitle(tIdx)}
+                                  className="p-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0"
+                                  title="บันทึกชื่อเรื่อง"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setModalEditingTopicIdx(null)}
+                                  className="p-1.5 rounded-md bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors cursor-pointer shrink-0"
+                                  title="ยกเลิก"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              <span className="text-xs font-bold text-slate-800 truncate">
-                                เรื่องที่ {tIdx + 1}: {topicTitle || `กิจกรรมการเรียนรู้ที่ ${tIdx + 1}`}
+                            <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                              <span className="text-xs font-bold text-slate-800 line-clamp-2 break-words leading-snug">
+                                <span className="text-purple-700 font-extrabold mr-1 shrink-0">
+                                  เรื่องที่ {tIdx + 1}:
+                                </span>
+                                {topicTitle || `กิจกรรมการเรียนรู้ที่ ${tIdx + 1}`}
                               </span>
                               <button
                                 type="button"
@@ -3255,7 +3263,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                                   setModalEditingTopicIdx(tIdx);
                                   setModalEditingTopicText(topicTitle || `เรื่องที่ ${tIdx + 1}`);
                                 }}
-                                className="p-1 rounded-md text-purple-600 hover:text-purple-800 hover:bg-purple-100/70 transition-colors cursor-pointer shrink-0"
+                                className="p-1 rounded-md text-purple-600 hover:text-purple-800 hover:bg-purple-100/70 transition-colors cursor-pointer shrink-0 mt-[-2px]"
                                 title="แก้ไขชื่อเรื่องนี้"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
@@ -3263,7 +3271,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                             </div>
                           )}
 
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 shrink-0">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 shrink-0 mt-0.5">
                             คะแนน: {currentVal !== undefined && currentVal !== '-' ? `${currentVal} / 5` : 'ยังไม่ลงคะแนน'}
                           </span>
                         </div>
