@@ -70,12 +70,15 @@
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 auto !important;
-    padding: 10mm !important;
+    padding: 5mm !important;
     background: white !important;
     color: black !important;
     box-shadow: none !important;
     border: none !important;
-    page-break-after: auto;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   #printable-report * {

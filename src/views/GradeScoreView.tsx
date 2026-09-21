@@ -36,7 +36,8 @@ import {
   ChevronDown,
   ChevronUp,
   Search,
-  Check
+  Check,
+  Pencil
 } from 'lucide-react';
 
 interface GradeScoreViewProps {
@@ -149,15 +150,63 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   const [expandedTopicIdx, setExpandedTopicIdx] = useState<number | null>(null);
   const topicPopoverRef = useRef<HTMLDivElement>(null);
 
-  // Mobile / Fullscreen Student Score Pop-up Modal (Req: หน้ากรอกคะแนน - ส่วนสูง แสดงหน้าเต็ม mobile พอดี เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนนให้เรียบร้อย ลงเสร็จก็กดบันทึก)
+  // Mobile / Fullscreen Student Score Pop-up Modal (Req: หน้ากรอกคะแนน - ส่วนสูง แสดงหน้าเต็ม mobile พอดี เมื่อกดชื่อ จะแสดงpop-up ให้ลงคะแนนให้เรียบร้อย บันทึกอัตโนมัติ)
   const [selectedScoreModalStudent, setSelectedScoreModalStudent] = useState<SheetStudent | null>(null);
   const [modalActiveTab, setModalActiveTab] = useState<'chapter' | 'final'>('chapter');
   const [modalSelectedChapterIdx, setModalSelectedChapterIdx] = useState<number>(0);
   const [modalTopicScores, setModalTopicScores] = useState<(number | '-')[]>([]);
   const [modalFinalScore, setModalFinalScore] = useState<number | ''>('');
+  const [modalEditingTopicIdx, setModalEditingTopicIdx] = useState<number | null>(null);
+  const [modalEditingTopicText, setModalEditingTopicText] = useState<string>('');
+
+  // Auto-save helper for student modal: instantly saves without losing any data
+  const saveModalStudentScores = (
+    studentId: string,
+    chapterIdx: number,
+    scores: (number | '-')[],
+    examScore: number | ''
+  ) => {
+    if (!activeSheet) return null;
+
+    let updatedChapters = [...currentChapters];
+    if (chapterIdx >= 0 && chapterIdx < currentChapters.length) {
+      const chNum = currentChapters[chapterIdx].chapterNumber;
+      updatedChapters = updatedChapters.map((ch) => {
+        if (ch.chapterNumber === chNum) {
+          return {
+            ...ch,
+            scores: {
+              ...ch.scores,
+              [studentId]: [...scores],
+            },
+          };
+        }
+        return ch;
+      });
+    }
+
+    let updatedFinalScores = { ...(activeSheet.finalExamScores || {}) };
+    if (typeof examScore === 'number') {
+      updatedFinalScores[studentId] = examScore;
+    } else if (examScore === '') {
+      delete updatedFinalScores[studentId];
+    }
+
+    const updatedSheet: ScoreSheet = {
+      ...activeSheet,
+      chapters: updatedChapters,
+      finalExamScores: updatedFinalScores,
+      updatedAt: new Date().toISOString(),
+    };
+
+    dataService.saveScoreSheet(updatedSheet, true);
+    triggerAutoSaveEffect();
+    return updatedSheet;
+  };
 
   const handleOpenScoreModal = (student: SheetStudent) => {
     setSelectedScoreModalStudent(student);
+    setModalEditingTopicIdx(null);
 
     let chIdx = 0;
     if (typeof activeChapterTab === 'number') {
@@ -183,105 +232,108 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   const handleSwitchModalChapter = (newChIdx: number) => {
     if (!selectedScoreModalStudent) return;
+    setModalEditingTopicIdx(null);
+
+    // บันทึกอัตโนมัติบทปัจจุบันทันที ข้อมูลคะแนนไม่หายแน่นอนเมื่อสลับไปบทที่ 1, 2, 3
+    const updatedSheet = saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      modalTopicScores,
+      modalFinalScore
+    );
+
     setModalSelectedChapterIdx(newChIdx);
     setModalActiveTab('chapter');
-    const targetCh = currentChapters[newChIdx];
+
+    // โหลดข้อมูลบทใหม่จากข้อมูลที่เพิ่งบันทึกล่าสุด
+    const chaptersToUse = updatedSheet?.chapters || currentChapters;
+    const targetCh = chaptersToUse[newChIdx];
     const newTopics = targetCh && targetCh.scores[selectedScoreModalStudent.id]
       ? [...targetCh.scores[selectedScoreModalStudent.id]]
       : Array(targetCh ? targetCh.topics.length : 10).fill('-');
     setModalTopicScores(newTopics);
   };
 
+  // แตะเลือกคะแนนใน Pop-up ให้บันทึกอัตโนมัติทันที
+  const handleSelectModalScore = (tIdx: number, val: number | '-') => {
+    if (!selectedScoreModalStudent) return;
+    const updated = [...modalTopicScores];
+    while (updated.length <= tIdx) updated.push('-');
+    updated[tIdx] = val;
+    setModalTopicScores(updated);
+
+    // บันทึกอัตโนมัติทันที
+    saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      updated,
+      modalFinalScore
+    );
+  };
+
+  // เปลี่ยนคะแนนปลายภาค ให้บันทึกอัตโนมัติทันที
+  const handleSelectModalFinalScore = (score: number | '') => {
+    if (!selectedScoreModalStudent) return;
+    setModalFinalScore(score);
+
+    // บันทึกอัตโนมัติทันที
+    saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      modalTopicScores,
+      score
+    );
+  };
+
+  // บันทึกชื่อเรื่องของเรื่องใน Pop-up
+  const handleSaveModalTopicTitle = (tIdx: number) => {
+    if (!currentChapters[modalSelectedChapterIdx]) return;
+    const chNum = currentChapters[modalSelectedChapterIdx].chapterNumber;
+    handleUpdateTopicTitle(chNum, tIdx, modalEditingTopicText.trim());
+    setModalEditingTopicIdx(null);
+  };
+
   const handleSaveScoreModal = () => {
     if (!selectedScoreModalStudent || !activeSheet) return;
-    const sId = selectedScoreModalStudent.id;
-
-    let updatedChapters = [...currentChapters];
-    if (modalActiveTab === 'chapter' && modalSelectedChapterIdx >= 0 && modalSelectedChapterIdx < currentChapters.length) {
-      const chNum = currentChapters[modalSelectedChapterIdx].chapterNumber;
-      updatedChapters = updatedChapters.map((ch) => {
-        if (ch.chapterNumber === chNum) {
-          return {
-            ...ch,
-            scores: {
-              ...ch.scores,
-              [sId]: [...modalTopicScores],
-            },
-          };
-        }
-        return ch;
-      });
-    }
-
-    let updatedFinalScores = { ...(activeSheet.finalExamScores || {}) };
-    if (modalActiveTab === 'final' || modalFinalScore !== '') {
-      if (typeof modalFinalScore === 'number') {
-        updatedFinalScores[sId] = modalFinalScore;
-      }
-    }
-
-    const updatedSheet: ScoreSheet = {
-      ...activeSheet,
-      chapters: updatedChapters,
-      finalExamScores: updatedFinalScores,
-      updatedAt: new Date().toISOString(),
-    };
-
-    dataService.saveScoreSheet(updatedSheet, true);
-    triggerAutoSaveEffect();
+    saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      modalTopicScores,
+      modalFinalScore
+    );
     dataService.notifyToast(
       'success',
       `บันทึกคะแนน ${selectedScoreModalStudent.prefix || ''}${selectedScoreModalStudent.firstName} เรียบร้อยแล้ว`
     );
     setSelectedScoreModalStudent(null);
+    setModalEditingTopicIdx(null);
   };
 
   const handleNextStudentInScoreModal = () => {
     if (!selectedScoreModalStudent || !activeSheet) return;
-    const sId = selectedScoreModalStudent.id;
-    let updatedChapters = [...currentChapters];
-    if (modalActiveTab === 'chapter' && modalSelectedChapterIdx >= 0 && modalSelectedChapterIdx < currentChapters.length) {
-      const chNum = currentChapters[modalSelectedChapterIdx].chapterNumber;
-      updatedChapters = updatedChapters.map((ch) => {
-        if (ch.chapterNumber === chNum) {
-          return {
-            ...ch,
-            scores: {
-              ...ch.scores,
-              [sId]: [...modalTopicScores],
-            },
-          };
-        }
-        return ch;
-      });
-    }
+    setModalEditingTopicIdx(null);
 
-    let updatedFinalScores = { ...(activeSheet.finalExamScores || {}) };
-    if (typeof modalFinalScore === 'number') {
-      updatedFinalScores[sId] = modalFinalScore;
-    }
-
-    const updatedSheet: ScoreSheet = {
-      ...activeSheet,
-      chapters: updatedChapters,
-      finalExamScores: updatedFinalScores,
-      updatedAt: new Date().toISOString(),
-    };
-    dataService.saveScoreSheet(updatedSheet, true);
-    triggerAutoSaveEffect();
+    // บันทึกคะแนนคนปัจจุบันก่อนเลื่อน
+    const updatedSheet = saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      modalTopicScores,
+      modalFinalScore
+    );
 
     const currIdx = currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id);
     if (currIdx < currentSheetStudents.length - 1) {
       const nextStd = currentSheetStudents[currIdx + 1];
       setSelectedScoreModalStudent(nextStd);
 
-      const targetCh = updatedChapters[modalSelectedChapterIdx];
+      const chaptersToUse = updatedSheet?.chapters || currentChapters;
+      const targetCh = chaptersToUse[modalSelectedChapterIdx];
       const nextTopics = targetCh && targetCh.scores[nextStd.id]
         ? [...targetCh.scores[nextStd.id]]
         : Array(targetCh ? targetCh.topics.length : 10).fill('-');
       setModalTopicScores(nextTopics);
 
-      const nextExam = updatedFinalScores[nextStd.id];
+      const nextExam = updatedSheet?.finalExamScores?.[nextStd.id];
       setModalFinalScore(typeof nextExam === 'number' ? nextExam : '');
     } else {
       setSelectedScoreModalStudent(null);
@@ -291,18 +343,29 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
   const handlePrevStudentInScoreModal = () => {
     if (!selectedScoreModalStudent || !activeSheet) return;
+    setModalEditingTopicIdx(null);
+
+    // บันทึกคะแนนคนปัจจุบันก่อนเลื่อน
+    const updatedSheet = saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      modalTopicScores,
+      modalFinalScore
+    );
+
     const currIdx = currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id);
     if (currIdx > 0) {
       const prevStd = currentSheetStudents[currIdx - 1];
       setSelectedScoreModalStudent(prevStd);
 
-      const targetCh = currentChapters[modalSelectedChapterIdx];
+      const chaptersToUse = updatedSheet?.chapters || currentChapters;
+      const targetCh = chaptersToUse[modalSelectedChapterIdx];
       const prevTopics = targetCh && targetCh.scores[prevStd.id]
         ? [...targetCh.scores[prevStd.id]]
         : Array(targetCh ? targetCh.topics.length : 10).fill('-');
       setModalTopicScores(prevTopics);
 
-      const prevExam = activeSheet.finalExamScores?.[prevStd.id];
+      const prevExam = updatedSheet?.finalExamScores?.[prevStd.id];
       setModalFinalScore(typeof prevExam === 'number' ? prevExam : '');
     }
   };
@@ -964,7 +1027,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   };
 
   // SCALING / WEIGHTING CALCULATION:
-  // Loops across all topics dynamically. If column has no title -> excluded from calculation.
+  // Loops across all topics dynamically.
   const computeChapterStudentScore = (chapter: ScoreChapter, studentId: string) => {
     const scores = chapter.scores[studentId] || [];
     const topics = chapter.topics || [];
@@ -972,15 +1035,21 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
     let activeTopicsCount = 0;
     let rawScore = 0;
 
-    for (let i = 0; i < topics.length; i++) {
+    const maxLen = Math.max(topics.length, scores.length);
+    for (let i = 0; i < maxLen; i++) {
       const topicTitle = topics[i]?.trim();
-      if (topicTitle && topicTitle.length > 0) {
+      const val = scores[i];
+      const hasScore = typeof val === 'number';
+      if ((topicTitle && topicTitle.length > 0) || hasScore || (i < topics.length && topics.length <= 10)) {
         activeTopicsCount++;
-        const val = scores[i];
-        if (typeof val === 'number') {
+        if (hasScore) {
           rawScore += Math.max(0, Math.min(5, val));
         }
       }
+    }
+
+    if (activeTopicsCount === 0 && topics.length > 0) {
+      activeTopicsCount = topics.length;
     }
 
     const maxRawScore = activeTopicsCount * 5;
@@ -988,7 +1057,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
     let scaledScore = 0;
     if (maxRawScore > 0) {
-      scaledScore = Number(((rawScore / maxRawScore) * targetMax).toFixed(2));
+      scaledScore = Number(((rawScore / maxRawScore) * targetMax).toFixed(1));
     }
 
     return {
@@ -1336,34 +1405,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </span>
                   </div>
 
-                  {/* Search box if 4 or more subjects */}
-                  {currentTermSheets.length >= 4 && (
-                    <div className="relative mb-2">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        value={subjectSearchQuery}
-                        onChange={(e) => setSubjectSearchQuery(e.target.value)}
-                        placeholder="พิมพ์เพื่อค้นหารายวิชา..."
-                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 rounded-xl border border-slate-200 focus:border-emerald-500 focus:bg-white outline-hidden"
-                        autoFocus
-                      />
-                      {subjectSearchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setSubjectSearchQuery('')}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* List of Subjects */}
-                  <div className="max-h-64 overflow-y-auto space-y-1 pr-0.5">
-                    {filteredTermSheets.length > 0 ? (
-                      filteredTermSheets.map((sheet) => {
+                  {/* List of Subjects - ไม่แสดงช่องค้นหาเพื่อป้องกันแป้นพิมพ์เด้งบนมือถือและแท็บเล็ต */}
+                  <div className="max-h-72 overflow-y-auto space-y-1 pr-0.5">
+                    {currentTermSheets.length > 0 ? (
+                      currentTermSheets.map((sheet) => {
                         const isActive = sheet.id === activeSheetId;
                         const totalMax =
                           (sheet.chapters || []).reduce((sum, c) => sum + (c.maxScore || 15), 0) +
@@ -1439,7 +1484,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       })
                     ) : (
                       <div className="text-center py-6 text-xs text-slate-500">
-                        {subjectSearchQuery ? 'ไม่พบรายวิชาที่ตรงกับการค้นหา' : 'ยังไม่มีรายวิชาในภาคเรียนนี้'}
+                        ยังไม่มีรายวิชาในภาคเรียนนี้
                       </div>
                     )}
                   </div>
@@ -2964,46 +3009,68 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               </div>
             }
           >
-            <table className="w-full border-collapse border border-slate-400 text-xs">
+            <table className="w-full border-collapse border border-slate-400 text-xs text-slate-800">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-400 font-bold">
-                  <th className="border border-slate-400 p-2 text-center w-12">ลำดับ</th>
-                  <th className="border border-slate-400 p-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
+                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-10">ลำดับ</th>
+                  <th className="border border-slate-400 py-1.5 px-2 text-left">ชื่อ - นามสกุล นักเรียน</th>
                   {currentChapters.map((ch) => (
-                    <th key={`p-head-${ch.chapterNumber}`} className="border border-slate-400 p-1.5 text-center">
-                      {ch.title}
-                      <span className="block text-[10px] font-normal text-slate-600">(เต็ม {ch.maxScore || 15})</span>
+                    <th key={`p-head-${ch.chapterNumber}`} className="border border-slate-400 py-1.5 px-1.5 text-center min-w-[70px]">
+                      <span className="block font-bold">{ch.title}</span>
+                      <span className="block text-[9px] font-normal text-slate-600">(เต็ม {ch.maxScore || 15})</span>
                     </th>
                   ))}
-                  <th className="border border-slate-400 p-2 text-center w-24">
-                    รวมคะแนนเก็บ
-                    <span className="block text-[10px] font-normal text-slate-600">(เต็ม {activeSheet?.collectMaxScore || 70})</span>
+                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-20 bg-purple-50/50">
+                    <span className="block font-bold">รวมคะแนนเก็บ</span>
+                    <span className="block text-[9px] font-normal text-slate-600">
+                      (เต็ม {allStudentsSummary[0]?.totalChapterMax || activeSheet?.collectMaxScore || currentChapters.reduce((sum, ch) => sum + (ch.maxScore || 15), 0)})
+                    </span>
                   </th>
-                  <th className="border border-slate-400 p-2 text-center w-20">
-                    สอบปลายภาค
-                    <span className="block text-[10px] font-normal text-slate-600">(เต็ม {activeSheet?.finalExamMaxScore || 30})</span>
+                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-16 bg-amber-50/40">
+                    <span className="block font-bold">สอบปลายภาค</span>
+                    <span className="block text-[9px] font-normal text-slate-600">(เต็ม {activeSheet?.finalExamMaxScore || 30})</span>
                   </th>
-                  <th className="border border-slate-400 p-2 text-center w-20 bg-slate-200/70 font-black">
-                    คะแนนรวม
-                    <span className="block text-[10px] font-bold text-slate-700">(เต็ม 100)</span>
+                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-16 bg-slate-200/70 font-black">
+                    <span className="block font-black text-slate-900">คะแนนรวม</span>
+                    <span className="block text-[9px] font-bold text-slate-700">
+                      (เต็ม {allStudentsSummary[0]?.totalTargetMax || 100})
+                    </span>
+                  </th>
+                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-14 bg-sky-50/50">
+                    ร้อยละ (%)
+                  </th>
+                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-12 bg-emerald-50/50">
+                    เกรด
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {allStudentsSummary.map((row) => (
                   <tr key={row.studentId} className="border-b border-slate-300 hover:bg-slate-50/50">
-                    <td className="border border-slate-300 p-2 text-center font-medium">{row.order}</td>
-                    <td className="border border-slate-300 p-2 font-medium">{row.studentName}</td>
+                    <td className="border border-slate-300 py-1 px-1 text-center font-medium">{row.order}</td>
+                    <td className="border border-slate-300 py-1 px-2 font-medium">{row.studentName}</td>
                     {currentChapters.map((ch) => (
-                      <td key={`p-cell-${ch.chapterNumber}`} className="border border-slate-300 p-2 text-center">
+                      <td key={`p-cell-${ch.chapterNumber}`} className="border border-slate-300 py-1 px-1.5 text-center">
                         {row.chapterScaledScores[ch.chapterNumber] !== undefined
                           ? row.chapterScaledScores[ch.chapterNumber]
                           : '-'}
                       </td>
                     ))}
-                    <td className="border border-slate-300 p-2 text-center font-bold text-slate-800">{row.totalChapterScaled}</td>
-                    <td className="border border-slate-300 p-2 text-center font-bold text-slate-800">{row.finalExamScore}</td>
-                    <td className="border border-slate-300 p-2 text-center font-black text-slate-900 bg-slate-100/50">{row.totalScore}</td>
+                    <td className="border border-slate-300 py-1 px-1.5 text-center font-bold text-purple-950 bg-purple-50/30">
+                      {row.totalChapterScaled}
+                    </td>
+                    <td className="border border-slate-300 py-1 px-1.5 text-center font-bold text-slate-800 bg-amber-50/20">
+                      {row.finalExamScore}
+                    </td>
+                    <td className="border border-slate-300 py-1 px-1.5 text-center font-black text-slate-900 bg-slate-100/50">
+                      {row.totalScore}
+                    </td>
+                    <td className="border border-slate-300 py-1 px-1.5 text-center font-medium text-slate-700">
+                      {row.percentage}%
+                    </td>
+                    <td className="border border-slate-300 py-1 px-1.5 text-center font-black text-emerald-800 bg-emerald-50/30">
+                      {row.grade}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -3043,23 +3110,36 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             {/* Header */}
             <div className="px-4 py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between shrink-0 shadow-xs">
               <div className="min-w-0 pr-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
                     คนที่ {currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id) + 1} จาก {currentSheetStudents.length}
                   </span>
                   <span className="text-purple-200 text-xs truncate">
                     {activeSheet?.subjectName || 'รายวิชา'}
                   </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                    บันทึกอัตโนมัติ
+                  </span>
                 </div>
-                <h3 className="text-base font-bold truncate mt-0.5">
+                <h3 className="text-base font-bold truncate mt-1">
                   {selectedScoreModalStudent.prefix}{selectedScoreModalStudent.firstName} {selectedScoreModalStudent.lastName}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedScoreModalStudent(null)}
+                onClick={() => {
+                  saveModalStudentScores(
+                    selectedScoreModalStudent.id,
+                    modalSelectedChapterIdx,
+                    modalTopicScores,
+                    modalFinalScore
+                  );
+                  setSelectedScoreModalStudent(null);
+                  setModalEditingTopicIdx(null);
+                }}
                 className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
-                title="ปิดหน้าต่าง"
+                title="ปิดหน้าต่าง (บันทึกข้อมูลเรียบร้อยแล้ว)"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3083,7 +3163,18 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               ))}
               <button
                 type="button"
-                onClick={() => setModalActiveTab('final')}
+                onClick={() => {
+                  if (selectedScoreModalStudent) {
+                    saveModalStudentScores(
+                      selectedScoreModalStudent.id,
+                      modalSelectedChapterIdx,
+                      modalTopicScores,
+                      modalFinalScore
+                    );
+                  }
+                  setModalEditingTopicIdx(null);
+                  setModalActiveTab('final');
+                }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                   modalActiveTab === 'final'
                     ? 'bg-amber-600 text-white shadow-xs'
@@ -3113,34 +3204,79 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
                   {currentChapters[modalSelectedChapterIdx]?.topics.map((topicTitle, tIdx) => {
                     const currentVal = modalTopicScores[tIdx];
+                    const isEditingThis = modalEditingTopicIdx === tIdx;
+
                     return (
                       <div
                         key={`modal-topic-${tIdx}`}
-                        className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2"
+                        className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2.5"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-800">
-                            เรื่องที่ {tIdx + 1}: {topicTitle || `กิจกรรมการเรียนรู้ที่ ${tIdx + 1}`}
-                          </span>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                        {/* Topic Title with Edit Icon */}
+                        <div className="flex items-center justify-between gap-2">
+                          {isEditingThis ? (
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                              <input
+                                type="text"
+                                value={modalEditingTopicText}
+                                onChange={(e) => setModalEditingTopicText(e.target.value)}
+                                placeholder={`ชื่อเรื่องที่ ${tIdx + 1}`}
+                                className="flex-1 text-xs px-2.5 py-1 rounded-lg border border-purple-400 bg-purple-50/40 focus:outline-none focus:ring-1 focus:ring-purple-500 font-semibold text-slate-800"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveModalTopicTitle(tIdx);
+                                  if (e.key === 'Escape') setModalEditingTopicIdx(null);
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveModalTopicTitle(tIdx)}
+                                className="p-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0"
+                                title="บันทึกชื่อเรื่อง"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setModalEditingTopicIdx(null)}
+                                className="p-1 rounded-md bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors cursor-pointer shrink-0"
+                                title="ยกเลิก"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <span className="text-xs font-bold text-slate-800 truncate">
+                                เรื่องที่ {tIdx + 1}: {topicTitle || `กิจกรรมการเรียนรู้ที่ ${tIdx + 1}`}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setModalEditingTopicIdx(tIdx);
+                                  setModalEditingTopicText(topicTitle || `เรื่องที่ ${tIdx + 1}`);
+                                }}
+                                className="p-1 rounded-md text-purple-600 hover:text-purple-800 hover:bg-purple-100/70 transition-colors cursor-pointer shrink-0"
+                                title="แก้ไขชื่อเรื่องนี้"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 shrink-0">
                             คะแนน: {currentVal !== undefined && currentVal !== '-' ? `${currentVal} / 5` : 'ยังไม่ลงคะแนน'}
                           </span>
                         </div>
 
                         {/* Quick Selection Pills: 5, 4, 3, 2, 1, 0, - */}
-                        <div className="grid grid-cols-7 gap-1 pt-1">
+                        <div className="grid grid-cols-7 gap-1 pt-0.5">
                           {[5, 4, 3, 2, 1, 0, '-'].map((val) => {
                             const isSelected = currentVal === val;
                             return (
                               <button
                                 key={`val-btn-${val}`}
                                 type="button"
-                                onClick={() => {
-                                  const updated = [...modalTopicScores];
-                                  while (updated.length <= tIdx) updated.push('-');
-                                  updated[tIdx] = val as number | '-';
-                                  setModalTopicScores(updated);
-                                }}
+                                onClick={() => handleSelectModalScore(tIdx, val as number | '-')}
                                 className={`py-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center ${
                                   isSelected
                                     ? val === '-'
@@ -3176,7 +3312,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      ระบุคะแนนสอบที่ได้
+                      ระบุคะแนนสอบที่ได้ (บันทึกอัตโนมัติ)
                     </label>
                     <input
                       type="number"
@@ -3186,11 +3322,11 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       onChange={(e) => {
                         const v = e.target.value;
                         if (v === '') {
-                          setModalFinalScore('');
+                          handleSelectModalFinalScore('');
                         } else {
                           const n = Number(v);
                           const max = activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30;
-                          setModalFinalScore(Math.max(0, Math.min(max, n)));
+                          handleSelectModalFinalScore(Math.max(0, Math.min(max, n)));
                         }
                       }}
                       placeholder="0"
@@ -3213,7 +3349,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                         <button
                           key={`final-preset-${presetVal}`}
                           type="button"
-                          onClick={() => setModalFinalScore(presetVal)}
+                          onClick={() => handleSelectModalFinalScore(presetVal)}
                           className="py-1.5 text-xs font-bold rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors cursor-pointer"
                         >
                           {presetVal}
