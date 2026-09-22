@@ -519,6 +519,77 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     }
   };
 
+  // Group and sort withdrawals by student roll number (เลขที่)
+  const studentWithdrawalGroups = useMemo(() => {
+    if (withdrawalLogs.length === 0) return [];
+    const allStudents = dataService.getStudents();
+    const studentMap = new Map<string, Student>();
+    allStudents.forEach((s) => studentMap.set(s.id, s));
+    students.forEach((s) => studentMap.set(s.id, s));
+
+    const groupedMap = new Map<string, WithdrawalLog[]>();
+    withdrawalLogs.forEach((log) => {
+      const existing = groupedMap.get(log.studentId) || [];
+      existing.push(log);
+      groupedMap.set(log.studentId, existing);
+    });
+
+    const groups: {
+      studentId: string;
+      student: Student | undefined;
+      studentName: string;
+      rollNo: number;
+      gradeLevel?: string;
+      totalWithdrawn: number;
+      logs: WithdrawalLog[];
+    }[] = [];
+
+    groupedMap.forEach((logs, studentId) => {
+      const student = studentMap.get(studentId);
+      const studentName = student
+        ? `${student.prefix || ''}${student.firstName} ${student.lastName}`.trim()
+        : logs[0]?.studentName || 'ไม่ระบุชื่อนักเรียน';
+
+      // Determine roll number (ลำดับเลขที่): check student.order or position in active list/all list
+      let rollNo = 999;
+      if (student?.order && typeof student.order === 'number') {
+        rollNo = student.order;
+      } else {
+        const activeIdx = students.findIndex((s) => s.id === studentId);
+        if (activeIdx >= 0) {
+          rollNo = activeIdx + 1;
+        } else {
+          const allIdx = allStudents.findIndex((s) => s.id === studentId);
+          if (allIdx >= 0) {
+            rollNo = allIdx + 1;
+          }
+        }
+      }
+
+      // Sort logs for this student newest first
+      logs.sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
+      const totalWithdrawn = logs.reduce((sum, l) => sum + (l.amount || 0), 0);
+
+      groups.push({
+        studentId,
+        student,
+        studentName,
+        rollNo,
+        gradeLevel: student?.gradeLevel,
+        totalWithdrawn,
+        logs,
+      });
+    });
+
+    // Sort student groups strictly ascending by roll number (เลขที่)
+    groups.sort((a, b) => {
+      if (a.rollNo !== b.rollNo) return a.rollNo - b.rollNo;
+      return a.studentName.localeCompare(b.studentName, 'th');
+    });
+
+    return groups;
+  }, [withdrawalLogs, students]);
+
   // Cumulative student attendance statistics across all saved dates (ม, ป, ล, ข)
   const studentCumulativeStats = useMemo(() => {
     const stats: Record<string, { present: number; sick: number; personal: number; absent: number }> = {};
@@ -1600,58 +1671,124 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2">
                 <History className="w-5 h-5 text-amber-600" />
-                <h3 className="font-bold text-slate-800 text-sm">ประวัติการถอนเงินออมนักเรียน (History Log)</h3>
-                <span className="text-xs text-slate-500 font-medium">({withdrawalLogs.length} รายการ)</span>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm leading-tight">ประวัติการถอนเงินออมนักเรียน (History Log)</h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    เรียงตามลำดับเลขที่ ({studentWithdrawalGroups.length} คน • ทั้งหมด {withdrawalLogs.length} รายการ)
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowHistoryModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
+                aria-label="ปิดหน้าต่าง"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5 text-xs flex-1">
-              {withdrawalLogs.length === 0 ? (
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs flex-1">
+              {studentWithdrawalGroups.length === 0 ? (
                 <div className="text-center py-10 text-slate-400">
                   <History className="w-10 h-10 mx-auto mb-2 text-slate-300 stroke-[1.5]" />
                   <p className="font-medium text-slate-500">ยังไม่มีประวัติการถอนเงินในห้องเรียน</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">รายการที่ทำเรื่องถอนเงินจะแสดงขึ้นที่นี่</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">เฉพาะนักเรียนที่มีการถอนเงิน จะแสดงรายชื่อตามลำดับเลขที่ที่นี่</p>
                 </div>
               ) : (
-                withdrawalLogs.map((log) => (
+                studentWithdrawalGroups.map((group) => (
                   <div
-                    key={log.id}
-                    className="p-3.5 rounded-xl bg-slate-50 hover:bg-slate-100/70 transition-colors border border-slate-200/90 flex items-start justify-between gap-3"
+                    key={group.studentId}
+                    className="rounded-2xl bg-white border border-slate-200 shadow-xs overflow-hidden transition-all hover:border-amber-300/80"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-slate-800 text-sm truncate">{log.studentName}</div>
-                      <div className="text-slate-500 text-[11px] mt-0.5">
-                        {formatThaiDate(log.date, true)} เวลา {log.time} น.
+                    {/* ข้อมูลหลัก: นักเรียนตามลำดับเลขที่ */}
+                    <div className="p-3 bg-gradient-to-r from-amber-50/70 via-slate-50 to-white border-b border-slate-100 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="px-2 py-1 bg-amber-600 text-white font-black text-xs rounded-lg shadow-2xs shrink-0 flex items-center gap-1">
+                          <span>เลขที่</span>
+                          <span>{group.rollNo}</span>
+                        </div>
+
+                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-2xs">
+                          <ImageWithFallback
+                            src={group.student?.photoUrl}
+                            alt={group.studentName}
+                            isAvatar={true}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-900 text-sm truncate">
+                              {group.studentName}
+                            </span>
+                            {group.student?.nickname && (
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                ({group.student.nickname})
+                              </span>
+                            )}
+                            {group.gradeLevel && (
+                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 rounded text-[9.5px] font-semibold">
+                                {group.gradeLevel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10.5px] text-slate-500 mt-0.5">
+                            ถอนเงินทั้งหมด {group.logs.length} ครั้ง
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-2 p-2 bg-white rounded-lg border border-amber-200/80">
-                        <span className="text-[11px] text-amber-800 font-semibold block mb-0.5">
-                          เหตุผลการถอนเงิน:
-                        </span>
-                        <span className="text-sm font-bold text-slate-900 leading-snug break-words">
-                          {log.reason}
+
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] text-slate-400 block">ยอดถอนรวม</span>
+                        <span className="font-black text-rose-600 text-sm bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200">
+                          -{group.totalWithdrawn.toLocaleString()} ฿
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-                      <span className="font-black text-rose-600 text-sm bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200 whitespace-nowrap">
-                        -{log.amount.toLocaleString()} ฿
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteLog(log)}
-                        className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition-all cursor-pointer"
-                        title="ลบรายการถอนเงินนี้"
-                        aria-label={`ลบรายการถอนเงินของ ${log.studentName}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    {/* ข้อมูลย่อย: รายการถอนเงิน (เหตุผล, ถอนกี่บาท, ถอนวันที่เท่าไร) */}
+                    <div className="p-2.5 sm:p-3 bg-slate-50/50 space-y-2">
+                      {group.logs.map((log) => (
+                        <div
+                          key={log.id}
+                          className="p-2.5 rounded-xl bg-white border border-slate-200/90 flex items-start justify-between gap-2.5 hover:bg-slate-50/80 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap text-slate-500 text-[11px]">
+                              <span className="font-medium text-slate-700">
+                                📅 {formatThaiDate(log.date, true)}
+                              </span>
+                              <span>•</span>
+                              <span>เวลา {log.time} น.</span>
+                            </div>
+                            <div className="mt-1.5 p-2 bg-amber-50/60 rounded-lg border border-amber-200/60">
+                              <span className="text-[10.5px] text-amber-800 font-semibold block mb-0.5">
+                                เหตุผลการถอนเงิน:
+                              </span>
+                              <span className="text-xs sm:text-sm font-bold text-slate-800 leading-snug break-words">
+                                {log.reason}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                            <span className="font-bold text-rose-600 text-xs sm:text-sm bg-rose-50 px-2 py-1 rounded-xl border border-rose-200 whitespace-nowrap">
+                              -{log.amount.toLocaleString()} ฿
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteLog(log)}
+                              className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-lg transition-all cursor-pointer"
+                              title="ลบรายการถอนเงินนี้"
+                              aria-label={`ลบรายการถอนเงินของ ${log.studentName}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))
