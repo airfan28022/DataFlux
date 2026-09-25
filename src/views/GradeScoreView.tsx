@@ -2988,7 +2988,8 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         }
         const termText = activeSheet?.term || '1';
         const yearText = profile.academicYear || '2569';
-        const line2 = `${classroomText} ภาคเรียนที่ ${termText} ปีการศึกษา ${yearText}`;
+        // หัวข้อบรรทัดที่ 2: ไม่ระบุชั้น (เอาออกคำว่า ป.1 และไม่ระบุชั้น)
+        const line2 = `ภาคเรียนที่ ${termText} ปีการศึกษา ${yearText}`;
 
         return (
           <PrintReportModal
@@ -2996,8 +2997,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             onClose={() => setShowPrintModal(false)}
             title={line1}
             subtitle={line2}
-            profile={{ ...profile, classroomName: classroomText }}
+            profile={{ ...profile, classroomName: '' }}
             orientation="landscape"
+            signerName="นายอีรฟัน สะมะแอ"
+            hideClassroomInSignature={true}
             customHeader={
               <div className="space-y-1.5 text-center">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-normal">
@@ -3036,12 +3039,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       (เต็ม {allStudentsSummary[0]?.totalTargetMax || 100})
                     </span>
                   </th>
-                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-14 bg-sky-50/50">
-                    ร้อยละ (%)
-                  </th>
-                  <th className="border border-slate-400 py-1.5 px-1.5 text-center w-12 bg-emerald-50/50">
-                    เกรด
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -3064,12 +3061,6 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </td>
                     <td className="border border-slate-300 py-1 px-1.5 text-center font-black text-slate-900 bg-slate-100/50">
                       {row.totalScore}
-                    </td>
-                    <td className="border border-slate-300 py-1 px-1.5 text-center font-medium text-slate-700">
-                      {row.percentage}%
-                    </td>
-                    <td className="border border-slate-300 py-1 px-1.5 text-center font-black text-emerald-800 bg-emerald-50/30">
-                      {row.grade}
                     </td>
                   </tr>
                 ))}

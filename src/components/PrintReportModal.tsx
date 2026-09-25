@@ -12,6 +12,10 @@ interface PrintReportModalProps {
   subtitle?: string;
   profile: TeacherProfile;
   customHeader?: React.ReactNode;
+  customFooter?: React.ReactNode;
+  signerName?: string;
+  signerTitle?: string;
+  hideClassroomInSignature?: boolean;
   hidePrintDate?: boolean;
   orientation?: 'portrait' | 'landscape';
   extraControls?: React.ReactNode;
@@ -25,6 +29,10 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
   subtitle,
   profile,
   customHeader,
+  customFooter,
+  signerName,
+  signerTitle,
+  hideClassroomInSignature = false,
   hidePrintDate = false,
   orientation = 'portrait',
   extraControls,
@@ -277,13 +285,23 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             <div className="my-2">{children}</div>
 
             {/* Teacher Signature Block */}
-            <div className="mt-6 pt-2 flex justify-end">
-              <div className="text-center w-64 space-y-1">
-                <p className="text-xs text-slate-700">ลงชื่อ ................................................................</p>
-                <p className="text-xs sm:text-sm font-semibold text-slate-800">({profile.teacherName})</p>
-                <p className="text-[11px] text-slate-600">ครูประจำชั้น {profile.classroomName}</p>
+            {customFooter !== undefined ? (
+              customFooter
+            ) : (
+              <div className="mt-6 pt-2 flex justify-end">
+                <div className="text-center w-64 space-y-1">
+                  <p className="text-xs text-slate-700">ลงชื่อ ................................................................</p>
+                  <p className="text-xs sm:text-sm font-semibold text-slate-800">
+                    ({signerName || (profile.teacherName && (profile.teacherName === 'ครูอีรฟัน' || profile.teacherName.includes('อีรฟัน')) ? 'นายอีรฟัน สะมะแอ' : profile.teacherName)})
+                  </p>
+                  {signerTitle !== undefined ? (
+                    signerTitle ? <p className="text-[11px] text-slate-600">{signerTitle}</p> : null
+                  ) : hideClassroomInSignature ? null : profile.classroomName ? (
+                    <p className="text-[11px] text-slate-600">ครูประจำชั้น {profile.classroomName}</p>
+                  ) : null}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
