@@ -59,6 +59,9 @@ export interface WeightHeightRecord {
   rows: WeightHeightRow[];
   createdAt: string;
   updatedAt: string;
+  recordType?: 'form' | 'photo'; // 'form' สำหรับกรอกตาราง, 'photo' สำหรับอัปโหลดภาพตาราง
+  imageUrl?: string; // Data URL หรือ URL ของรูปภาพตารางที่อัปโหลด
+  imageFileName?: string; // ชื่อไฟล์รูปภาพ
 }
 
 export interface AttendanceRecord {

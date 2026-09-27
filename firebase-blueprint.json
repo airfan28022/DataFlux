@@ -39,8 +39,12 @@
       "properties": {
         "id": { "type": "string" },
         "date": { "type": "string" },
+        "gradeLevel": { "type": "string" },
         "academicYear": { "type": "string" },
         "term": { "type": "string" },
+        "note": { "type": "string" },
+        "recordType": { "type": "string" },
+        "imageUrl": { "type": "string" },
         "rows": { "type": "array" },
         "updatedAt": { "type": "string" }
       },

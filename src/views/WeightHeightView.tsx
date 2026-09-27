@@ -28,7 +28,15 @@ import {
   ChevronRight,
   X,
   Check,
-  Copy
+  Copy,
+  Camera,
+  UploadCloud,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  FileSpreadsheet,
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface WeightHeightViewProps {
@@ -36,6 +44,47 @@ interface WeightHeightViewProps {
 }
 
 const ALL_GRADES: GradeLevel[] = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'];
+
+// ฟังก์ชันบีบอัดรูปภาพให้คมชัดแต่ขนาดพอดีสำหรับจัดเก็บในระบบ
+const compressImage = async (
+  file: File,
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.85
+): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 const extractGradeFromClassroom = (classroomName?: string): GradeLevel => {
   if (!classroomName) return 'ป.1';
@@ -102,6 +151,27 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
 
   // Filter list by grade level (ป.1 - ป.6)
   const [listGradeFilter, setListGradeFilter] = useState<'all' | GradeLevel>('all');
+
+  // Choice Modal State: เลือกว่าจะกรอก หรือ อัปโหลดภาพ
+  const [showAddChoiceModal, setShowAddChoiceModal] = useState(false);
+  const [targetChoiceGrade, setTargetChoiceGrade] = useState<GradeLevel | undefined>(undefined);
+
+  // Upload Photo Modal State: อัปโหลดภาพกระดาษตาราง
+  const [showUploadPhotoModal, setShowUploadPhotoModal] = useState(false);
+  const [photoGrade, setPhotoGrade] = useState<GradeLevel>('ป.1');
+  const [photoDate, setPhotoDate] = useState(new Date().toISOString().slice(0, 10));
+  const [photoTerm, setPhotoTerm] = useState<'1' | '2'>('1');
+  const [photoYear, setPhotoYear] = useState('2569');
+  const [photoNote, setPhotoNote] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Full Screen Photo Viewer Modal State (เน้นกดไอคอนตาต้องแสดงภาพที่อัปโหลดเท่านั้น)
+  const [viewPhotoRecord, setViewPhotoRecord] = useState<WeightHeightRecord | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   // Modal สำหรับคัดลอกรายชื่อนักเรียนทั้งหมดตามชั้นเพื่อแทนที่ข้อมูลเดิมทันที
   const [showCopyAllStudentsModal, setShowCopyAllStudentsModal] = useState(false);
@@ -261,6 +331,100 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
     return unsub;
   }, []);
 
+  // เมื่อกดปุ่ม "+": เปิด Modal ให้เลือกว่าจะ "กรอก" หรือ "อัปโหลดภาพเพื่อเก็บ"
+  const handleOpenAddChoice = (targetGrade?: GradeLevel) => {
+    setTargetChoiceGrade(targetGrade);
+    setShowAddChoiceModal(true);
+  };
+
+  const handleSelectFormEntry = () => {
+    setShowAddChoiceModal(false);
+    handleStartNewRecord(targetChoiceGrade);
+  };
+
+  const handleSelectPhotoUpload = () => {
+    setShowAddChoiceModal(false);
+    const initialGrade = targetChoiceGrade || (listGradeFilter !== 'all' ? listGradeFilter : extractGradeFromClassroom(profile.classroomName));
+    setPhotoGrade(initialGrade);
+    setPhotoDate(new Date().toISOString().slice(0, 10));
+    setPhotoTerm('1');
+    setPhotoYear(profile.academicYear || '2569');
+    setPhotoNote('');
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setShowUploadPhotoModal(true);
+  };
+
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      dataService.notifyToast('error', 'รูปแบบไฟล์ไม่ถูกต้อง', 'กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP)');
+      return;
+    }
+    setPhotoFile(file);
+    try {
+      const compressed = await compressImage(file, 1600, 1600, 0.85);
+      setPhotoPreview(compressed);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        setPhotoPreview(evt.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSavePhotoRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!photoPreview) {
+      dataService.notifyToast('warning', 'ยังไม่ได้เลือกรูปภาพ', 'กรุณาถ่ายรูปหรือเลือกรูปภาพกระดาษตารางก่อนบันทึก');
+      return;
+    }
+
+    setIsSavingPhoto(true);
+    try {
+      const newRecord: WeightHeightRecord = {
+        id: `wh-photo-${Date.now()}`,
+        recordType: 'photo',
+        imageUrl: photoPreview,
+        imageFileName: photoFile?.name || `wh_photo_${photoDate}.jpg`,
+        date: photoDate,
+        gradeLevel: photoGrade,
+        term: photoTerm,
+        academicYear: photoYear || profile.academicYear || '2569',
+        note: photoNote.trim() || 'ภาพถ่ายกระดาษตารางวัดน้ำหนักส่วนสูง',
+        rows: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      dataService.saveWeightHeightRecord(newRecord);
+      setShowUploadPhotoModal(false);
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      dataService.notifyToast(
+        'success',
+        'บันทึกภาพถ่ายตารางสำเร็จ',
+        `บันทึกภาพถ่ายตารางน้ำหนัก-ส่วนสูง ชั้น ${photoGrade} เรียบร้อยแล้ว`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      dataService.notifyToast('error', 'บันทึกภาพไม่สำเร็จ', msg);
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleDownloadPhoto = (dataUrl: string, fileName?: string) => {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = fileName || `ตารางน้ำหนักส่วนสูง_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Initialize a new record with students from selected grade
   const handleStartNewRecord = (targetGrade?: GradeLevel) => {
     const gradeToUse = targetGrade || (listGradeFilter !== 'all' ? listGradeFilter : extractGradeFromClassroom(profile.classroomName));
@@ -325,11 +489,13 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
     }
   };
 
-  const handleDeleteRecord = (id: string, date: string) => {
+  const handleDeleteRecord = (id: string, date: string, isPhoto = false) => {
     dataService.showAlert({
       type: 'warning',
-      title: 'ยืนยันการลบข้อมูล?',
-      text: `คุณต้องการลบข้อมูลน้ำหนัก-ส่วนสูง ประจำวันที่ ${formatThaiDate(date)} ใช่หรือไม่?`,
+      title: isPhoto ? 'ยืนยันการลบภาพถ่าย?' : 'ยืนยันการลบข้อมูล?',
+      text: isPhoto
+        ? `คุณต้องการลบภาพถ่ายกระดาษตารางน้ำหนัก-ส่วนสูง ประจำวันที่ ${formatThaiDate(date)} ใช่หรือไม่?`
+        : `คุณต้องการลบข้อมูลน้ำหนัก-ส่วนสูง ประจำวันที่ ${formatThaiDate(date)} ใช่หรือไม่?`,
       showCancelButton: true,
       confirmButtonText: 'ลบข้อมูล',
       cancelButtonText: 'ยกเลิก',
@@ -486,7 +652,7 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
         {!isEditing ? (
           <button
             type="button"
-            onClick={() => handleStartNewRecord()}
+            onClick={() => handleOpenAddChoice()}
             className="w-8 h-8 sm:w-9 sm:h-9 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl flex items-center justify-center font-bold transition-all shadow-xs cursor-pointer shrink-0"
             title="เพิ่มบันทึกใหม่ (+)"
             aria-label="เพิ่มบันทึกใหม่"
@@ -946,8 +1112,8 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
             <Activity className="w-9 h-9 mx-auto text-slate-300 mb-2" />
             <p className="text-xs">ยังไม่มีรายการบันทึกน้ำหนัก-ส่วนสูง</p>
             <button
-              onClick={() => handleStartNewRecord()}
-              className="mt-3 px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors"
+              onClick={() => handleOpenAddChoice()}
+              className="mt-3 px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors cursor-pointer"
             >
               + บันทึกครั้งแรก
             </button>
@@ -957,8 +1123,8 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
             <Activity className="w-8 h-8 mx-auto text-slate-300 mb-2" />
             <p className="text-xs">ไม่พบบันทึกน้ำหนัก-ส่วนสูงของชั้น {listGradeFilter}</p>
             <button
-              onClick={() => handleStartNewRecord(listGradeFilter !== 'all' ? listGradeFilter : undefined)}
-              className="mt-3 px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors"
+              onClick={() => handleOpenAddChoice(listGradeFilter !== 'all' ? listGradeFilter : undefined)}
+              className="mt-3 px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-medium hover:bg-emerald-700 transition-colors cursor-pointer"
             >
               + เพิ่มบันทึกของชั้น {listGradeFilter}
             </button>
@@ -968,9 +1134,8 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
             <div className="divide-y divide-slate-100">
               {filteredRecords.map((rec) => {
                 const recGrade = rec.gradeLevel || extractGradeFromClassroom(profile.classroomName);
-                const gradeNum = recGrade.replace('ป.', '');
                 const dateText = formatThaiDate(rec.date);
-                const infoText = `ชั้นประถมศึกษาปีที่ ${gradeNum} • ภาคเรียนที่ ${rec.term} ปีการศึกษา ${rec.academicYear || profile.academicYear} • วันที่ ${dateText}${rec.note ? ` (${rec.note})` : ''}`;
+                const isPhotoRecord = rec.recordType === 'photo' || Boolean(rec.imageUrl);
 
                 return (
                   <div
@@ -978,15 +1143,43 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                     className="p-2.5 sm:px-4 sm:py-3 flex items-center justify-between gap-2.5 hover:bg-slate-50/70 transition-colors"
                   >
                     {/* ข้อความข้อมูลรายการ */}
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-                        <Calendar className="w-3.5 h-3.5" />
-                      </div>
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {isPhotoRecord && rec.imageUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setZoomLevel(1);
+                            setViewPhotoRecord(rec);
+                          }}
+                          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden shrink-0 border border-indigo-200 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer relative group bg-indigo-50"
+                          title="คลิกเพื่อดูภาพเต็มจอ"
+                        >
+                          <img
+                            src={rec.imageUrl}
+                            alt={rec.note || 'ภาพถ่ายตาราง'}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                            <Eye className="w-3.5 h-3.5" />
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                      )}
+
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="px-1.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                             {recGrade}
                           </span>
+                          {isPhotoRecord && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                              <Camera className="w-3 h-3 text-indigo-600" />
+                              ภาพถ่ายตาราง
+                            </span>
+                          )}
                           <span className="text-xs sm:text-sm font-bold text-slate-800">
                             {dateText}
                           </span>
@@ -1002,37 +1195,80 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
                       </div>
                     </div>
 
-                    {/* สัญลักษณ์: เครื่องปริ้น (ดาวน์โหลด PDF), แก้ไข, ลบ */}
+                    {/* สัญลักษณ์ปุ่มคำสั่ง */}
                     <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setPrintRecord(rec)}
-                        className="w-8 h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer hover:scale-105"
-                        title="พิมพ์ / ดาวน์โหลดรายงาน PDF (ประจำครั้งนี้)"
-                        aria-label="พิมพ์หรือดาวน์โหลดรายงานเป็นไฟล์ PDF"
-                      >
-                        <Printer className="w-4 h-4 text-emerald-700" />
-                      </button>
+                      {isPhotoRecord ? (
+                        <>
+                          {/* ไอคอนตา: ดูภาพถ่ายตารางที่อัปโหลดเท่านั้น ขนาดเต็มจอ */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setZoomLevel(1);
+                              setViewPhotoRecord(rec);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 hover:text-emerald-900 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer hover:scale-105"
+                            title="ดูภาพถ่ายตาราง (ขนาดเต็มจอ)"
+                            aria-label="ดูภาพถ่ายตารางที่อัปโหลด"
+                          >
+                            <Eye className="w-4 h-4 stroke-[2.3]" />
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleEditRecord(rec)}
-                        className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer"
-                        title="แก้ไขข้อมูล (รวมทั้งเปลี่ยนระดับชั้น ป.1-ป.6)"
-                        aria-label="แก้ไขข้อมูล"
-                      >
-                        <Edit className="w-4 h-4 text-slate-600" />
-                      </button>
+                          {/* ดาวน์โหลดภาพ */}
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPhoto(rec.imageUrl!, rec.imageFileName)}
+                            className="w-8 h-8 flex items-center justify-center bg-sky-50 hover:bg-sky-100 active:scale-95 text-sky-700 border border-sky-200 rounded-xl transition-all cursor-pointer"
+                            title="ดาวน์โหลดภาพถ่ายนี้"
+                            aria-label="ดาวน์โหลดภาพถ่าย"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteRecord(rec.id, rec.date)}
-                        className="w-8 h-8 flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
-                        title="ลบข้อมูล"
-                        aria-label="ลบข้อมูล"
-                      >
-                        <Trash2 className="w-4 h-4 text-rose-600" />
-                      </button>
+                          {/* ลบ */}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRecord(rec.id, rec.date, true)}
+                            className="w-8 h-8 flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
+                            title="ลบภาพถ่ายนี้"
+                            aria-label="ลบภาพถ่าย"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-600" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {/* สัญลักษณ์: เครื่องปริ้น (ดาวน์โหลด PDF), แก้ไข, ลบ */}
+                          <button
+                            type="button"
+                            onClick={() => setPrintRecord(rec)}
+                            className="w-8 h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all shadow-2xs cursor-pointer hover:scale-105"
+                            title="พิมพ์ / ดาวน์โหลดรายงาน PDF (ประจำครั้งนี้)"
+                            aria-label="พิมพ์หรือดาวน์โหลดรายงานเป็นไฟล์ PDF"
+                          >
+                            <Printer className="w-4 h-4 text-emerald-700" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditRecord(rec)}
+                            className="w-8 h-8 flex items-center justify-center bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 border border-slate-200 rounded-xl transition-all cursor-pointer"
+                            title="แก้ไขข้อมูล (รวมทั้งเปลี่ยนระดับชั้น ป.1-ป.6)"
+                            aria-label="แก้ไขข้อมูล"
+                          >
+                            <Edit className="w-4 h-4 text-slate-600" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRecord(rec.id, rec.date, false)}
+                            className="w-8 h-8 flex items-center justify-center bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 rounded-xl transition-all cursor-pointer"
+                            title="ลบข้อมูล"
+                            aria-label="ลบข้อมูล"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-600" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -1470,6 +1706,498 @@ export const WeightHeightView: React.FC<WeightHeightViewProps> = ({ isAdmin }) =
         title="คัดลอกรายชื่อนักเรียน (หน้าน้ำหนัก-ส่วนสูง)"
         subtitle="เลือกชั้นเรียนเพื่อคัดลอกรายชื่อทั้งหมด"
       />
+
+      {/* 1. Modal เลือกรูปแบบการบันทึก: กรอกข้อมูลลงตาราง หรือ อัปโหลดภาพถ่ายเพื่อเก็บ */}
+      {showAddChoiceModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/15 rounded-xl">
+                  <Activity className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base">เลือกรูปแบบการบันทึกน้ำหนัก-ส่วนสูง</h3>
+                  <p className="text-[11px] text-emerald-100">เลือกระหว่างกรอกข้อมูลลงตาราง หรืออัปโหลดภาพถ่ายกระดาษ</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddChoiceModal(false)}
+                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Options */}
+            <div className="p-4 sm:p-5 space-y-3">
+              {/* ตัวเลือกที่ 1: กรอกข้อมูลลงตาราง */}
+              <button
+                type="button"
+                onClick={handleSelectFormEntry}
+                className="w-full text-left p-3.5 sm:p-4 rounded-2xl border-2 border-emerald-200 hover:border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50/80 transition-all cursor-pointer group flex items-start gap-3.5 shadow-2xs hover:shadow-sm"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="font-bold text-slate-800 text-sm sm:text-base group-hover:text-emerald-800">
+                      กรอกข้อมูลลงตาราง
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      คำนวณ BMI
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    กรอกข้อมูลนักเรียนรายคน คำนวณ BMI อัตโนมัติ พร้อมสั่งพิมพ์รายงานสรุปผลขนาด A4
+                  </p>
+                </div>
+              </button>
+
+              {/* ตัวเลือกที่ 2: อัปโหลดภาพเพื่อเก็บ */}
+              <button
+                type="button"
+                onClick={handleSelectPhotoUpload}
+                className="w-full text-left p-3.5 sm:p-4 rounded-2xl border-2 border-indigo-200 hover:border-indigo-500 bg-indigo-50/50 hover:bg-indigo-50/80 transition-all cursor-pointer group flex items-start gap-3.5 shadow-2xs hover:shadow-sm"
+              >
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="font-bold text-slate-800 text-sm sm:text-base group-hover:text-indigo-800">
+                      อัปโหลดภาพเพื่อเก็บ
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      ภาพถ่ายกระดาษ
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    ถ่ายรูปหรือแนบภาพถ่ายกระดาษตารางวัดน้ำหนักส่วนสูงที่นักเรียนเขียนไว้ ดูภาพเต็มจอได้ตลอดเวลา
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowAddChoiceModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/70 rounded-xl transition-colors cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal อัปโหลดภาพเพื่อเก็บ: ถ่ายรูปหรือแนบภาพกระดาษตารางวัดน้ำหนักส่วนสูง */}
+      {showUploadPhotoModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-xl rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto max-h-[94vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-5 py-3.5 bg-gradient-to-r from-indigo-700 via-indigo-600 to-purple-700 text-white flex items-center justify-between shrink-0 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/15 rounded-xl">
+                  <Camera className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base">อัปโหลดภาพตารางน้ำหนัก-ส่วนสูง</h3>
+                  <p className="text-[11px] text-indigo-100">บันทึกรูปถ่ายกระดาษตารางที่นักเรียนได้เขียนไว้</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowUploadPhotoModal(false)}
+                className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleSavePhotoRecord} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+              {/* Hidden file inputs */}
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoFileChange}
+                className="hidden"
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoFileChange}
+                className="hidden"
+              />
+
+              {/* Row 1: ระดับชั้น & วันที่ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ระดับชั้น <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={photoGrade}
+                    onChange={(e) => setPhotoGrade(e.target.value as GradeLevel)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                  >
+                    {ALL_GRADES.map((g) => (
+                      <option key={`p-grade-${g}`} value={g}>
+                        ชั้น {g} (ประถมศึกษาปีที่ {g.replace('ป.', '')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    วันที่ตรวจวัด <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={photoDate}
+                    onChange={(e) => setPhotoDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: ภาคเรียน & ปีการศึกษา */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ภาคเรียน <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={photoTerm}
+                    onChange={(e) => setPhotoTerm(e.target.value as '1' | '2')}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
+                  >
+                    <option value="1">ภาคเรียนที่ 1</option>
+                    <option value="2">ภาคเรียนที่ 2</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ปีการศึกษา (พ.ศ.)
+                  </label>
+                  <input
+                    type="text"
+                    value={photoYear}
+                    onChange={(e) => setPhotoYear(e.target.value)}
+                    placeholder="2569"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: ชื่อบันทึก / คำอธิบาย */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  ชื่อบันทึก / คำอธิบายเพิ่มเติม
+                </label>
+                <input
+                  type="text"
+                  value={photoNote}
+                  onChange={(e) => setPhotoNote(e.target.value)}
+                  placeholder="เช่น ใบบันทึกน้ำหนัก-ส่วนสูง ป.1 เทอม 1 ที่นักเรียนเขียนในกระดาษ"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                />
+              </div>
+
+              {/* Row 4: พื้นที่อัปโหลดรูปภาพ */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>
+                    รูปถ่ายกระดาษตารางวัดน้ำหนัก-ส่วนสูง <span className="text-rose-500">*</span>
+                  </span>
+                  {photoPreview && (
+                    <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> เลือกรูปเรียบร้อยแล้ว
+                    </span>
+                  )}
+                </label>
+
+                {!photoPreview ? (
+                  <div className="border-2 border-dashed border-indigo-200 rounded-2xl p-5 sm:p-6 text-center bg-indigo-50/40 hover:bg-indigo-50/70 transition-colors">
+                    <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 shadow-2xs">
+                      <UploadCloud className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-800 mb-1">
+                      ถ่ายภาพหรือเลือกไฟล์รูปภาพกระดาษตาราง
+                    </p>
+                    <p className="text-[11px] text-slate-500 mb-4">
+                      กรณีถ่ายกระดาษตารางวัดน้ำหนักส่วนสูงที่นักเรียนได้เขียนในกระดาษไว้
+                    </p>
+
+                    <div className="flex items-center justify-center gap-2.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>ถ่ายภาพด้วยกล้อง</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                      >
+                        <ImageIcon className="w-4 h-4 text-indigo-600" />
+                        <span>เลือกไฟล์รูปภาพ</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border border-indigo-200 rounded-2xl p-3 bg-indigo-50/30 space-y-3">
+                    <div className="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-200 flex items-center justify-center max-h-72">
+                      <img
+                        src={photoPreview}
+                        alt="พรีวิวภาพถ่ายตาราง"
+                        className="max-h-64 w-auto object-contain mx-auto"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                      <span className="text-slate-600 truncate max-w-xs text-[11px]">
+                        {photoFile?.name || 'รูปภาพกระดาษตาราง'}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-all cursor-pointer"
+                        >
+                          ถ่ายใหม่
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => photoInputRef.current?.click()}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[11px] font-semibold transition-all cursor-pointer"
+                        >
+                          เปลี่ยนรูป
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoFile(null);
+                            setPhotoPreview(null);
+                          }}
+                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-semibold transition-all cursor-pointer"
+                        >
+                          ลบรูป
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Submit / Cancel Buttons */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadPhotoModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={!photoPreview || isSavingPhoto}
+                  className="flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {isSavingPhoto ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>บันทึกภาพถ่ายตาราง</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modal ดูภาพถ่ายตารางขนาดเต็มจอ (เน้นกดไอคอนตาต้องแสดงภาพที่อัปโหลดเท่านั้น) */}
+      {viewPhotoRecord && viewPhotoRecord.imageUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+          {/* Printable style for direct print */}
+          <style>{`
+            @media print {
+              body * {
+                visibility: hidden !important;
+              }
+              #photo-modal-print-view, #photo-modal-print-view * {
+                visibility: visible !important;
+              }
+              #photo-modal-print-view {
+                position: fixed !important;
+                inset: 0 !important;
+                background: white !important;
+                padding: 5mm !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
+                z-index: 999999 !important;
+              }
+            }
+          `}</style>
+
+          <div className="bg-slate-900 rounded-2xl sm:rounded-3xl max-w-5xl w-full h-[92vh] max-h-[92vh] flex flex-col shadow-2xl border border-slate-800 overflow-hidden text-white animate-in zoom-in-95 duration-200">
+            {/* Top Toolbar */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-slate-900/95 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 rounded-xl shrink-0">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-sm sm:text-base text-white truncate max-w-xs sm:max-w-md">
+                      {viewPhotoRecord.note || 'ภาพถ่ายกระดาษตารางวัดน้ำหนัก-ส่วนสูง'}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-700/60 shrink-0">
+                      {viewPhotoRecord.gradeLevel || 'ป.1'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                    <span>ภาคเรียนที่ {viewPhotoRecord.term}/{viewPhotoRecord.academicYear || profile.academicYear}</span>
+                    <span>•</span>
+                    <span>วันที่ {formatThaiDate(viewPhotoRecord.date)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tool buttons: Zoom, Download, Print, Close */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* Zoom Controls */}
+                <div className="hidden sm:inline-flex items-center bg-slate-800 rounded-xl p-0.5 border border-slate-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                    className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                    title="ซูมออก (-)"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel(1)}
+                    className="px-2 py-1 text-[11px] font-bold text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                    title="รีเซ็ตขนาด 100%"
+                  >
+                    {Math.round(zoomLevel * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoomLevel((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                    className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                    title="ซูมเข้า (+)"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* ดาวน์โหลดรูปภาพ */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPhoto(viewPhotoRecord.imageUrl!, viewPhotoRecord.imageFileName)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition-all cursor-pointer"
+                  title="ดาวน์โหลดภาพถ่ายนี้ลงอุปกรณ์"
+                >
+                  <Download className="w-4 h-4" />
+                  <span className="hidden md:inline">ดาวน์โหลด</span>
+                </button>
+
+                {/* สั่งพิมพ์ภาพ */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="สั่งพิมพ์ภาพถ่ายนี้"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span className="hidden md:inline">พิมพ์ภาพ</span>
+                </button>
+
+                {/* ปิด */}
+                <button
+                  type="button"
+                  onClick={() => setViewPhotoRecord(null)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer ml-1"
+                  title="ปิดหน้าต่าง"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Photo View Container - Fit perfectly to screen, supports zoom */}
+            <div className="flex-1 bg-slate-950 overflow-auto flex items-center justify-center p-3 sm:p-6 select-none relative">
+              <div
+                className="transition-transform duration-150 ease-out flex items-center justify-center max-w-full max-h-full"
+                style={{
+                  transform: `scale(${zoomLevel})`,
+                  transformOrigin: 'center center',
+                }}
+              >
+                <img
+                  src={viewPhotoRecord.imageUrl}
+                  alt={viewPhotoRecord.note || 'ภาพถ่ายกระดาษตารางวัดน้ำหนัก-ส่วนสูง'}
+                  className="max-h-[72vh] sm:max-h-[76vh] w-auto max-w-full rounded-xl object-contain shadow-2xl border border-slate-800/80"
+                />
+              </div>
+            </div>
+
+            {/* Bottom info bar */}
+            <div className="px-4 py-2 bg-slate-900/90 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                แสดงภาพถ่ายกระดาษตารางที่อัปโหลดไว้ขนาดเต็มพอดีจอ
+              </span>
+              <span className="hidden sm:inline text-slate-500">
+                สามารถกดซูมเข้า (+) เพื่อตรวจดูลายมือนักเรียนบนกระดาษได้อย่างคมชัด
+              </span>
+            </div>
+          </div>
+
+          {/* Hidden print container for browser print */}
+          <div id="photo-modal-print-view" className="hidden">
+            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+              ภาพถ่ายกระดาษตารางวัดน้ำหนัก-ส่วนสูง ชั้น {viewPhotoRecord.gradeLevel || 'ป.1'}
+            </h2>
+            <p style={{ fontSize: '13px', color: '#475569', marginBottom: '12px', textAlign: 'center' }}>
+              ภาคเรียนที่ {viewPhotoRecord.term} ปีการศึกษา {viewPhotoRecord.academicYear || profile.academicYear} • วันที่ {formatThaiDate(viewPhotoRecord.date)}
+              {viewPhotoRecord.note ? ` (${viewPhotoRecord.note})` : ''}
+            </p>
+            <img
+              src={viewPhotoRecord.imageUrl}
+              alt="ภาพถ่ายตาราง"
+              style={{ maxHeight: '85vh', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', display: 'block', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
