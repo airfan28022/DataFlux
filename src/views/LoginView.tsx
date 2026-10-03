@@ -51,8 +51,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
 
     setIsSubmitting(true);
 
-    const isValid = dataService.loginWithCredentials(username, password);
-    if (isValid) {
+    const result = dataService.loginWithCredentials(username, password);
+    if (result.success) {
       if (rememberId) {
         localStorage.setItem(REMEMBER_USER_KEY, username.trim());
         localStorage.setItem(REMEMBER_FLAG_KEY, 'true');
@@ -71,7 +71,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
     } else {
       setIsSubmitting(false);
       setSuccessMessage('');
-      setErrorMessage('User ID หรือ Password ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+      if (result.error === 'suspended') {
+        setErrorMessage('บัญชีนี้ถูกระงับการใช้งานชั่วคราว กรุณาติดต่อ Admin (ID: airfan)');
+      } else {
+        setErrorMessage('User ID หรือ Password ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+      }
     }
   };
 

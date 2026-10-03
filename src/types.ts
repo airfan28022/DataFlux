@@ -178,6 +178,20 @@ export interface ActivityPhoto {
   createdAt: string;
 }
 
+export interface AppUser {
+  id: string; // unique identifier (lowercase username)
+  username: string;
+  password: string; // viewable by admin
+  name: string; // teacher display name
+  role: 'admin' | 'member';
+  status: 'active' | 'suspended'; // 'active' or 'suspended' (ระงับใช้งาน)
+  classroom?: string;
+  schoolName?: string;
+  createdAt: string;
+  updatedAt?: string;
+  lastLogin?: string;
+}
+
 export interface TeacherProfile {
   teacherName: string;
   schoolName: string;

@@ -142,6 +142,27 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
   const [modalAttendance, setModalAttendance] = useState<AttendanceStatus | null>('present');
   const [modalDeposit, setModalDeposit] = useState<number>(0);
 
+  // Popover ประวัติการฝากเงินล่าสุด (แก้ 3: ขึ้นประวัติเด็กที่เคยฝากเงิน เมื่อกดที่ช่อง 1-2 รายการ)
+  const [activeDepositHistoryStudentId, setActiveDepositHistoryStudentId] = useState<string | null>(null);
+  const depositHistoryContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        depositHistoryContainerRef.current &&
+        !depositHistoryContainerRef.current.contains(e.target as Node)
+      ) {
+        setActiveDepositHistoryStudentId(null);
+      }
+    };
+    if (activeDepositHistoryStudentId) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [activeDepositHistoryStudentId]);
+
   const handleOpenStudentModal = (student: Student) => {
     setSelectedStudentModal(student);
     setModalAttendance(attendanceMap[student.id] || null);
@@ -418,13 +439,38 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     }
   };
 
-  // Handler to mark all students as present ('present') for today (ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ทุกคนมาเรียน)
+  // ตรวจสอบว่าทุกคนมีสถานะมาเรียนแล้วหรือไม่ (แก้1)
+  const isAllPresent = useMemo(() => {
+    return students.length > 0 && students.every((s) => attendanceMap[s.id] === 'present');
+  }, [students, attendanceMap]);
+
+  // Handler to mark all students as present or clear all if already marked all present (แก้1: กดครั้งแรก=นักเรียนมาทุกคน, กดอีกที=ลบล้างการมาเรียนทั้งหมด)
   const handleMarkAllPresent = () => {
     if (!students || students.length === 0) {
       dataService.notifyToast('warning', 'ไม่พบข้อมูลนักเรียน');
       return;
     }
 
+    if (isAllPresent) {
+      // ลบล้างการมาเรียนทั้งหมดกล่าวคือ ยังไม่ใส่ข้อมูลการมาเรียนทั้งหมด
+      const updatedAtt: Record<string, AttendanceStatus> = { ...attendanceMap };
+      students.forEach((s) => {
+        delete updatedAtt[s.id];
+      });
+
+      setAttendanceMap(updatedAtt);
+      dataService.saveDayAttendanceAndBank(selectedDate, updatedAtt, depositsMap, dayNote, true);
+      setAllHistoryRecords(dataService.getAllAttendanceAndBank());
+
+      dataService.notifyToast(
+        'info',
+        'ลบล้างการมาเรียนทั้งหมด',
+        'รีเซ็ตสถานะเป็นยังไม่ลงข้อมูลการมาเรียนเรียบร้อยแล้ว'
+      );
+      return;
+    }
+
+    // กดครั้งแรก = นักเรียนมาทุกคน
     const updatedAtt: Record<string, AttendanceStatus> = { ...attendanceMap };
     students.forEach((s) => {
       updatedAtt[s.id] = 'present';
@@ -449,6 +495,31 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     } catch {
       // Ignore confetti fallback
     }
+  };
+
+  // Helper ดึงประวัติเด็กที่เคยฝากเงิน 1-2 รายการล่าสุด (แก้ 3)
+  const formatThaiShortDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const THAI_SHORT_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return `${d.getDate()} ${THAI_SHORT_MONTHS[d.getMonth()]}`;
+  };
+
+  const getRecentStudentDeposits = (studentId: string) => {
+    const list: Array<{ date: string; amount: number }> = [];
+    const dates = Object.keys(allHistoryRecords)
+      .filter((d) => d !== selectedDate)
+      .sort((a, b) => b.localeCompare(a));
+
+    for (const d of dates) {
+      const amt = allHistoryRecords[d]?.deposits?.[studentId];
+      if (amt && amt > 0) {
+        list.push({ date: d, amount: amt });
+        if (list.length >= 2) break; // เอาแบบ 1-2 ประวัติน้อยๆ ไม่รกหน้า
+      }
+    }
+    return list;
   };
 
   // Navigate dates (Previous / Next / Today)
@@ -709,10 +780,11 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
     setCalendarMonth(new Date(calYear, calMonth + 1, 1));
   };
 
-  // Check dots for date (Req 4: Blue dot for withdrawal pending clearance)
+  // Check dots for date (แก้2: น้ำเงิน=ถอนเงิน, สีเขียวอมฟ้า=ฝากเงิน, มา=เขียวเข้ม, ขาด/ป่วย/ลากิจ=แดง, บันทึก=ส้ม)
   const getDayDotStatus = (dayNum: number) => {
     const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
     let hasDeposit = false;
+    let hasPresent = false;
     let hasAbsence = false;
     let hasNote = false;
 
@@ -722,6 +794,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
     if (dateStr === selectedDate) {
       hasDeposit = Object.values(depositsMap).some((v) => (Number(v) || 0) > 0);
+      hasPresent = Object.values(attendanceMap).some((st) => st === 'present');
       hasAbsence = Object.values(attendanceMap).some(
         (st) => st === 'sick' || st === 'personal' || st === 'absent'
       );
@@ -733,6 +806,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
           hasDeposit = Object.values(record.deposits).some((v) => (Number(v) || 0) > 0);
         }
         if (record.attendance) {
+          hasPresent = Object.values(record.attendance).some((st) => st === 'present');
           hasAbsence = Object.values(record.attendance).some(
             (st) => st === 'sick' || st === 'personal' || st === 'absent'
           );
@@ -741,7 +815,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
       }
     }
 
-    return { dateStr, hasDeposit, hasAbsence, hasNote, hasBlueDot, deductedItems };
+    return { dateStr, hasDeposit, hasPresent, hasAbsence, hasNote, hasBlueDot, deductedItems };
   };
 
   // Click on date in calendar pop-up
@@ -775,15 +849,19 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ทุกคนมาเรียน */}
+          {/* ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ลบล้างการมาเรียนทั้งหมด (แก้1) */}
           <button
             type="button"
             onClick={handleMarkAllPresent}
-            className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all cursor-pointer"
-            title="กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)"
+            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
+              isAllPresent
+                ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300'
+            }`}
+            title={isAllPresent ? 'กดอีกครั้งเพื่อลบล้างการมาเรียนทั้งหมด (ยังไม่ใส่ข้อมูล)' : 'กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)'}
             aria-label="ทุกคนมาเรียนทั้งหมด"
           >
-            <UserCheck className="w-4 h-4 text-emerald-700" />
+            <UserCheck className="w-4 h-4" />
           </button>
 
           {/* ปุ่มลบข้อมูล (เลือก มา, ขาด, ป่วย, ลา, เงินออม และ All) */}
@@ -924,15 +1002,19 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-700" />
               </button>
 
-              {/* ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ทุกคนมาเรียน */}
+              {/* ไอคอนสำหรับกดเพื่อกลายเป็นมาเรียนทั้งหมด หรือ ลบล้างการมาเรียนทั้งหมด (แก้1) */}
               <button
                 type="button"
                 onClick={handleMarkAllPresent}
-                className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-xl transition-all cursor-pointer shrink-0"
-                title="กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)"
+                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-xl transition-all cursor-pointer shrink-0 ${
+                  isAllPresent
+                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300'
+                }`}
+                title={isAllPresent ? 'กดอีกครั้งเพื่อลบล้างการมาเรียนทั้งหมด (ยังไม่ใส่ข้อมูล)' : 'กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)'}
                 aria-label="ทุกคนมาเรียนทั้งหมด"
               >
-                <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-700" />
+                <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
 
               {customCopiedGrade && (
@@ -1013,11 +1095,15 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       <button
                         type="button"
                         onClick={handleMarkAllPresent}
-                        className="w-5 h-5 flex items-center justify-center rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-all cursor-pointer active:scale-90"
-                        title="กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)"
+                        className={`w-5 h-5 flex items-center justify-center rounded-md transition-all cursor-pointer active:scale-90 ${
+                          isAllPresent
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                        }`}
+                        title={isAllPresent ? 'กดอีกครั้งเพื่อลบล้างการมาเรียนทั้งหมด (ยังไม่ใส่ข้อมูล)' : 'กดเพื่อให้ทุกคนเป็นมาเรียนทั้งหมด (ทุกคนมาเรียน)'}
                         aria-label="ทุกคนมาเรียนทั้งหมด"
                       >
-                        <UserCheck className="w-3 h-3 text-emerald-700" />
+                        <UserCheck className="w-3 h-3" />
                       </button>
                     </div>
                   </th>
@@ -1179,15 +1265,76 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                               min="0"
                               step="5"
                               value={currentDeposit || ''}
+                              onFocus={() => setActiveDepositHistoryStudentId(student.id)}
+                              onClick={() => setActiveDepositHistoryStudentId(student.id)}
                               onChange={(e) =>
                                 handleDepositChange(student.id, e.target.value ? Number(e.target.value) : 0)
                               }
                               placeholder="0"
-                              className="w-full pl-2 pr-6 py-1 text-center font-bold text-slate-800 rounded-lg border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-100 text-xs outline-hidden"
+                              className="w-full pl-2 pr-6 py-1 text-center font-bold text-slate-800 rounded-lg border border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-100 text-xs outline-hidden"
                             />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">
                               ฿
                             </span>
+
+                            {/* Popup ประวัติเด็กที่เคยฝากเงิน 1-2 รายการล่าสุด ไม่รกหน้า (แก้3) */}
+                            {activeDepositHistoryStudentId === student.id && (
+                              <div
+                                ref={depositHistoryContainerRef}
+                                className="absolute left-1/2 -translate-x-1/2 top-full mt-1.5 z-40 bg-white rounded-xl shadow-xl border border-emerald-200/90 p-2 w-48 text-left animate-in fade-in zoom-in-95 duration-150"
+                              >
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-1 mb-1.5">
+                                  <span className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                                    <History className="w-3 h-3 text-emerald-600" />
+                                    ประวัติฝากเงินล่าสุด
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveDepositHistoryStudentId(null);
+                                    }}
+                                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+
+                                {(() => {
+                                  const recentDeposits = getRecentStudentDeposits(student.id);
+                                  if (recentDeposits.length === 0) {
+                                    return (
+                                      <div className="py-1 text-center text-[10px] text-slate-400">
+                                        ยังไม่มีประวัติฝากเงินก่อนหน้า
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <div className="space-y-1">
+                                      {recentDeposits.map((item, idx) => (
+                                        <button
+                                          key={`dep-hist-${item.date}-${idx}`}
+                                          type="button"
+                                          onClick={() => {
+                                            handleDepositChange(student.id, item.amount);
+                                            setActiveDepositHistoryStudentId(null);
+                                          }}
+                                          className="w-full flex items-center justify-between px-2 py-1 bg-emerald-50/60 hover:bg-emerald-100/80 rounded-lg text-slate-700 transition-all cursor-pointer group"
+                                          title="คลิกเพื่อนำยอดนี้มาใส่"
+                                        >
+                                          <span className="text-[10px] text-slate-500 font-medium">
+                                            {formatThaiShortDate(item.date)}
+                                          </span>
+                                          <span className="text-[11px] font-bold text-emerald-700 group-hover:text-emerald-800">
+                                            +{item.amount} ฿
+                                          </span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1410,12 +1557,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
 
                 {Array.from({ length: daysInCalMonth }).map((_, i) => {
                   const dayNum = i + 1;
-                  const { dateStr, hasDeposit, hasAbsence, hasNote, hasBlueDot } = getDayDotStatus(dayNum);
+                  const { dateStr, hasDeposit, hasPresent, hasAbsence, hasNote, hasBlueDot } = getDayDotStatus(dayNum);
                   const isSelected = dateStr === selectedDate;
                   const isToday = dateStr === new Date().toISOString().slice(0, 10);
 
                   const blueDotTitle = hasBlueDot
-                    ? ` • มีการหักเงินถอนอัตโนมัติ`
+                    ? ` • ถอนเงิน`
                     : '';
 
                   return (
@@ -1433,40 +1580,48 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                           ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-300'
                           : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-100'
                       }`}
-                      title={`${formatThaiDate(dateStr)}${blueDotTitle}${hasDeposit ? ' • มีฝากเงิน' : ''}${hasAbsence ? ' • มีขาด/ป่วย/ลา' : ''}${hasNote ? ' • มีข้อความบันทึก' : ''}`}
+                      title={`${formatThaiDate(dateStr)}${blueDotTitle}${hasDeposit ? ' • ฝากเงิน' : ''}${hasPresent ? ' • มา' : ''}${hasAbsence ? ' • ขาด/ป่วย/ลากิจ' : ''}${hasNote ? ' • บันทึก' : ''}`}
                     >
                       <span>{dayNum}</span>
 
-                      {/* Dots: Blue (Withdrawal), Green (Deposit), Red (Sick/Leave/Absent), Amber (Note) */}
+                      {/* Dots: น้ำเงิน=ถอนเงิน, สีเขียวอมฟ้า=ฝากเงิน, มา=เขียวเข้ม, ขาด/ป่วย/ลากิจ=แดง, บันทึก=ส้ม (แก้2) */}
                       <div className="flex items-center gap-0.5 absolute bottom-1">
                         {hasBlueDot && (
                           <span
-                            className={`w-2 h-2 rounded-full ${
-                              isSelected ? 'bg-blue-300 ring-1 ring-white' : 'bg-blue-600 ring-1 ring-blue-300 animate-pulse'
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isSelected ? 'bg-blue-200 ring-1 ring-white' : 'bg-blue-600 ring-1 ring-blue-300'
                             }`}
                             title="ถอนเงิน"
                           />
                         )}
-                        {hasDeposit && !hasBlueDot && (
+                        {hasDeposit && (
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
-                              isSelected ? 'bg-white' : 'bg-emerald-500'
+                              isSelected ? 'bg-teal-200' : 'bg-teal-500'
                             }`}
                             title="ฝากเงิน"
+                          />
+                        )}
+                        {hasPresent && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isSelected ? 'bg-emerald-300' : 'bg-emerald-800'
+                            }`}
+                            title="มา"
                           />
                         )}
                         {hasAbsence && (
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
-                              isSelected ? 'bg-rose-200' : 'bg-rose-500'
+                              isSelected ? 'bg-red-200' : 'bg-red-500'
                             }`}
-                            title="ขาด/ป่วย/ลา"
+                            title="ขาด/ป่วย/ลากิจ"
                           />
                         )}
                         {hasNote && (
                           <span
                             className={`w-1.5 h-1.5 rounded-full ${
-                              isSelected ? 'bg-amber-200' : 'bg-amber-500'
+                              isSelected ? 'bg-orange-200' : 'bg-orange-500'
                             }`}
                             title="บันทึก"
                           />
@@ -1477,23 +1632,27 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 })}
               </div>
 
-              {/* Dots Legend */}
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-[11px] text-slate-500">
+              {/* Dots Legend (แก้2: น้ำเงิน=ถอนเงิน, สีเขียวอมฟ้า=ฝากเงิน, มา=เขียวเข้ม, ขาด/ป่วย/ลากิจ=แดง, บันทึก=ส้ม) */}
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-[11px] text-slate-600">
                 <span className="flex items-center gap-1.5 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-1 ring-blue-300 inline-block animate-pulse" />
-                  <span className="font-bold text-blue-800">ถอนเงิน (หักเงินอัตโนมัติ)</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />
+                  <span className="font-bold text-blue-800">ถอนเงิน</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                  <span>มีการฝากเงิน</span>
+                <span className="flex items-center gap-1.5 bg-teal-50/70 px-2 py-0.5 rounded-md border border-teal-200">
+                  <span className="w-2 h-2 rounded-full bg-teal-500 inline-block" />
+                  <span className="font-semibold text-teal-800">ฝากเงิน</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
-                  <span>ขาด / ป่วย / ลากิจ</span>
+                <span className="flex items-center gap-1.5 bg-emerald-50/70 px-2 py-0.5 rounded-md border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-800 inline-block" />
+                  <span className="font-semibold text-emerald-900">มา</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
-                  <span>บันทึก</span>
+                <span className="flex items-center gap-1.5 bg-red-50/70 px-2 py-0.5 rounded-md border border-red-200">
+                  <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                  <span className="font-semibold text-red-800">ขาด/ป่วย/ลากิจ</span>
+                </span>
+                <span className="flex items-center gap-1.5 bg-orange-50/70 px-2 py-0.5 rounded-md border border-orange-200">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                  <span className="font-semibold text-orange-800">บันทึก</span>
                 </span>
               </div>
 
@@ -2630,6 +2789,32 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                     </button>
                   ))}
                 </div>
+
+                {/* ประวัติเด็กที่เคยฝากเงิน 1-2 รายการล่าสุด (แก้ 3) */}
+                {(() => {
+                  const recent = getRecentStudentDeposits(selectedStudentModal.id);
+                  if (recent.length === 0) return null;
+                  return (
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                        <History className="w-3 h-3 text-emerald-600" />
+                        ประวัติล่าสุด:
+                      </span>
+                      {recent.map((item, idx) => (
+                        <button
+                          key={`modal-hist-${item.date}-${idx}`}
+                          type="button"
+                          disabled={modalAttendance !== 'present'}
+                          onClick={() => setModalDeposit(item.amount)}
+                          className="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-pointer transition-all disabled:opacity-40"
+                          title="คลิกเพื่อนำยอดนี้มาใส่"
+                        >
+                          {formatThaiShortDate(item.date)} (+{item.amount} ฿)
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Student Cumulative Attendance Overview */}

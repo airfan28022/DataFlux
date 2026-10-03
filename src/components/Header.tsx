@@ -126,45 +126,53 @@ export const Header: React.FC<HeaderProps> = ({
           </p>
         </div>
 
-        {/* Admin User pill with direct Logout */}
-        <div className="flex items-center gap-2 border-l border-gray-100 pl-2 sm:pl-4">
-          <div className="flex items-center gap-2 text-left">
-            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
-              AF
-            </div>
-            <div className="hidden sm:block">
-              <div className="flex items-center gap-1 leading-tight">
-                <span className="text-xs font-semibold text-gray-800">
-                  airfan
-                </span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        {/* User pill with direct Logout */}
+        {(() => {
+          const user = dataService.getCurrentUser();
+          const isUserAdmin = dataService.isAdmin();
+          const displayId = user?.username || user?.id || (isUserAdmin ? 'airfan' : 'ครูผู้ใช้');
+          const initials = displayId.slice(0, 2).toUpperCase();
+          return (
+            <div className="flex items-center gap-2 border-l border-gray-100 pl-2 sm:pl-4">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0 uppercase">
+                  {initials}
+                </div>
+                <div className="hidden sm:block">
+                  <div className="flex items-center gap-1 leading-tight">
+                    <span className="text-xs font-semibold text-gray-800">
+                      {displayId}
+                    </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                  <span className={`text-[10px] block leading-tight font-medium ${isUserAdmin ? 'text-emerald-600 font-bold' : 'text-teal-600'}`}>
+                    {isUserAdmin ? 'Admin (แอดมิน)' : 'สมาชิก (ครูประจำชั้น)'}
+                  </span>
+                </div>
               </div>
-              <span className="text-[10px] text-emerald-600 block leading-tight font-medium">
-                Admin (เข้าสู่ระบบแล้ว)
-              </span>
+
+              {/* Logout button */}
+              <button
+                type="button"
+                onClick={handleUserLogout}
+                title="ออกจากระบบ (สลับกลับไปหน้า Login)"
+                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+
+              {/* Settings button */}
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 transition-all cursor-pointer"
+                title="การตั้งค่าระบบและโปรไฟล์คุณครู"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
             </div>
-          </div>
-
-          {/* Logout button */}
-          <button
-            type="button"
-            onClick={handleUserLogout}
-            title="ออกจากระบบ (สลับกลับไปหน้า Login)"
-            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-
-          {/* Settings button */}
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 transition-all cursor-pointer"
-            title="การตั้งค่าระบบและโปรไฟล์คุณครู"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
+          );
+        })()}
       </div>
     </header>
   );

@@ -215,7 +215,9 @@ export const Navigation: React.FC<NavigationProps> = ({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-emerald-300/70">โหมดการทำงาน:</span>
-              <span className="text-emerald-200 font-medium">ครูประจำชั้น (Admin)</span>
+              <span className="text-emerald-200 font-medium">
+                {dataService.isAdmin() ? 'แอดมิน (Admin)' : 'ครูประจำชั้น (สมาชิก)'}
+              </span>
             </div>
           </div>
         </div>

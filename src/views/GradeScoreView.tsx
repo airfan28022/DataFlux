@@ -61,6 +61,55 @@ interface ChapterFormItem {
 
 type ActiveTabType = number | 'final' | 'summary';
 
+// Score Color Coding Helpers (แก้1: คะแนน 0=แดง, 1-2=ส้ม, 3=เหลือง, 4=ฟ้า, 5=เขียว)
+const getScoreCellClass = (val: number | '-' | null | undefined) => {
+  if (val === undefined || val === '-' || val === null) {
+    return 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-700';
+  }
+  const n = Number(val);
+  if (n === 0) return 'bg-red-100 text-red-700 border border-red-300 font-bold hover:bg-red-200';
+  if (n === 1 || n === 2) return 'bg-orange-100 text-orange-800 border border-orange-300 font-bold hover:bg-orange-200';
+  if (n === 3) return 'bg-yellow-100 text-yellow-900 border border-yellow-300 font-bold hover:bg-yellow-200';
+  if (n === 4) return 'bg-sky-100 text-sky-800 border border-sky-300 font-bold hover:bg-sky-200';
+  if (n === 5) return 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-black shadow-2xs hover:bg-emerald-200';
+  return 'bg-slate-100 text-slate-700';
+};
+
+const getScoreChoiceBtnClass = (choice: number | '-') => {
+  if (choice === 0) return 'bg-red-500 hover:bg-red-600 text-white font-bold';
+  if (choice === 1 || choice === 2) return 'bg-orange-500 hover:bg-orange-600 text-white font-bold';
+  if (choice === 3) return 'bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-black';
+  if (choice === 4) return 'bg-sky-500 hover:bg-sky-600 text-white font-bold';
+  if (choice === 5) return 'bg-emerald-500 hover:bg-emerald-600 text-white font-bold';
+  return 'bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold';
+};
+
+const getModalScorePillClass = (val: number | '-', isSelected: boolean) => {
+  if (isSelected) {
+    if (val === 0) return 'bg-red-600 text-white shadow-xs ring-2 ring-red-400 scale-105 font-black';
+    if (val === 1 || val === 2) return 'bg-orange-500 text-white shadow-xs ring-2 ring-orange-400 scale-105 font-black';
+    if (val === 3) return 'bg-yellow-400 text-yellow-950 shadow-xs ring-2 ring-yellow-400 scale-105 font-black';
+    if (val === 4) return 'bg-sky-500 text-white shadow-xs ring-2 ring-sky-400 scale-105 font-black';
+    if (val === 5) return 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400 scale-105 font-black';
+    return 'bg-slate-700 text-white shadow-xs ring-2 ring-slate-400 scale-105 font-black';
+  }
+  if (val === 0) return 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold';
+  if (val === 1 || val === 2) return 'bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold';
+  if (val === 3) return 'bg-yellow-50 hover:bg-yellow-100 text-yellow-900 border border-yellow-300 font-bold';
+  if (val === 4) return 'bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-bold';
+  if (val === 5) return 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold';
+  return 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200';
+};
+
+const getScoreBadgeClass = (val: number | '-' | undefined) => {
+  if (val === 0) return 'bg-red-50 text-red-700 border-red-200 border font-bold';
+  if (val === 1 || val === 2) return 'bg-orange-50 text-orange-700 border-orange-200 border font-bold';
+  if (val === 3) return 'bg-yellow-50 text-yellow-900 border-yellow-300 border font-bold';
+  if (val === 4) return 'bg-sky-50 text-sky-700 border-sky-200 border font-bold';
+  if (val === 5) return 'bg-emerald-50 text-emerald-700 border-emerald-200 border font-bold';
+  return 'bg-slate-100 text-slate-600 border-slate-200 border';
+};
+
 export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   const [scoreSheets, setScoreSheets] = useState<ScoreSheet[]>(dataService.getScoreSheets());
   const [students, setStudents] = useState<Student[]>(dataService.getStudents());
@@ -158,6 +207,11 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
   const [modalFinalScore, setModalFinalScore] = useState<number | ''>('');
   const [modalEditingTopicIdx, setModalEditingTopicIdx] = useState<number | null>(null);
   const [modalEditingTopicText, setModalEditingTopicText] = useState<string>('');
+
+  // Dropdown สำหรับเลือกสลับเปลี่ยนรายชื่อนักเรียนใน Pop-up (แก้2)
+  const [showStudentSelectorDropdown, setShowStudentSelectorDropdown] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const studentSelectorRef = useRef<HTMLDivElement>(null);
 
   // Auto-save helper for student modal: instantly saves without losing any data
   const saveModalStudentScores = (
@@ -369,6 +423,64 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
       setModalFinalScore(typeof prevExam === 'number' ? prevExam : '');
     }
   };
+
+  // เลือกเปลี่ยนนักเรียนใน Pop-up กรอกคะแนน (แก้2)
+  const handleSelectStudentInScoreModal = (targetStudent: SheetStudent) => {
+    if (!selectedScoreModalStudent || !activeSheet) return;
+    setModalEditingTopicIdx(null);
+    setShowStudentSelectorDropdown(false);
+    setStudentSearchQuery('');
+
+    // บันทึกคะแนนคนปัจจุบันก่อน
+    const updatedSheet = saveModalStudentScores(
+      selectedScoreModalStudent.id,
+      modalSelectedChapterIdx,
+      modalTopicScores,
+      modalFinalScore
+    );
+
+    // สลับเป็นนักเรียนคนใหม่
+    setSelectedScoreModalStudent(targetStudent);
+
+    // โหลดคะแนนบทปัจจุบัน
+    const chaptersToUse = updatedSheet?.chapters || currentChapters;
+    const targetCh = chaptersToUse[modalSelectedChapterIdx];
+    const newTopics = targetCh && targetCh.scores[targetStudent.id]
+      ? [...targetCh.scores[targetStudent.id]]
+      : Array(targetCh ? targetCh.topics.length : 10).fill('-');
+    setModalTopicScores(newTopics);
+
+    // โหลดคะแนนสอบปลายภาค
+    const examScoresToUse = updatedSheet?.finalExamScores || activeSheet?.finalExamScores;
+    const newExam = examScoresToUse?.[targetStudent.id];
+    setModalFinalScore(typeof newExam === 'number' ? newExam : '');
+  };
+
+  const modalFilteredStudents = useMemo(() => {
+    if (!studentSearchQuery.trim()) return currentSheetStudents;
+    const q = studentSearchQuery.trim().toLowerCase();
+    return currentSheetStudents.filter((s) => {
+      const full = `${s.order || ''} ${s.prefix || ''}${s.firstName} ${s.lastName} ${s.nickname || ''}`.toLowerCase();
+      return full.includes(q);
+    });
+  }, [currentSheetStudents, studentSearchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        studentSelectorRef.current &&
+        !studentSelectorRef.current.contains(e.target as Node)
+      ) {
+        setShowStudentSelectorDropdown(false);
+      }
+    };
+    if (showStudentSelectorDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showStudentSelectorDropdown]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1637,7 +1749,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                       ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300 scale-105'
                       : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-300'
                   }`}
-                  title="รวมทุกบทเรียน และสรุปเกรด"
+                  title="รวมทุกบทเรียน"
                   aria-label="รวมทุกบทเรียน"
                 >
                   All
@@ -1988,13 +2100,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                               className={`w-9 h-8 rounded-lg font-bold text-xs transition-all flex items-center justify-center mx-auto cursor-pointer ${
                                 !isTopicActive
                                   ? 'bg-transparent text-slate-300 cursor-not-allowed'
-                                  : displayVal === '-' || displayVal === null
-                                  ? 'bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-700'
-                                  : displayVal === 5
-                                  ? 'bg-emerald-100 text-emerald-800 font-black shadow-2xs'
-                                  : displayVal === 0
-                                  ? 'bg-rose-100 text-rose-700 font-black'
-                                  : 'bg-sky-100 text-sky-800 font-bold'
+                                  : getScoreCellClass(displayVal)
                               }`}
                               title={
                                 isTopicActive
@@ -2005,7 +2111,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                               {displayVal}
                             </button>
 
-                            {/* Floating Popover Choices 0..5, - */}
+                            {/* Floating Popover Choices 0..5, - (แก้1: 0=แดง, 1-2=ส้ม, 3=เหลือง, 4=ฟ้า, 5=เขียว) */}
                             {isPopoverOpen && (
                               <div
                                 ref={popoverRef}
@@ -2023,15 +2129,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                                         choice as number | '-'
                                       )
                                     }
-                                    className={`w-7 h-7 rounded-lg text-xs font-black transition-transform hover:scale-110 cursor-pointer flex items-center justify-center ${
-                                      choice === 5
-                                        ? 'bg-emerald-500 text-white'
-                                        : choice === 0
-                                        ? 'bg-rose-500 text-white'
-                                        : choice === '-'
-                                        ? 'bg-slate-200 text-slate-700'
-                                        : 'bg-sky-500 text-white'
-                                    }`}
+                                    className={`w-7 h-7 rounded-lg text-xs font-black transition-transform hover:scale-110 cursor-pointer flex items-center justify-center ${getScoreChoiceBtnClass(choice as number | '-')}`}
                                   >
                                     {choice}
                                   </button>
@@ -2361,11 +2459,11 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
               <div className="flex items-center gap-2">
                 <Award className="w-4 h-4 text-emerald-700" />
                 <h3 className="text-sm font-bold text-emerald-950">
-                  ตารางสรุปผลคะแนนรวมทุกบทเรียนและตัดเกรด
+                  ตารางสรุปผลคะแนนรวมทุกบทเรียน
                 </h3>
               </div>
               <p className="text-xs text-emerald-800 mt-1">
-                รวบรวมคะแนนเก็บเฉลี่ยของทุกบท + คะแนนสอบปลายภาค ({activeSheet?.finalExamMaxScore || 30} คะแนน) คำนวณร้อยละ และตัดเกรดอัตโนมัติ
+                รวบรวมคะแนนเก็บทุกบท + คะแนนสอบปลายภาค ({activeSheet?.finalExamMaxScore || 30} คะแนน) และคำนวณคะแนนรวมสุทธิ
               </p>
             </div>
 
@@ -2426,21 +2524,11 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   </th>
 
                   {/* Grand Total Score */}
-                  <th className="py-3 px-3 w-24 text-center sticky top-0 z-20 bg-slate-200/90 text-slate-900 font-black border-r border-slate-200">
+                  <th className="py-3 px-3 w-24 text-center sticky top-0 z-20 bg-slate-200/90 text-slate-900 font-black">
                     คะแนนรวมสุทธิ
                     <span className="block text-[10px] text-slate-600 font-normal">
                       (เต็ม {allStudentsSummary[0]?.totalTargetMax || 100})
                     </span>
-                  </th>
-
-                  {/* Percentage */}
-                  <th className="py-3 px-3 w-20 text-center sticky top-0 z-20 bg-sky-50 text-sky-800 font-bold border-r border-slate-200">
-                    ร้อยละ (%)
-                  </th>
-
-                  {/* Grade Column */}
-                  <th className="py-3 px-3 w-20 text-center sticky top-0 z-20 bg-emerald-50 font-bold text-emerald-800">
-                    เกรด
                   </th>
                 </tr>
               </thead>
@@ -2509,35 +2597,15 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     </td>
 
                     {/* Grand Total Scaled Score */}
-                    <td className="py-2.5 px-3 text-center bg-slate-50/60 font-black text-slate-900 text-sm border-r border-slate-100">
+                    <td className="py-2.5 px-3 text-center bg-slate-50/60 font-black text-slate-900 text-sm">
                       {row.totalScore}
-                    </td>
-
-                    {/* Percentage */}
-                    <td className="py-2.5 px-3 text-center bg-sky-50/40 font-bold text-sky-700 text-xs sm:text-sm border-r border-slate-100">
-                      {row.percentage}%
-                    </td>
-
-                    {/* Grade Badge */}
-                    <td className="py-2.5 px-3 text-center bg-emerald-50/40">
-                      <span
-                        className={`inline-block px-3 py-1 rounded-xl font-black text-xs ${
-                          row.grade === '4' || row.grade === 'A'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : row.grade === '0' || row.grade === 'F'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-teal-100 text-teal-800'
-                        }`}
-                      >
-                        {row.grade}
-                      </span>
                     </td>
                   </tr>
                 ))}
 
                 {/* Add Student Row in Summary Table */}
                 <tr>
-                  <td colSpan={currentChapters.length + 7} className="p-2.5 bg-slate-50/70 border-t border-slate-200 text-center">
+                  <td colSpan={currentChapters.length + 5} className="p-2.5 bg-slate-50/70 border-t border-slate-200 text-center">
                     <button
                       type="button"
                       onClick={handleAddStudentRow}
@@ -2557,19 +2625,12 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
           <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-slate-600">
-                คะแนนเฉลี่ยทั้งห้อง: <strong className="text-purple-700 font-bold">{averagePercentage}%</strong>
+                จำนวนนักเรียนทั้งหมด: <strong className="text-purple-700 font-bold">{allStudentsSummary.length} คน</strong>
               </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-slate-400 text-xs mr-1">การกระจายเกรด:</span>
-                {Object.entries(gradeCounts).map(([grd, count]) => (
-                  <span
-                    key={grd}
-                    className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[11px]"
-                  >
-                    เกรด {grd}: {count} คน
-                  </span>
-                ))}
-              </div>
+              <span className="text-slate-300 hidden sm:inline">•</span>
+              <span className="text-slate-600">
+                รวมคะแนนเต็มสุทธิ: <strong className="text-slate-800 font-bold">{allStudentsSummary[0]?.totalTargetMax || 100} คะแนน</strong>
+              </span>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -3099,23 +3160,109 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 md:p-4">
           <div className="bg-white w-full h-full md:h-auto md:max-h-[92vh] md:max-w-lg md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="px-4 py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between shrink-0 shadow-xs">
-              <div className="min-w-0 pr-2">
+            <div className="px-4 py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 text-white flex items-center justify-between shrink-0 shadow-xs relative">
+              <div className="min-w-0 pr-2 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
                     คนที่ {currentSheetStudents.findIndex((s) => s.id === selectedScoreModalStudent.id) + 1} จาก {currentSheetStudents.length}
                   </span>
                   <span className="text-purple-200 text-xs truncate">
-                    {activeSheet?.subjectName || 'รายวิชา'}
+                    {activeSheet?.subjectName || 'รายวิชา'} {activeSheet?.classroom || profile.classroomName ? `• ${activeSheet?.classroom || profile.classroomName}` : ''}
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40">
                     <CheckCircle2 className="w-3 h-3 text-emerald-300" />
                     บันทึกอัตโนมัติ
                   </span>
                 </div>
-                <h3 className="text-base font-bold truncate mt-1">
-                  {selectedScoreModalStudent.prefix}{selectedScoreModalStudent.firstName} {selectedScoreModalStudent.lastName}
-                </h3>
+
+                {/* แก้2: กดตรงชื่อข้างบนเพื่อเลือกชื่อนักเรียนอื่นๆ ได้ตามชั้นนั้นๆ */}
+                <div className="relative mt-1.5" ref={studentSelectorRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowStudentSelectorDropdown(!showStudentSelectorDropdown)}
+                    className="flex items-center gap-2 group text-left bg-white/10 hover:bg-white/20 active:scale-[0.99] px-2.5 py-1.5 rounded-xl border border-white/25 transition-all cursor-pointer max-w-full"
+                    title="คลิกตรงนี้เพื่อเลือกเปลี่ยนชื่อนักเรียนคนอื่นในชั้นเรียนนี้"
+                  >
+                    <span className="text-sm sm:text-base font-bold text-white truncate">
+                      {selectedScoreModalStudent.prefix}{selectedScoreModalStudent.firstName} {selectedScoreModalStudent.lastName}
+                      {selectedScoreModalStudent.nickname ? ` (${selectedScoreModalStudent.nickname})` : ''}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold bg-white/20 group-hover:bg-white/30 text-purple-100 px-2 py-0.5 rounded-lg shrink-0">
+                      <span>เปลี่ยนคน</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showStudentSelectorDropdown ? 'rotate-180' : ''}`} />
+                    </span>
+                  </button>
+
+                  {/* Dropdown Popover */}
+                  {showStudentSelectorDropdown && (
+                    <div className="absolute left-0 top-full mt-2 w-72 sm:w-80 max-w-[90vw] bg-white text-slate-800 rounded-2xl shadow-2xl border border-purple-200 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                      <div className="p-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-purple-700" />
+                            เลือกนักเรียน ({activeSheet?.classroom || profile.classroomName || 'ชั้นนี้'})
+                          </span>
+                          <span className="text-[10px] text-purple-600 font-semibold">
+                            ทั้งหมด {currentSheetStudents.length} คน
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={studentSearchQuery}
+                            onChange={(e) => setStudentSearchQuery(e.target.value)}
+                            placeholder="ค้นหาชื่อหรือเลขที่..."
+                            className="w-full pl-8 pr-2.5 py-1.5 bg-white text-xs text-slate-800 rounded-xl border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 p-1">
+                        {modalFilteredStudents.length === 0 ? (
+                          <div className="py-4 text-center text-xs text-slate-400">
+                            ไม่พบรายชื่อนักเรียน
+                          </div>
+                        ) : (
+                          modalFilteredStudents.map((std) => {
+                            const isCurrent = std.id === selectedScoreModalStudent.id;
+                            const originalIdx = currentSheetStudents.findIndex((s) => s.id === std.id);
+                            return (
+                              <button
+                                key={`dropdown-std-${std.id}`}
+                                type="button"
+                                onClick={() => handleSelectStudentInScoreModal(std)}
+                                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                                  isCurrent
+                                    ? 'bg-purple-100/80 font-bold text-purple-950'
+                                    : 'hover:bg-purple-50 text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate">
+                                  <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                                    isCurrent ? 'bg-purple-700 text-white' : 'bg-slate-200 text-slate-700'
+                                  }`}>
+                                    {originalIdx + 1}
+                                  </span>
+                                  <span className="truncate">
+                                    {std.prefix}{std.firstName} {std.lastName}
+                                    {std.nickname ? ` (${std.nickname})` : ''}
+                                  </span>
+                                </div>
+                                {isCurrent && (
+                                  <span className="text-[10px] bg-purple-700 text-white px-1.5 py-0.5 rounded-md font-semibold shrink-0">
+                                    กำลังกรอก
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
@@ -3262,7 +3409,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                             </div>
                           )}
 
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 shrink-0 mt-0.5">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md shrink-0 mt-0.5 ${getScoreBadgeClass(currentVal)}`}>
                             คะแนน: {currentVal !== undefined && currentVal !== '-' ? `${currentVal} / 5` : 'ยังไม่ลงคะแนน'}
                           </span>
                         </div>
@@ -3276,13 +3423,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                                 key={`val-btn-${val}`}
                                 type="button"
                                 onClick={() => handleSelectModalScore(tIdx, val as number | '-')}
-                                className={`py-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center ${
-                                  isSelected
-                                    ? val === '-'
-                                      ? 'bg-slate-700 text-white ring-2 ring-slate-400'
-                                      : 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-300 scale-102'
-                                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                                }`}
+                                className={`py-2 rounded-lg font-bold text-xs transition-all cursor-pointer flex items-center justify-center ${getModalScorePillClass(val as number | '-', isSelected)}`}
                               >
                                 {val}
                               </button>

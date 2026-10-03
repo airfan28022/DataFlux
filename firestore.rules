@@ -32,6 +32,12 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read, write: if true;
     }
+    match /members/{memberId} {
+      allow read, write: if true;
+    }
+    match /users/{userId}/{document=**} {
+      allow read, write: if true;
+    }
     match /test/{docId} {
       allow read, write: if true;
     }

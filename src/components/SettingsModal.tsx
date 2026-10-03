@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
 import { PWAInstallButton } from './PWAInstallButton';
+import { MemberManagement } from './MemberManagement';
 import {
   Settings,
   KeyRound,
   User,
+  Users,
   X,
   CheckCircle2,
   Smartphone
@@ -23,7 +25,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'app'>('profile');
+  const isAdmin = dataService.isAdmin();
+  const membersCount = dataService.getMembers().length;
+
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members' | 'app'>(
+    isAdmin ? 'members' : 'profile'
+  );
 
   if (!isOpen) return null;
 
@@ -64,7 +71,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden">
+      <div className={`bg-white rounded-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden transition-all duration-300 ${
+        activeTab === 'members' ? 'max-w-4xl' : 'max-w-xl'
+      }`}>
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-emerald-50/50">
           <div className="flex items-center gap-2.5">
@@ -73,7 +82,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-lg">ตั้งค่าระบบและบัญชีครู</h3>
-              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น รหัสผ่าน และระบบหลังบ้าน</p>
+              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น จัดการสมาชิก รหัสผ่าน และระบบหลังบ้าน</p>
             </div>
           </div>
           <button
@@ -86,6 +95,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         {/* Tab switcher */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-6 gap-2 text-xs font-medium overflow-x-auto">
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('members')}
+              className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                activeTab === 'members'
+                  ? 'border-emerald-600 text-emerald-700 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>จัดการสมาชิก</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
+                {membersCount}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('profile')}
             className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
@@ -119,7 +144,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Content Area */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-5 text-sm text-slate-700">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5 text-sm text-slate-700">
+          {/* TAB 0: Members Management (Admin Only) */}
+          {activeTab === 'members' && isAdmin && (
+            <MemberManagement />
+          )}
           {/* TAB 1: Profile */}
           {activeTab === 'profile' && (
             <form onSubmit={handleProfileSave} className="space-y-4">

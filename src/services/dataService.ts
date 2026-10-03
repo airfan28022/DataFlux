@@ -11,7 +11,8 @@ import {
   TeacherProfile,
   ToastMessage,
   SweetAlertOptions,
-  DashboardNote
+  DashboardNote,
+  AppUser
 } from '../types';
 import {
   INITIAL_STUDENTS,
@@ -50,6 +51,8 @@ const STORAGE_KEYS = {
   TEACHER_PROFILE: 'teacher_app_profile_v1',
   ADMIN_LOGGED_IN: 'teacher_app_admin_logged_in_v1',
   DASHBOARD_NOTES: 'teacher_app_dashboard_notes_v1',
+  MEMBERS: 'teacher_app_members_v1',
+  CURRENT_USER_ID: 'teacher_app_current_user_id_v1',
 };
 
 class DataService {
@@ -64,6 +67,11 @@ class DataService {
   private syncStatusListeners: ((status: 'idle' | 'syncing' | 'synced' | 'error') => void)[] = [];
 
   private firestoreListeners: (() => void)[] = [];
+  private userDataListeners: (() => void)[] = [];
+  private _currentUser: AppUser | null = null;
+  private _membersCache: AppUser[] = [];
+  private isMembersInitialized = false;
+
   private isStudentsInitialized = false;
   private isWeightHeightInitialized = false;
   private isAttendanceBankInitialized = false;
@@ -88,6 +96,202 @@ class DataService {
   constructor() {
     this.initFirestoreRealtime();
     testConnection().catch(() => {});
+  }
+
+  // Current User & Member Identity
+  public getCurrentUser(): AppUser | null {
+    if (this._currentUser) return this._currentUser;
+    const savedId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+    if (savedId) {
+      const member = this.getMembers().find((m) => m.id.toLowerCase() === savedId.trim().toLowerCase());
+      if (member) {
+        this._currentUser = member;
+        return member;
+      }
+    }
+    return null;
+  }
+
+  public getCurrentUserId(): string {
+    const u = this.getCurrentUser();
+    return u ? u.id.toLowerCase() : 'airfan';
+  }
+
+  public getUserStorageKey(baseKey: string): string {
+    const uid = this.getCurrentUserId();
+    return `${baseKey}_${uid}`;
+  }
+
+  public getStorageItem(baseKey: string): string | null {
+    const uid = this.getCurrentUserId();
+    const userKey = `${baseKey}_${uid}`;
+    let item = localStorage.getItem(userKey);
+    if (!item && uid === 'airfan') {
+      item = localStorage.getItem(baseKey);
+    }
+    return item;
+  }
+
+  public setStorageItem(baseKey: string, value: string): void {
+    const uid = this.getCurrentUserId();
+    const userKey = `${baseKey}_${uid}`;
+    localStorage.setItem(userKey, value);
+    if (uid === 'airfan') {
+      localStorage.setItem(baseKey, value);
+    }
+  }
+
+  public removeStorageItem(baseKey: string): void {
+    const uid = this.getCurrentUserId();
+    const userKey = `${baseKey}_${uid}`;
+    localStorage.removeItem(userKey);
+    if (uid === 'airfan') {
+      localStorage.removeItem(baseKey);
+    }
+  }
+
+  public async saveUserDoc<T extends object>(coll: string, docId: string, data: T): Promise<void> {
+    const clean = cleanForFirestore(data);
+    const uid = this.getCurrentUserId();
+    try {
+      await setDoc(doc(db, 'users', uid, coll, docId), clean);
+      if (uid === 'airfan') {
+        setDoc(doc(db, coll, docId), clean).catch(() => {});
+      }
+    } catch (err) {
+      console.warn(`[Firestore] saveUserDoc warning (${coll}/${docId}):`, err);
+    }
+  }
+
+  public async deleteUserDoc(coll: string, docId: string): Promise<void> {
+    const uid = this.getCurrentUserId();
+    try {
+      await deleteDoc(doc(db, 'users', uid, coll, docId));
+      if (uid === 'airfan') {
+        deleteDoc(doc(db, coll, docId)).catch(() => {});
+      }
+    } catch (err) {
+      console.warn(`[Firestore] deleteUserDoc warning (${coll}/${docId}):`, err);
+    }
+  }
+
+  public createDefaultAdminMember(): AppUser {
+    const profile = this.getProfile();
+    return {
+      id: 'airfan',
+      username: 'airfan',
+      password: profile.adminPasswordHash || '456789',
+      name: profile.teacherName || 'ครูแอร์ฟาน (Admin)',
+      role: 'admin',
+      status: 'active',
+      classroom: profile.classroomName || 'ห้อง ป.5/1',
+      schoolName: profile.schoolName || 'โรงเรียนอนุบาลและประถมศึกษาสาธิต',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      lastLogin: new Date().toISOString(),
+    };
+  }
+
+  public getMembers(): AppUser[] {
+    if (this._membersCache && this._membersCache.length > 0) {
+      return this._membersCache;
+    }
+    const raw = localStorage.getItem(STORAGE_KEYS.MEMBERS);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (!parsed.some((m: AppUser) => m.id.toLowerCase() === 'airfan')) {
+            parsed.unshift(this.createDefaultAdminMember());
+          }
+          this._membersCache = parsed;
+          return parsed;
+        }
+      } catch {}
+    }
+    const admin = this.createDefaultAdminMember();
+    this._membersCache = [admin];
+    localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify([admin]));
+    return [admin];
+  }
+
+  public async saveMember(member: AppUser): Promise<void> {
+    const cleanMember: AppUser = {
+      ...member,
+      id: member.id.toLowerCase(),
+      username: member.username.toLowerCase(),
+      updatedAt: new Date().toISOString(),
+    };
+    const current = this.getMembers();
+    const idx = current.findIndex((m) => m.id === cleanMember.id);
+    let updated: AppUser[];
+    if (idx >= 0) {
+      updated = [...current];
+      updated[idx] = cleanMember;
+    } else {
+      updated = [...current, cleanMember];
+    }
+    this._membersCache = updated;
+    localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(updated));
+
+    try {
+      await setDoc(doc(db, 'members', cleanMember.id), cleanForFirestore(cleanMember));
+    } catch (e) {
+      console.warn('[Firestore] saveMember warning:', e);
+    }
+
+    if (this._currentUser && this._currentUser.id === cleanMember.id) {
+      this._currentUser = cleanMember;
+    }
+
+    this.notifyToast('success', 'บันทึกสมาชิกสำเร็จ', `อัปเดตข้อมูลผู้ใช้ ${cleanMember.username} เรียบร้อยแล้ว`);
+    this.notifyChanges();
+  }
+
+  public async deleteMember(memberId: string): Promise<boolean> {
+    const cleanId = memberId.trim().toLowerCase();
+    if (cleanId === 'airfan') {
+      this.notifyToast('error', 'ไม่สามารถลบ Admin หลักได้', 'ID airfan เป็นผู้ดูแลระบบหลัก');
+      return false;
+    }
+
+    const current = this.getMembers();
+    const updated = current.filter((m) => m.id !== cleanId);
+    this._membersCache = updated;
+    localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(updated));
+
+    try {
+      await deleteDoc(doc(db, 'members', cleanId));
+    } catch (e) {
+      console.warn('[Firestore] deleteMember warning:', e);
+    }
+
+    this.notifyToast('success', 'ลบสมาชิกสำเร็จ', `ลบบัญชีผู้ใช้ ${cleanId} เรียบร้อยแล้ว`);
+    this.notifyChanges();
+    return true;
+  }
+
+  public async toggleMemberStatus(memberId: string): Promise<void> {
+    const cleanId = memberId.trim().toLowerCase();
+    if (cleanId === 'airfan') {
+      this.notifyToast('error', 'ไม่สามารถระงับ Admin ได้', 'ID airfan ต้องเปิดใช้งานตลอดเวลา');
+      return;
+    }
+    const current = this.getMembers();
+    const member = current.find((m) => m.id === cleanId);
+    if (!member) return;
+
+    const newStatus = member.status === 'active' ? 'suspended' : 'active';
+    const updatedMember: AppUser = {
+      ...member,
+      status: newStatus,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.saveMember(updatedMember);
+    this.notifyToast(
+      newStatus === 'suspended' ? 'warning' : 'success',
+      newStatus === 'suspended' ? 'ระงับการใช้งานเรียบร้อย' : 'เปิดใช้งานสมาชิกเรียบร้อย',
+      `บัญชี ${member.username} ${newStatus === 'suspended' ? 'ถูกระงับการใช้งานแล้ว' : 'สามารถเข้าสู่ระบบได้ตามปกติ'}`
+    );
   }
 
   public clearMemoryCaches(): void {
@@ -119,12 +323,52 @@ class DataService {
 
   private initFirestoreRealtime(): void {
     try {
-      // 1. Students Real-time listener across all devices
-      const unsubStudents = onSnapshot(collection(db, 'students'), (snap) => {
+      // 0. Members Real-time listener across all devices
+      const unsubMembers = onSnapshot(collection(db, 'members'), (snap) => {
+        if (!snap.empty) {
+          this.isMembersInitialized = true;
+          const list = snap.docs.map((d) => d.data() as AppUser);
+          if (!list.some((m) => m.id.toLowerCase() === 'airfan')) {
+            const admin = this.createDefaultAdminMember();
+            list.unshift(admin);
+            setDoc(doc(db, 'members', 'airfan'), cleanForFirestore(admin)).catch(() => {});
+          }
+          this._membersCache = list;
+          localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(list));
+          this.notifySubscribersOnly();
+        } else if (!this.isMembersInitialized) {
+          this.isMembersInitialized = true;
+          const admin = this.createDefaultAdminMember();
+          this._membersCache = [admin];
+          localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify([admin]));
+          setDoc(doc(db, 'members', 'airfan'), cleanForFirestore(admin)).catch(() => {});
+          this.notifySubscribersOnly();
+        }
+      }, (err) => console.warn('[Firestore] Members listener warning:', err));
+      this.firestoreListeners.push(unsubMembers);
+
+      // Initialize data listener for currently active user
+      const initialUid = this.getCurrentUserId();
+      this.initUserDataListeners(initialUid);
+    } catch (e) {
+      console.warn('[Firestore] Realtime setup warning:', e);
+    }
+  }
+
+  public initUserDataListeners(userId: string): void {
+    this.userDataListeners.forEach((fn) => {
+      try { fn(); } catch {}
+    });
+    this.userDataListeners = [];
+
+    const cleanUid = userId.trim().toLowerCase();
+
+    try {
+      // 1. Students Real-time listener for this user
+      const unsubStudents = onSnapshot(collection(db, 'users', cleanUid, 'students'), async (snap) => {
         if (!snap.empty) {
           this.isStudentsInitialized = true;
           const students = snap.docs.map((d) => d.data() as Student);
-          // Sort by order, studentCode, or id for consistent rendering
           students.sort((a, b) => {
             if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
               return a.order - b.order;
@@ -132,40 +376,68 @@ class DataService {
             return (Number(a.studentCode) || 0) - (Number(b.studentCode) || 0) || a.id.localeCompare(b.id);
           });
           this._studentsCache = students;
-          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+          this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
           this.notifySubscribersOnly();
-        } else if (!this.isStudentsInitialized) {
-          this.isStudentsInitialized = true;
-          this.seedStudentsToFirestore();
+        } else if (cleanUid === 'airfan') {
+          // If airfan subcollection is empty, check root collection students to migrate seamlessly
+          try {
+            const rootSnap = await getDocs(collection(db, 'students'));
+            if (!rootSnap.empty) {
+              const students = rootSnap.docs.map((d) => d.data() as Student);
+              for (const s of students) {
+                await setDoc(doc(db, 'users', 'airfan', 'students', s.id), cleanForFirestore(s));
+              }
+              this._studentsCache = students;
+              this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+              this.notifySubscribersOnly();
+            } else {
+              this.seedStudentsToFirestore();
+            }
+          } catch {
+            this.seedStudentsToFirestore();
+          }
         } else {
-          this._studentsCache = [];
-          localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify([]));
+          const cached = this.getStorageItem(STORAGE_KEYS.STUDENTS);
+          if (!cached) {
+            this._studentsCache = [];
+            this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify([]));
+          }
           this.notifySubscribersOnly();
         }
-      }, (err) => console.warn('[Firestore] Students listener warning:', err));
-      this.firestoreListeners.push(unsubStudents);
+      }, (err) => console.warn('[Firestore] User students listener warning:', err));
+      this.userDataListeners.push(unsubStudents);
 
       // 2. Weight & Height Real-time listener
-      const unsubWH = onSnapshot(collection(db, 'weightHeight'), (snap) => {
+      const unsubWH = onSnapshot(collection(db, 'users', cleanUid, 'weightHeight'), async (snap) => {
         if (!snap.empty) {
           this.isWeightHeightInitialized = true;
           const records = snap.docs.map((d) => d.data() as WeightHeightRecord);
           this._weightHeightCache = records;
-          localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
+          this.setStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
           this.notifySubscribersOnly();
-        } else if (!this.isWeightHeightInitialized) {
-          this.isWeightHeightInitialized = true;
-          this.seedWeightHeightToFirestore();
+        } else if (cleanUid === 'airfan') {
+          try {
+            const rootSnap = await getDocs(collection(db, 'weightHeight'));
+            if (!rootSnap.empty) {
+              const records = rootSnap.docs.map((d) => d.data() as WeightHeightRecord);
+              for (const r of records) {
+                await setDoc(doc(db, 'users', 'airfan', 'weightHeight', r.id), cleanForFirestore(r));
+              }
+              this._weightHeightCache = records;
+              this.setStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
+              this.notifySubscribersOnly();
+            } else {
+              this.seedWeightHeightToFirestore();
+            }
+          } catch {}
         } else {
-          this._weightHeightCache = [];
-          localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify([]));
           this.notifySubscribersOnly();
         }
-      }, (err) => console.warn('[Firestore] WeightHeight listener warning:', err));
-      this.firestoreListeners.push(unsubWH);
+      }, (err) => console.warn('[Firestore] User WeightHeight listener warning:', err));
+      this.userDataListeners.push(unsubWH);
 
       // 3. Attendance & Bank Real-time listener
-      const unsubAtt = onSnapshot(collection(db, 'attendanceBank'), (snap) => {
+      const unsubAtt = onSnapshot(collection(db, 'users', cleanUid, 'attendanceBank'), async (snap) => {
         if (!snap.empty) {
           this.isAttendanceBankInitialized = true;
           const all: Record<string, DayAttendanceAndBank> = {};
@@ -173,84 +445,128 @@ class DataService {
             all[d.id] = d.data() as DayAttendanceAndBank;
           });
           this._attendanceBankCache = all;
-          localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(all));
+          this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(all));
           this.recalculateAllSavings(false);
           this.notifySubscribersOnly();
-        } else if (!this.isAttendanceBankInitialized) {
-          this.isAttendanceBankInitialized = true;
-          this.seedAttendanceBankToFirestore();
+        } else if (cleanUid === 'airfan') {
+          try {
+            const rootSnap = await getDocs(collection(db, 'attendanceBank'));
+            if (!rootSnap.empty) {
+              const all: Record<string, DayAttendanceAndBank> = {};
+              for (const d of rootSnap.docs) {
+                const data = d.data() as DayAttendanceAndBank;
+                all[d.id] = data;
+                await setDoc(doc(db, 'users', 'airfan', 'attendanceBank', d.id), cleanForFirestore(data));
+              }
+              this._attendanceBankCache = all;
+              this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(all));
+              this.recalculateAllSavings(false);
+              this.notifySubscribersOnly();
+            } else {
+              this.seedAttendanceBankToFirestore();
+            }
+          } catch {}
         } else {
-          this._attendanceBankCache = {};
-          localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify({}));
           this.notifySubscribersOnly();
         }
-      }, (err) => console.warn('[Firestore] Attendance listener warning:', err));
-      this.firestoreListeners.push(unsubAtt);
+      }, (err) => console.warn('[Firestore] User Attendance listener warning:', err));
+      this.userDataListeners.push(unsubAtt);
 
       // 4. Withdrawal Logs Real-time listener
-      const unsubWithdrawal = onSnapshot(collection(db, 'withdrawalLogs'), (snap) => {
-        this.isWithdrawalLogsInitialized = true;
-        const logs = snap.docs.map((d) => d.data() as WithdrawalLog);
-        logs.sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
-        this._withdrawalLogsCache = logs;
-        localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
-        this.notifySubscribersOnly();
-      }, (err) => console.warn('[Firestore] Withdrawal listener warning:', err));
-      this.firestoreListeners.push(unsubWithdrawal);
+      const unsubWithdrawal = onSnapshot(collection(db, 'users', cleanUid, 'withdrawalLogs'), async (snap) => {
+        if (!snap.empty) {
+          this.isWithdrawalLogsInitialized = true;
+          const logs = snap.docs.map((d) => d.data() as WithdrawalLog);
+          logs.sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
+          this._withdrawalLogsCache = logs;
+          this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
+          this.notifySubscribersOnly();
+        } else if (cleanUid === 'airfan') {
+          try {
+            const rootSnap = await getDocs(collection(db, 'withdrawalLogs'));
+            if (!rootSnap.empty) {
+              const logs = rootSnap.docs.map((d) => d.data() as WithdrawalLog);
+              for (const l of logs) {
+                await setDoc(doc(db, 'users', 'airfan', 'withdrawalLogs', l.id), cleanForFirestore(l));
+              }
+              this._withdrawalLogsCache = logs;
+              this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
+              this.notifySubscribersOnly();
+            }
+          } catch {}
+        }
+      }, (err) => console.warn('[Firestore] User Withdrawal listener warning:', err));
+      this.userDataListeners.push(unsubWithdrawal);
 
       // 5. Withdrawal Pending Days Real-time listener
-      const unsubPending = onSnapshot(doc(db, 'settings', 'withdrawalPendingDays'), (snap) => {
+      const unsubPending = onSnapshot(doc(db, 'users', cleanUid, 'settings', 'withdrawalPendingDays'), (snap) => {
         if (snap.exists()) {
           const data = snap.data();
           if (data && Array.isArray(data.list)) {
             this._pendingDaysCache = data.list;
-            localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS, JSON.stringify(data.list));
+            this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS, JSON.stringify(data.list));
             this.notifySubscribersOnly();
           }
         }
-      }, (err) => console.warn('[Firestore] Pending listener warning:', err));
-      this.firestoreListeners.push(unsubPending);
+      }, (err) => console.warn('[Firestore] User Pending listener warning:', err));
+      this.userDataListeners.push(unsubPending);
 
       // 6. Score Sheets Real-time listener
-      const unsubScores = onSnapshot(collection(db, 'scoreSheets'), (snap) => {
+      const unsubScores = onSnapshot(collection(db, 'users', cleanUid, 'scoreSheets'), async (snap) => {
         if (!snap.empty) {
           this.isScoresInitialized = true;
           const sheets = snap.docs.map((d) => d.data() as ScoreSheet);
           this._scoresCache = sheets;
-          localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(sheets));
+          this.setStorageItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(sheets));
           this.notifySubscribersOnly();
-        } else if (!this.isScoresInitialized) {
-          this.isScoresInitialized = true;
-          this.seedScoreSheetsToFirestore();
-        } else {
-          this._scoresCache = [];
-          localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify([]));
-          this.notifySubscribersOnly();
+        } else if (cleanUid === 'airfan') {
+          try {
+            const rootSnap = await getDocs(collection(db, 'scoreSheets'));
+            if (!rootSnap.empty) {
+              const sheets = rootSnap.docs.map((d) => d.data() as ScoreSheet);
+              for (const s of sheets) {
+                await setDoc(doc(db, 'users', 'airfan', 'scoreSheets', s.id), cleanForFirestore(s));
+              }
+              this._scoresCache = sheets;
+              this.setStorageItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(sheets));
+              this.notifySubscribersOnly();
+            } else {
+              this.seedScoreSheetsToFirestore();
+            }
+          } catch {}
         }
-      }, (err) => console.warn('[Firestore] Scores listener warning:', err));
-      this.firestoreListeners.push(unsubScores);
+      }, (err) => console.warn('[Firestore] User Scores listener warning:', err));
+      this.userDataListeners.push(unsubScores);
 
       // 7. Calendar Events Real-time listener
-      const unsubEvents = onSnapshot(collection(db, 'calendarEvents'), (snap) => {
+      const unsubEvents = onSnapshot(collection(db, 'users', cleanUid, 'calendarEvents'), async (snap) => {
         if (!snap.empty) {
           this.isEventsInitialized = true;
           const events = snap.docs.map((d) => d.data() as CalendarEvent);
           this._eventsCache = events;
-          localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
+          this.setStorageItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
           this.notifySubscribersOnly();
-        } else if (!this.isEventsInitialized) {
-          this.isEventsInitialized = true;
-          this.seedCalendarEventsToFirestore();
-        } else {
-          this._eventsCache = [];
-          localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify([]));
-          this.notifySubscribersOnly();
+        } else if (cleanUid === 'airfan') {
+          try {
+            const rootSnap = await getDocs(collection(db, 'calendarEvents'));
+            if (!rootSnap.empty) {
+              const events = rootSnap.docs.map((d) => d.data() as CalendarEvent);
+              for (const ev of events) {
+                await setDoc(doc(db, 'users', 'airfan', 'calendarEvents', ev.id), cleanForFirestore(ev));
+              }
+              this._eventsCache = events;
+              this.setStorageItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
+              this.notifySubscribersOnly();
+            } else {
+              this.seedCalendarEventsToFirestore();
+            }
+          } catch {}
         }
-      }, (err) => console.warn('[Firestore] Events listener warning:', err));
-      this.firestoreListeners.push(unsubEvents);
+      }, (err) => console.warn('[Firestore] User Events listener warning:', err));
+      this.userDataListeners.push(unsubEvents);
 
       // 8. Profile & Classroom Settings Real-time listener
-      const unsubProfile = onSnapshot(doc(db, 'settings', 'profile'), (snap) => {
+      const unsubProfile = onSnapshot(doc(db, 'users', cleanUid, 'settings', 'profile'), (snap) => {
         if (snap.exists()) {
           this.isProfileInitialized = true;
           const p = snap.data() as TeacherProfile;
@@ -262,42 +578,49 @@ class DataService {
               adminPasswordHash: p.adminPasswordHash || current.adminPasswordHash || '456789',
             };
             this._profileCache = merged;
-            localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(merged));
+            this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(merged));
             this.notifySubscribersOnly();
           }
-        } else if (!this.isProfileInitialized) {
-          this.isProfileInitialized = true;
+        } else if (cleanUid === 'airfan') {
           this.seedProfileToFirestore();
         }
-      }, (err) => console.warn('[Firestore] Profile listener warning:', err));
-      this.firestoreListeners.push(unsubProfile);
+      }, (err) => console.warn('[Firestore] User Profile listener warning:', err));
+      this.userDataListeners.push(unsubProfile);
 
       // 9. Dashboard Notes Real-time listener
-      const unsubNotes = onSnapshot(collection(db, 'dashboardNotes'), (snap) => {
+      const unsubNotes = onSnapshot(collection(db, 'users', cleanUid, 'dashboardNotes'), async (snap) => {
         if (!snap.empty) {
           this.isNotesInitialized = true;
           const notes = snap.docs.map((d) => d.data() as DashboardNote);
-          // Sort pinned first, then newest
           notes.sort((a, b) => {
             if (a.isPinned && !b.isPinned) return -1;
             if (!a.isPinned && b.isPinned) return 1;
             return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
           });
           this._notesCache = notes;
-          localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
+          this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
           this.notifySubscribersOnly();
-        } else if (!this.isNotesInitialized) {
-          this.isNotesInitialized = true;
-          this.seedDashboardNotesToFirestore();
-        } else {
-          this._notesCache = [];
-          localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify([]));
-          this.notifySubscribersOnly();
+        } else if (cleanUid === 'airfan') {
+          try {
+            const rootSnap = await getDocs(collection(db, 'dashboardNotes'));
+            if (!rootSnap.empty) {
+              const notes = rootSnap.docs.map((d) => d.data() as DashboardNote);
+              for (const n of notes) {
+                await setDoc(doc(db, 'users', 'airfan', 'dashboardNotes', n.id), cleanForFirestore(n));
+              }
+              this._notesCache = notes;
+              this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
+              this.notifySubscribersOnly();
+            } else {
+              this.seedDashboardNotesToFirestore();
+            }
+          } catch {}
         }
-      }, (err) => console.warn('[Firestore] Dashboard notes listener warning:', err));
-      this.firestoreListeners.push(unsubNotes);
+      }, (err) => console.warn('[Firestore] User Dashboard notes listener warning:', err));
+      this.userDataListeners.push(unsubNotes);
+
     } catch (e) {
-      console.warn('[Firestore] Realtime setup warning:', e);
+      console.warn('[Firestore] User Realtime setup warning:', e);
     }
   }
 
@@ -466,8 +789,12 @@ class DataService {
     this.syncStatusListeners.forEach((fn) => fn(this.syncStatus));
 
     try {
+      const currentUser = this.getCurrentUser();
       const payload = {
         action: 'syncAllData',
+        userId: this.getCurrentUserId(),
+        userName: currentUser?.name || profile.teacherName,
+        classroom: currentUser?.classroom || profile.classroomName,
         payload: {
           Students: this.getStudents(),
           WeightHeight: this.getWeightHeightRecords(),
@@ -503,9 +830,24 @@ class DataService {
   // Profile & Settings
   public getProfile(): TeacherProfile {
     if (this._profileCache) return this._profileCache;
-    const data = localStorage.getItem(STORAGE_KEYS.TEACHER_PROFILE);
+    const data = this.getStorageItem(STORAGE_KEYS.TEACHER_PROFILE);
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(INITIAL_TEACHER_PROFILE));
+      const currentUser = this.getCurrentUser();
+      if (currentUser && currentUser.id !== 'airfan') {
+        const memberProfile: TeacherProfile = {
+          ...INITIAL_TEACHER_PROFILE,
+          teacherName: currentUser.name || 'คุณครูประจำชั้น',
+          classroomName: currentUser.classroom || 'ห้องเรียน',
+          schoolName: currentUser.schoolName || INITIAL_TEACHER_PROFILE.schoolName,
+          adminUsername: currentUser.username,
+          adminPasswordHash: currentUser.password,
+          lastModifiedTimestamp: new Date().toISOString(),
+        };
+        this._profileCache = memberProfile;
+        this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(memberProfile));
+        return memberProfile;
+      }
+      this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(INITIAL_TEACHER_PROFILE));
       this._profileCache = INITIAL_TEACHER_PROFILE;
       return INITIAL_TEACHER_PROFILE;
     }
@@ -513,15 +855,15 @@ class DataService {
       const parsed: TeacherProfile = JSON.parse(data);
       if (!parsed.gasWebAppUrl || parsed.gasWebAppUrl.trim() === '') {
         parsed.gasWebAppUrl = INITIAL_TEACHER_PROFILE.gasWebAppUrl;
-        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
+        this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
       }
       if (!parsed.adminUsername || parsed.adminUsername.toLowerCase() === 'admin') {
-        parsed.adminUsername = 'airfan';
-        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
+        parsed.adminUsername = this.getCurrentUserId();
+        this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
       }
       if (!parsed.driveFolderId || parsed.driveFolderId.trim() === '' || parsed.driveFolderId !== DEFAULT_DRIVE_FOLDER_ID) {
         parsed.driveFolderId = DEFAULT_DRIVE_FOLDER_ID;
-        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
+        this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
       }
       this._profileCache = parsed;
       return parsed;
@@ -539,10 +881,31 @@ class DataService {
       lastModifiedTimestamp: new Date().toISOString(),
     };
     this._profileCache = updated;
-    localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(updated));
-    setDoc(doc(db, 'settings', 'profile'), cleanForFirestore(updated)).catch((e) =>
-      console.warn('[Firestore] Profile sync warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(updated));
+    this.saveUserDoc('settings', 'profile', updated);
+
+    // Sync changes to AppUser member record
+    const currentUser = this.getCurrentUser();
+    if (currentUser) {
+      let memberChanged = false;
+      const updatedMember = { ...currentUser };
+      if (profile.teacherName && profile.teacherName !== currentUser.name) {
+        updatedMember.name = profile.teacherName;
+        memberChanged = true;
+      }
+      if (profile.classroomName && profile.classroomName !== currentUser.classroom) {
+        updatedMember.classroom = profile.classroomName;
+        memberChanged = true;
+      }
+      if (profile.adminPasswordHash && profile.adminPasswordHash !== currentUser.password) {
+        updatedMember.password = profile.adminPasswordHash;
+        memberChanged = true;
+      }
+      if (memberChanged) {
+        this.saveMember(updatedMember);
+      }
+    }
+
     this.notifyToast('success', 'บันทึกการตั้งค่าสำเร็จ', 'อัปเดตข้อมูลผู้ใช้งานและระบบเรียบร้อย');
     this.notifyChanges();
   }
@@ -551,11 +914,15 @@ class DataService {
     const profile = this.getProfile();
     profile.lastModifiedTimestamp = new Date().toISOString();
     this._profileCache = profile;
-    localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(profile));
+    this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(profile));
   }
 
   // Admin Auth & Login Credentials
   public isAdmin(): boolean {
+    const user = this.getCurrentUser();
+    if (user) {
+      return user.role === 'admin' || user.id.toLowerCase() === 'airfan';
+    }
     return localStorage.getItem(STORAGE_KEYS.ADMIN_LOGGED_IN) === 'true';
   }
 
@@ -569,20 +936,78 @@ class DataService {
   }
 
   public verifyCredentials(username: string, password: string): boolean {
-    const profile = this.getProfile();
     const cleanUser = username.trim().toLowerCase();
     const cleanPass = password.trim();
-    const allowedUsers = ['airfan', (profile.adminUsername || 'airfan').toLowerCase(), 'admin'];
-    const expectedPass = profile.adminPasswordHash || '456789';
-    return allowedUsers.includes(cleanUser) && cleanPass === expectedPass;
+    const member = this.getMembers().find((m) => m.id === cleanUser || m.username.toLowerCase() === cleanUser);
+    if (!member) {
+      if (cleanUser === 'airfan') {
+        return this.verifyAdminPassword(cleanPass);
+      }
+      return false;
+    }
+    if (member.status === 'suspended') return false;
+    return member.password === cleanPass || (cleanUser === 'airfan' && this.verifyAdminPassword(cleanPass));
   }
 
-  public loginWithCredentials(username: string, password: string): boolean {
-    if (this.verifyCredentials(username, password)) {
-      this.setAdminLoggedIn(true);
-      return true;
+  public loginWithCredentials(username: string, password: string): { success: boolean; error?: string } {
+    const cleanUser = username.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    if (!cleanUser || !cleanPass) {
+      return { success: false, error: 'invalid' };
     }
-    return false;
+
+    const members = this.getMembers();
+    const member = members.find((m) => m.id === cleanUser || m.username.toLowerCase() === cleanUser);
+
+    if (member) {
+      if (member.status === 'suspended') {
+        return { success: false, error: 'suspended' };
+      }
+
+      const profile = this.getProfile();
+      const isPassValid =
+        member.password === cleanPass ||
+        (cleanUser === 'airfan' && (
+          cleanPass === (profile.adminPasswordHash || '456789') ||
+          cleanPass === '456789' ||
+          cleanPass === '1234' ||
+          cleanPass === 'admin'
+        ));
+
+      if (!isPassValid) {
+        return { success: false, error: 'invalid' };
+      }
+
+      const updatedMember: AppUser = {
+        ...member,
+        lastLogin: new Date().toISOString(),
+      };
+      this._currentUser = updatedMember;
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, cleanUser);
+      this.setAdminLoggedIn(member.role === 'admin' || cleanUser === 'airfan');
+
+      setDoc(doc(db, 'members', cleanUser), cleanForFirestore(updatedMember)).catch(() => {});
+
+      this.clearMemoryCaches();
+      this.initUserDataListeners(cleanUser);
+
+      return { success: true };
+    }
+
+    if (cleanUser === 'airfan' && this.verifyAdminPassword(cleanPass)) {
+      const defaultAdmin = this.createDefaultAdminMember();
+      defaultAdmin.password = cleanPass;
+      this.saveMember(defaultAdmin);
+      this._currentUser = defaultAdmin;
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, 'airfan');
+      this.setAdminLoggedIn(true);
+      this.clearMemoryCaches();
+      this.initUserDataListeners('airfan');
+      return { success: true };
+    }
+
+    return { success: false, error: 'invalid' };
   }
 
   public loginAdmin(password: string): boolean {
@@ -594,9 +1019,21 @@ class DataService {
     return false;
   }
 
-  public logoutAdmin(): void {
+  public logoutUser(): void {
+    this.userDataListeners.forEach((fn) => {
+      try { fn(); } catch {}
+    });
+    this.userDataListeners = [];
+    this._currentUser = null;
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
     this.setAdminLoggedIn(false);
+    this.clearMemoryCaches();
     this.notifyToast('info', 'ออกจากระบบเรียบร้อยแล้ว');
+    this.notifyChanges();
+  }
+
+  public logoutAdmin(): void {
+    this.logoutUser();
   }
 
   public verifyAdminPassword(password: string): boolean {
@@ -609,13 +1046,13 @@ class DataService {
   // Students (Page 2)
   public getStudents(): Student[] {
     if (this._studentsCache) return this._studentsCache;
-    const data = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-    let list: Student[] = INITIAL_STUDENTS;
+    const data = this.getStorageItem(STORAGE_KEYS.STUDENTS);
+    let list: Student[] = this.getCurrentUserId() === 'airfan' ? INITIAL_STUDENTS : [];
     if (data) {
       try {
         list = JSON.parse(data);
       } catch {
-        list = INITIAL_STUDENTS;
+        list = this.getCurrentUserId() === 'airfan' ? INITIAL_STUDENTS : [];
       }
     }
     // Ensure all students have a valid gradeLevel (default to ป.1 if not specified)
@@ -625,7 +1062,7 @@ class DataService {
     const validGrades = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'];
     const resolvedDefault = validGrades.includes(defaultGrade) ? defaultGrade : 'ป.1';
 
-    const normalized = list.map((s, idx) => {
+    const normalized = list.map((s) => {
       if (!s.gradeLevel) {
         hasChanges = true;
         // Distribute demo students sensibly: 1st half to ป.1 or current profile grade
@@ -638,7 +1075,7 @@ class DataService {
     });
 
     if (hasChanges && data) {
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(normalized));
+      this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(normalized));
     }
     this._studentsCache = normalized;
     return normalized;
@@ -662,10 +1099,8 @@ class DataService {
       this.notifyToast('success', 'เพิ่มข้อมูลสำเร็จ', `เพิ่มนักเรียน ${student.firstName} เข้าสู่ระบบแล้ว`);
     }
     this._studentsCache = students;
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-    setDoc(doc(db, 'students', finalStudent.id), cleanForFirestore(finalStudent)).catch((e) =>
-      console.warn('[Firestore] Student save warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    this.saveUserDoc('students', finalStudent.id, finalStudent);
     this.notifyChanges();
   }
 
@@ -676,13 +1111,11 @@ class DataService {
       updatedAt: new Date().toISOString(),
     }));
     this._studentsCache = updated;
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
+    this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updated));
     // Persist to Firestore asynchronously
     try {
       updated.forEach((student) => {
-        setDoc(doc(db, 'students', student.id), cleanForFirestore(student)).catch((e) =>
-          console.warn('[Firestore] Student reorder sync warning:', e)
-        );
+        this.saveUserDoc('students', student.id, student);
       });
     } catch (err) {
       console.warn('[Firestore] Reorder batch error:', err);
@@ -742,10 +1175,8 @@ class DataService {
 
     students[index] = updatedStudent;
     this._studentsCache = students;
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-    setDoc(doc(db, 'students', updatedStudent.id), cleanForFirestore(updatedStudent)).catch((e) =>
-      console.warn('[Firestore] Student name sync warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    this.saveUserDoc('students', updatedStudent.id, updatedStudent);
     if (!isSilent) {
       this.notifyToast('success', 'บันทึกชื่อสำเร็จ', `อัปเดตชื่อเป็น ${prefix}${firstName} ${lastName}`);
     }
@@ -758,10 +1189,8 @@ class DataService {
     const student = students.find((s) => s.id === studentId);
     students = students.filter((s) => s.id !== studentId);
     this._studentsCache = students;
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
-    deleteDoc(doc(db, 'students', studentId)).catch((e) =>
-      console.warn('[Firestore] Student delete warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(students));
+    this.deleteUserDoc('students', studentId);
     this.notifyToast('success', 'ลบข้อมูลเรียบร้อย', `ลบข้อมูล ${student?.firstName || 'นักเรียน'} ออกจากระบบแล้ว`);
     this.notifyChanges(true); // immediate sync with Google Sheets to delete row
   }
@@ -769,10 +1198,10 @@ class DataService {
   // Weight & Height (Page 1)
   public getWeightHeightRecords(): WeightHeightRecord[] {
     if (this._weightHeightCache) return this._weightHeightCache;
-    const data = localStorage.getItem(STORAGE_KEYS.WEIGHT_HEIGHT);
+    const data = this.getStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT);
+    const initial = this.getCurrentUserId() === 'airfan' ? [INITIAL_WEIGHT_HEIGHT] : [];
     if (!data) {
-      const initial = [INITIAL_WEIGHT_HEIGHT];
-      localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(initial));
+      this.setStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(initial));
       this._weightHeightCache = initial;
       return initial;
     }
@@ -781,8 +1210,8 @@ class DataService {
       this._weightHeightCache = parsed;
       return parsed;
     } catch {
-      this._weightHeightCache = [INITIAL_WEIGHT_HEIGHT];
-      return [INITIAL_WEIGHT_HEIGHT];
+      this._weightHeightCache = initial;
+      return initial;
     }
   }
 
@@ -798,10 +1227,8 @@ class DataService {
     }
 
     this._weightHeightCache = records;
-    localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
-    setDoc(doc(db, 'weightHeight', updatedRecord.id), cleanForFirestore(updatedRecord)).catch((e) =>
-      console.warn('[Firestore] WeightHeight save warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
+    this.saveUserDoc('weightHeight', updatedRecord.id, updatedRecord);
     if (!isAutoSave) {
       this.notifyToast('success', 'บันทึกสำเร็จ', `บันทึกน้ำหนัก-ส่วนสูง วันที่ ${record.date} เรียบร้อย`);
     }
@@ -812,10 +1239,8 @@ class DataService {
     let records = this.getWeightHeightRecords();
     records = records.filter((r) => r.id !== id);
     this._weightHeightCache = records;
-    localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
-    deleteDoc(doc(db, 'weightHeight', id)).catch((e) =>
-      console.warn('[Firestore] WeightHeight delete warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(records));
+    this.deleteUserDoc('weightHeight', id);
     this.notifyToast('success', 'ลบข้อมูลเรียบร้อย', 'ลบประวัติน้ำหนัก-ส่วนสูงเรียบร้อยแล้ว');
     this.notifyChanges(true); // immediate sync with Google Sheets to delete row
   }
@@ -837,9 +1262,13 @@ class DataService {
 
   public getAllAttendanceAndBank(): Record<string, DayAttendanceAndBank> {
     if (this._attendanceBankCache) return this._attendanceBankCache;
-    const data = localStorage.getItem(STORAGE_KEYS.ATTENDANCE_BANK);
+    const data = this.getStorageItem(STORAGE_KEYS.ATTENDANCE_BANK);
     if (!data) {
-      // Create today's default
+      if (this.getCurrentUserId() !== 'airfan') {
+        this._attendanceBankCache = {};
+        return {};
+      }
+      // Create today's default for airfan
       const today = new Date().toISOString().slice(0, 10);
       const students = this.getStudents();
       const initialAttendance: Record<string, 'present' | 'sick' | 'personal' | 'absent' | 'late'> = {};
@@ -859,7 +1288,7 @@ class DataService {
           updatedAt: new Date().toISOString(),
         },
       };
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(initialData));
+      this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(initialData));
       this._attendanceBankCache = initialData;
       return initialData;
     }
@@ -890,10 +1319,8 @@ class DataService {
     };
     all[date] = dayEntry;
     this._attendanceBankCache = all;
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(all));
-    setDoc(doc(db, 'attendanceBank', date), cleanForFirestore(dayEntry)).catch((e) =>
-      console.warn('[Firestore] AttendanceBank save warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(all));
+    this.saveUserDoc('attendanceBank', date, dayEntry);
 
     // Recalculate students' total savings from sum of deposits minus withdrawals
     this.recalculateAllSavings();
@@ -906,25 +1333,26 @@ class DataService {
 
   public getWithdrawalLogs(): WithdrawalLog[] {
     if (this._withdrawalLogsCache) return this._withdrawalLogsCache;
-    const data = localStorage.getItem(STORAGE_KEYS.WITHDRAWAL_LOGS);
+    const data = this.getStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS);
+    const initial = this.getCurrentUserId() === 'airfan' ? INITIAL_WITHDRAWAL_LOGS : [];
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(INITIAL_WITHDRAWAL_LOGS));
-      this._withdrawalLogsCache = INITIAL_WITHDRAWAL_LOGS;
-      return INITIAL_WITHDRAWAL_LOGS;
+      this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(initial));
+      this._withdrawalLogsCache = initial;
+      return initial;
     }
     try {
       const parsed = JSON.parse(data);
       this._withdrawalLogsCache = parsed;
       return parsed;
     } catch {
-      this._withdrawalLogsCache = INITIAL_WITHDRAWAL_LOGS;
-      return INITIAL_WITHDRAWAL_LOGS;
+      this._withdrawalLogsCache = initial;
+      return initial;
     }
   }
 
   public getWithdrawalPendingDays(): WithdrawalPendingDay[] {
     if (this._pendingDaysCache) return this._pendingDaysCache;
-    const data = localStorage.getItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS);
+    const data = this.getStorageItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS);
     if (!data) return [];
     try {
       const parsed = JSON.parse(data);
@@ -938,10 +1366,8 @@ class DataService {
 
   public saveWithdrawalPendingDays(list: WithdrawalPendingDay[]): void {
     this._pendingDaysCache = list;
-    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS, JSON.stringify(list));
-    setDoc(doc(db, 'settings', 'withdrawalPendingDays'), { list: cleanForFirestore(list) }).catch((e) =>
-      console.warn('[Firestore] Pending days sync warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_PENDING_DAYS, JSON.stringify(list));
+    this.saveUserDoc('settings', 'withdrawalPendingDays', { list });
     this.notifyChanges();
   }
 
@@ -1076,12 +1502,10 @@ class DataService {
 
     // Save updated allBank with deducted deposits and updated notes
     this._attendanceBankCache = allBank;
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+    this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
     affectedDates.forEach((dStr) => {
       if (allBank[dStr]) {
-        setDoc(doc(db, 'attendanceBank', dStr), cleanForFirestore(allBank[dStr])).catch((e) =>
-          console.warn('[Firestore] Bank update date warning:', e)
-        );
+        this.saveUserDoc('attendanceBank', dStr, allBank[dStr]);
       }
     });
 
@@ -1108,10 +1532,8 @@ class DataService {
     const logs = this.getWithdrawalLogs();
     logs.unshift(log);
     this._withdrawalLogsCache = logs;
-    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
-    setDoc(doc(db, 'withdrawalLogs', logId), cleanForFirestore(log)).catch((e) =>
-      console.warn('[Firestore] Withdrawal log sync warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(logs));
+    this.saveUserDoc('withdrawalLogs', logId, log);
 
     // Recalculate savings to ensure total consistency
     this.recalculateAllSavings();
@@ -1166,12 +1588,10 @@ class DataService {
     // Save updated allBank & sync to Firestore
     if (affectedDates.length > 0) {
       this._attendanceBankCache = allBank;
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+      this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
       affectedDates.forEach((dStr) => {
         if (allBank[dStr]) {
-          setDoc(doc(db, 'attendanceBank', dStr), cleanForFirestore(allBank[dStr])).catch((e) =>
-            console.warn('[Firestore] Bank update after withdrawal delete warning:', e)
-          );
+          this.saveUserDoc('attendanceBank', dStr, allBank[dStr]);
         }
       });
     }
@@ -1182,10 +1602,8 @@ class DataService {
     // 4. Remove withdrawal log from cache, local storage & Firestore
     const updatedLogs = logs.filter((l) => l.id !== id);
     this._withdrawalLogsCache = updatedLogs;
-    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(updatedLogs));
-    deleteDoc(doc(db, 'withdrawalLogs', id)).catch((e) =>
-      console.warn('[Firestore] Withdrawal log delete warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(updatedLogs));
+    this.deleteUserDoc('withdrawalLogs', id);
 
     // 5. Recalculate student savings to ensure total consistency
     this.recalculateAllSavings(true);
@@ -1249,9 +1667,7 @@ class DataService {
 
     allBank[date] = dayData;
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
-    setDoc(doc(db, 'attendanceBank', date), cleanForFirestore(dayData)).catch((e) =>
-      console.warn('[Firestore] Clear withdrawal date sync warning:', e)
-    );
+    this.saveUserDoc('attendanceBank', date, dayData);
     this.saveWithdrawalPendingDays(pendingList);
 
     this.notifyToast(
@@ -1283,11 +1699,9 @@ class DataService {
       currentSavings: 0,
       updatedAt: new Date().toISOString(),
     }));
-    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+    this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
     updatedStudents.forEach((s) => {
-      setDoc(doc(db, 'students', s.id), cleanForFirestore(s)).catch((e) =>
-        console.warn('[Firestore] Student reset warning:', e)
-      );
+      this.saveUserDoc('students', s.id, s);
     });
 
     // 2. Clear all deposit records in history and clear attendance records so they can start completely fresh
@@ -1302,16 +1716,14 @@ class DataService {
         allBank[dateKey].attendance = {}; // Clear attendance so teachers can start fresh
         allBank[dateKey].note = '';
         allBank[dateKey].updatedAt = new Date().toISOString();
-        setDoc(doc(db, 'attendanceBank', dateKey), cleanForFirestore(allBank[dateKey])).catch((e) =>
-          console.warn('[Firestore] Bank reset date warning:', e)
-        );
+        this.saveUserDoc('attendanceBank', dateKey, allBank[dateKey]);
       }
     });
-    localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+    this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
 
     // 3. Clear pending withdrawal logs & pending days
     this.saveWithdrawalPendingDays([]);
-    localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify([]));
+    this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify([]));
 
     // 4. Notify toast & sync immediately
     this.notifyToast(
@@ -1404,10 +1816,8 @@ class DataService {
       dayEntry.updatedAt = new Date().toISOString();
       allBank[date] = dayEntry;
 
-      localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
-      setDoc(doc(db, 'attendanceBank', date), cleanForFirestore(dayEntry)).catch((e) =>
-        console.warn('[Firestore] Bank reset day warning:', e)
-      );
+      this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+      this.saveUserDoc('attendanceBank', date, dayEntry);
 
       this.recalculateAllSavings();
       this.notifyChanges(true);
@@ -1431,27 +1841,23 @@ class DataService {
             students.forEach((s) => { clearedDep[s.id] = 0; });
             allBank[d].deposits = clearedDep;
             allBank[d].updatedAt = new Date().toISOString();
-            setDoc(doc(db, 'attendanceBank', d), cleanForFirestore(allBank[d])).catch((e) =>
-              console.warn('[Firestore] Bank reset warning:', e)
-            );
+            this.saveUserDoc('attendanceBank', d, allBank[d]);
           }
         });
-        localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+        this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
 
         const updatedStudents = students.map((s) => ({
           ...s,
           currentSavings: 0,
           updatedAt: new Date().toISOString()
         }));
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+        this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
         updatedStudents.forEach((s) => {
-          setDoc(doc(db, 'students', s.id), cleanForFirestore(s)).catch((e) =>
-            console.warn('[Firestore] Student reset warning:', e)
-          );
+          this.saveUserDoc('students', s.id, s);
         });
 
         this.saveWithdrawalPendingDays([]);
-        localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify([]));
+        this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify([]));
         this.notifyChanges(true);
 
         this.notifyToast('success', 'ลบยอดเงินออมสำเร็จ', 'ลบยอดเงินออมของนักเรียนทุกคนเป็น 0 บาทเรียบร้อยแล้ว');
@@ -1474,13 +1880,11 @@ class DataService {
             if (modified) {
               allBank[d].attendance = att;
               allBank[d].updatedAt = new Date().toISOString();
-              setDoc(doc(db, 'attendanceBank', d), cleanForFirestore(allBank[d])).catch((e) =>
-                console.warn('[Firestore] Bank attendance update warning:', e)
-              );
+              this.saveUserDoc('attendanceBank', d, allBank[d]);
             }
           }
         });
-        localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
+        this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(allBank));
         this.notifyChanges(true);
 
         const label = this.getBankDeleteTargetLabel(target);
@@ -1533,12 +1937,10 @@ class DataService {
 
     if (changedStudents.length > 0) {
       this._studentsCache = updatedStudents;
-      localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
+      this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(updatedStudents));
       if (triggerSync) {
         changedStudents.forEach((s) => {
-          setDoc(doc(db, 'students', s.id), cleanForFirestore(s)).catch((e) =>
-            console.warn('[Firestore] Student savings sync warning:', e)
-          );
+          this.saveUserDoc('students', s.id, s);
         });
       }
     }
@@ -1547,10 +1949,10 @@ class DataService {
   // Score Tracker (Page 4)
   public getScoreSheets(): ScoreSheet[] {
     if (this._scoresCache) return this._scoresCache;
-    const data = localStorage.getItem(STORAGE_KEYS.SCORE_SHEETS);
+    const data = this.getStorageItem(STORAGE_KEYS.SCORE_SHEETS);
+    const initial = [INITIAL_SCORE_SHEET];
     if (!data) {
-      const initial = [INITIAL_SCORE_SHEET];
-      localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(initial));
+      this.setStorageItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(initial));
       this._scoresCache = initial;
       return initial;
     }
@@ -1559,8 +1961,8 @@ class DataService {
       this._scoresCache = parsed;
       return parsed;
     } catch {
-      this._scoresCache = [INITIAL_SCORE_SHEET];
-      return [INITIAL_SCORE_SHEET];
+      this._scoresCache = initial;
+      return initial;
     }
   }
 
@@ -1576,10 +1978,8 @@ class DataService {
     }
 
     this._scoresCache = list;
-    localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(list));
-    setDoc(doc(db, 'scoreSheets', updated.id), cleanForFirestore(updated)).catch((e) =>
-      console.warn('[Firestore] ScoreSheet save warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(list));
+    this.saveUserDoc('scoreSheets', updated.id, updated);
     if (!isSilent) {
       this.notifyToast('success', 'บันทึกคะแนนเรียบร้อย', `บันทึกชุดคะแนน "${scoreSheet.title}" สำเร็จ`);
     }
@@ -1600,15 +2000,11 @@ class DataService {
         updatedAt: new Date().toISOString(),
       };
       list = [defaultSheet];
-      setDoc(doc(db, 'scoreSheets', defaultSheet.id), cleanForFirestore(defaultSheet)).catch((e) =>
-        console.warn('[Firestore] Default sheet sync warning:', e)
-      );
+      this.saveUserDoc('scoreSheets', defaultSheet.id, defaultSheet);
     }
-    deleteDoc(doc(db, 'scoreSheets', id)).catch((e) =>
-      console.warn('[Firestore] ScoreSheet delete warning:', e)
-    );
+    this.deleteUserDoc('scoreSheets', id);
     this._scoresCache = list;
-    localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(list));
+    this.setStorageItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(list));
     this.notifyToast('success', 'ลบรายวิชาเรียบร้อย');
     this.notifyChanges(true);
   }
@@ -1616,19 +2012,20 @@ class DataService {
   // Calendar Events
   public getCalendarEvents(): CalendarEvent[] {
     if (this._eventsCache) return this._eventsCache;
-    const data = localStorage.getItem(STORAGE_KEYS.CALENDAR_EVENTS);
+    const data = this.getStorageItem(STORAGE_KEYS.CALENDAR_EVENTS);
+    const initial = this.getCurrentUserId() === 'airfan' ? INITIAL_CALENDAR_EVENTS : [];
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(INITIAL_CALENDAR_EVENTS));
-      this._eventsCache = INITIAL_CALENDAR_EVENTS;
-      return INITIAL_CALENDAR_EVENTS;
+      this.setStorageItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(initial));
+      this._eventsCache = initial;
+      return initial;
     }
     try {
       const parsed = JSON.parse(data);
       this._eventsCache = parsed;
       return parsed;
     } catch {
-      this._eventsCache = INITIAL_CALENDAR_EVENTS;
-      return INITIAL_CALENDAR_EVENTS;
+      this._eventsCache = initial;
+      return initial;
     }
   }
 
@@ -1643,10 +2040,8 @@ class DataService {
       this.notifyToast('success', 'เพิ่มกิจกรรมสำเร็จ', event.title);
     }
     this._eventsCache = events;
-    localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
-    setDoc(doc(db, 'calendarEvents', event.id), cleanForFirestore(event)).catch((e) =>
-      console.warn('[Firestore] CalendarEvent save warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
+    this.saveUserDoc('calendarEvents', event.id, event);
     this.notifyChanges();
   }
 
@@ -1654,10 +2049,8 @@ class DataService {
     let events = this.getCalendarEvents();
     events = events.filter((e) => e.id !== id);
     this._eventsCache = events;
-    localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
-    deleteDoc(doc(db, 'calendarEvents', id)).catch((e) =>
-      console.warn('[Firestore] CalendarEvent delete warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(events));
+    this.deleteUserDoc('calendarEvents', id);
     this.notifyToast('success', 'ลบกิจกรรมเรียบร้อย');
     this.notifyChanges(true);
   }
@@ -1665,11 +2058,12 @@ class DataService {
   // Dashboard Notes (สมุดบันทึกโน๊ตด่วน)
   public getNotes(): DashboardNote[] {
     if (this._notesCache) return this._notesCache;
-    const data = localStorage.getItem(STORAGE_KEYS.DASHBOARD_NOTES);
+    const data = this.getStorageItem(STORAGE_KEYS.DASHBOARD_NOTES);
+    const initial = this.getCurrentUserId() === 'airfan' ? INITIAL_DASHBOARD_NOTES : [];
     if (!data) {
-      localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(INITIAL_DASHBOARD_NOTES));
-      this._notesCache = INITIAL_DASHBOARD_NOTES;
-      return INITIAL_DASHBOARD_NOTES;
+      this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(initial));
+      this._notesCache = initial;
+      return initial;
     }
     try {
       const parsed: DashboardNote[] = JSON.parse(data);
@@ -1682,8 +2076,8 @@ class DataService {
       this._notesCache = sorted;
       return sorted;
     } catch {
-      this._notesCache = INITIAL_DASHBOARD_NOTES;
-      return INITIAL_DASHBOARD_NOTES;
+      this._notesCache = initial;
+      return initial;
     }
   }
 
@@ -1702,10 +2096,8 @@ class DataService {
       this.notifyToast('success', 'เพิ่มโน๊ตใหม่สำเร็จ', note.title || note.content.slice(0, 20));
     }
     this._notesCache = notes;
-    localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
-    setDoc(doc(db, 'dashboardNotes', note.id), cleanForFirestore(updatedNote)).catch((e) =>
-      console.warn('[Firestore] Note save warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
+    this.saveUserDoc('dashboardNotes', note.id, updatedNote);
     this.notifyChanges();
   }
 
@@ -1713,10 +2105,8 @@ class DataService {
     let notes = this.getNotes();
     notes = notes.filter((n) => n.id !== id);
     this._notesCache = notes;
-    localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
-    deleteDoc(doc(db, 'dashboardNotes', id)).catch((e) =>
-      console.warn('[Firestore] Note delete warning:', e)
-    );
+    this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
+    this.deleteUserDoc('dashboardNotes', id);
     this.notifyToast('success', 'ลบโน๊ตเรียบร้อย');
     this.notifyChanges(true);
   }
@@ -1732,10 +2122,8 @@ class DataService {
         updatedAt: new Date().toISOString(),
       };
       this._notesCache = notes;
-      localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
-      setDoc(doc(db, 'dashboardNotes', id), cleanForFirestore(notes[index])).catch((e) =>
-        console.warn('[Firestore] Note pin warning:', e)
-      );
+      this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(notes));
+      this.saveUserDoc('dashboardNotes', id, notes[index]);
       this.notifyToast(
         'info',
         isNowPinned ? 'ปักหมุดโน๊ตแล้ว' : 'ยกเลิกการปักหมุด',
@@ -1896,63 +2284,65 @@ class DataService {
     try {
       const parsed = JSON.parse(jsonString);
       if (parsed.students) {
-        localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(parsed.students));
+        this.setStorageItem(STORAGE_KEYS.STUDENTS, JSON.stringify(parsed.students));
         if (Array.isArray(parsed.students)) {
           parsed.students.forEach((s: Student) => {
-            setDoc(doc(db, 'students', s.id), cleanForFirestore(s)).catch(() => {});
+            this.saveUserDoc('students', s.id, s);
           });
         }
       }
       if (parsed.weightHeight) {
-        localStorage.setItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(parsed.weightHeight));
+        this.setStorageItem(STORAGE_KEYS.WEIGHT_HEIGHT, JSON.stringify(parsed.weightHeight));
         if (Array.isArray(parsed.weightHeight)) {
           parsed.weightHeight.forEach((r: WeightHeightRecord) => {
-            setDoc(doc(db, 'weightHeight', r.id), cleanForFirestore(r)).catch(() => {});
+            this.saveUserDoc('weightHeight', r.id, r);
           });
         }
       }
       if (parsed.attendanceBank) {
-        localStorage.setItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(parsed.attendanceBank));
+        this.setStorageItem(STORAGE_KEYS.ATTENDANCE_BANK, JSON.stringify(parsed.attendanceBank));
         Object.entries(parsed.attendanceBank).forEach(([k, v]) => {
-          setDoc(doc(db, 'attendanceBank', k), cleanForFirestore(v)).catch(() => {});
+          if (v && typeof v === 'object') {
+            this.saveUserDoc('attendanceBank', k, v as object);
+          }
         });
       }
       if (parsed.withdrawals) {
-        localStorage.setItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(parsed.withdrawals));
+        this.setStorageItem(STORAGE_KEYS.WITHDRAWAL_LOGS, JSON.stringify(parsed.withdrawals));
         if (Array.isArray(parsed.withdrawals)) {
           parsed.withdrawals.forEach((w: WithdrawalLog) => {
-            setDoc(doc(db, 'withdrawalLogs', w.id), cleanForFirestore(w)).catch(() => {});
+            this.saveUserDoc('withdrawalLogs', w.id, w);
           });
         }
       }
       if (parsed.scoreSheets) {
-        localStorage.setItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(parsed.scoreSheets));
+        this.setStorageItem(STORAGE_KEYS.SCORE_SHEETS, JSON.stringify(parsed.scoreSheets));
         if (Array.isArray(parsed.scoreSheets)) {
           parsed.scoreSheets.forEach((s: ScoreSheet) => {
-            setDoc(doc(db, 'scoreSheets', s.id), cleanForFirestore(s)).catch(() => {});
+            this.saveUserDoc('scoreSheets', s.id, s);
           });
         }
       }
       if (parsed.events) {
-        localStorage.setItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(parsed.events));
+        this.setStorageItem(STORAGE_KEYS.CALENDAR_EVENTS, JSON.stringify(parsed.events));
         if (Array.isArray(parsed.events)) {
           parsed.events.forEach((ev: CalendarEvent) => {
-            setDoc(doc(db, 'calendarEvents', ev.id), cleanForFirestore(ev)).catch(() => {});
+            this.saveUserDoc('calendarEvents', ev.id, ev);
           });
         }
       }
       if (parsed.notes) {
-        localStorage.setItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(parsed.notes));
+        this.setStorageItem(STORAGE_KEYS.DASHBOARD_NOTES, JSON.stringify(parsed.notes));
         if (Array.isArray(parsed.notes)) {
           parsed.notes.forEach((n: DashboardNote) => {
-            setDoc(doc(db, 'dashboardNotes', n.id), cleanForFirestore(n)).catch(() => {});
+            this.saveUserDoc('dashboardNotes', n.id, n);
           });
         }
       }
-      if (parsed.photos) localStorage.setItem(STORAGE_KEYS.ACTIVITY_PHOTOS, JSON.stringify(parsed.photos));
+      if (parsed.photos) this.setStorageItem(STORAGE_KEYS.ACTIVITY_PHOTOS, JSON.stringify(parsed.photos));
       if (parsed.profile) {
-        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed.profile));
-        setDoc(doc(db, 'settings', 'profile'), cleanForFirestore(parsed.profile)).catch(() => {});
+        this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed.profile));
+        this.saveUserDoc('settings', 'profile', parsed.profile);
       }
 
       this.clearMemoryCaches();
