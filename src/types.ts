@@ -187,6 +187,9 @@ export interface AppUser {
   status: 'active' | 'suspended'; // 'active' or 'suspended' (ระงับใช้งาน)
   classroom?: string;
   schoolName?: string;
+  position?: string;
+  affiliation?: string;
+  academicYear?: string;
   createdAt: string;
   updatedAt?: string;
   lastLogin?: string;
@@ -194,7 +197,9 @@ export interface AppUser {
 
 export interface TeacherProfile {
   teacherName: string;
+  position?: string;
   schoolName: string;
+  affiliation?: string;
   classroomName: string;
   academicYear: string;
   adminUsername: string;

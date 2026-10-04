@@ -38,6 +38,7 @@ export const MemberManagement: React.FC = () => {
   const [formPassword, setFormPassword] = useState('');
   const [formName, setFormName] = useState('');
   const [formClassroom, setFormClassroom] = useState('');
+  const [formSchoolName, setFormSchoolName] = useState('');
   const [formRole, setFormRole] = useState<'admin' | 'member'>('member');
   const [formStatus, setFormStatus] = useState<'active' | 'suspended'>('active');
   const [formShowPassword, setFormShowPassword] = useState(false);
@@ -75,8 +76,8 @@ export const MemberManagement: React.FC = () => {
     setFormUsername('');
     setFormPassword('');
     setFormName('');
-    const profile = dataService.getProfile();
-    setFormClassroom(profile.classroomName || 'ป.1/1');
+    setFormClassroom('ป.1/1');
+    setFormSchoolName('โรงเรียนสาธิต');
     setFormRole('member');
     setFormStatus('active');
     setFormShowPassword(false);
@@ -91,6 +92,7 @@ export const MemberManagement: React.FC = () => {
     setFormPassword(member.password);
     setFormName(member.name);
     setFormClassroom(member.classroom || '');
+    setFormSchoolName(member.schoolName || 'โรงเรียนสาธิต');
     setFormRole(member.role);
     setFormStatus(member.status);
     setFormShowPassword(false);
@@ -107,6 +109,7 @@ export const MemberManagement: React.FC = () => {
     const cleanPassword = formPassword.trim();
     const cleanName = formName.trim();
     const cleanClassroom = formClassroom.trim();
+    const cleanSchoolName = formSchoolName.trim();
 
     if (!cleanUsername) {
       setFormError('กรุณาระบุ User ID');
@@ -148,7 +151,7 @@ export const MemberManagement: React.FC = () => {
       password: cleanPassword,
       name: cleanName,
       classroom: cleanClassroom || 'ห้องเรียน',
-      schoolName: dataService.getProfile().schoolName || 'โรงเรียนสาธิต',
+      schoolName: cleanSchoolName || editingMember?.schoolName || 'โรงเรียนสาธิต',
       role: cleanUsername === 'airfan' ? 'admin' : formRole,
       status: cleanUsername === 'airfan' ? 'active' : formStatus,
       createdAt: editingMember?.createdAt || new Date().toISOString(),
@@ -620,6 +623,23 @@ export const MemberManagement: React.FC = () => {
                     value={formClassroom}
                     onChange={(e) => setFormClassroom(e.target.value)}
                     placeholder="เช่น ป.1/1, ป.2, ป.3/2"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden bg-slate-50/50"
+                  />
+                </div>
+              </div>
+
+              {/* School Name */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  โรงเรียน (School Name)
+                </label>
+                <div className="relative">
+                  <School className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={formSchoolName}
+                    onChange={(e) => setFormSchoolName(e.target.value)}
+                    placeholder="เช่น โรงเรียนสาธิต หรือโรงเรียนประจำชั้น"
                     className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden bg-slate-50/50"
                   />
                 </div>

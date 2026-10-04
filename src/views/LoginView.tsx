@@ -102,10 +102,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, inactivity
             ระบบบริหารข้อมูลครูประจำชั้น
           </h1>
           <p className="text-xs font-semibold text-emerald-700 mt-1">
-            {profile.schoolName || 'โรงเรียนอนุบาลและประถมศึกษาสาธิต'}
+            ระบบสารสนเทศและบริหารจัดการข้อมูลครูประจำชั้น
           </p>
           <p className="text-[11px] text-slate-500">
-            {profile.classroomName || 'ห้อง ป.6/1'} | ประจำปีการศึกษา {profile.academicYear || '2569'}
+            เข้าสู่ระบบเพื่อจัดการข้อมูลประจำชั้นเรียนของท่าน
           </p>
         </div>
 

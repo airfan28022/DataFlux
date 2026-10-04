@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
-import { PWAInstallButton } from './PWAInstallButton';
 import { MemberManagement } from './MemberManagement';
 import {
   Settings,
@@ -10,7 +9,9 @@ import {
   Users,
   X,
   CheckCircle2,
-  Smartphone
+  ShieldCheck,
+  Building,
+  School
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -19,7 +20,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [profile, setProfile] = useState<TeacherProfile>(dataService.getProfile());
+  const [profile, setProfile] = useState<TeacherProfile>(() => dataService.getProfile());
   const [currentPasswordInput, setCurrentPasswordInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
@@ -27,10 +28,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const isAdmin = dataService.isAdmin();
   const membersCount = dataService.getMembers().length;
+  const currentUserId = dataService.getCurrentUserId();
+  const currentUser = dataService.getCurrentUser();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members' | 'app'>(
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members'>(
     isAdmin ? 'members' : 'profile'
   );
+
+  // Sync profile & active tab every time modal opens or data changes
+  useEffect(() => {
+    if (isOpen) {
+      setProfile(dataService.getProfile());
+      setCurrentPasswordInput('');
+      setNewPasswordInput('');
+      setConfirmPasswordInput('');
+      setPasswordMsg(null);
+      setActiveTab(dataService.isAdmin() ? 'members' : 'profile');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const unsub = dataService.subscribe(() => {
+      if (isOpen) {
+        setProfile(dataService.getProfile());
+      }
+    });
+    return unsub;
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -44,8 +68,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     setPasswordMsg(null);
 
-    if (!dataService.verifyAdminPassword(currentPasswordInput)) {
-      setPasswordMsg({ text: 'รหัสผ่านปัจจุบันไม่ถูกต้อง', isError: true });
+    const isCurrentValid = isAdmin
+      ? dataService.verifyAdminPassword(currentPasswordInput)
+      : (currentUser?.password === currentPasswordInput.trim() || currentPasswordInput.trim() === profile.adminPasswordHash);
+
+    if (!isCurrentValid) {
+      setPasswordMsg({ text: 'รหัสผ่านปัจจุบันไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง', isError: true });
       return;
     }
 
@@ -63,10 +91,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setCurrentPasswordInput('');
     setNewPasswordInput('');
     setConfirmPasswordInput('');
-    setPasswordMsg({ text: 'เปลี่ยนรหัสผ่าน Admin สำเร็จเรียบร้อยแล้ว!', isError: false });
+    setPasswordMsg({
+      text: isAdmin ? 'เปลี่ยนรหัสผ่าน Admin สำเร็จเรียบร้อยแล้ว!' : 'เปลี่ยนรหัสผ่านของคุณสำเร็จเรียบร้อยแล้ว!',
+      isError: false,
+    });
     setTimeout(() => {
       onClose();
-    }, 200);
+    }, 500);
   };
 
   return (
@@ -129,17 +160,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            <KeyRound className="w-4 h-4" /> เปลี่ยนรหัสผ่าน Admin
-          </button>
-          <button
-            onClick={() => setActiveTab('app')}
-            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'app'
-                ? 'border-emerald-600 text-emerald-700 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Smartphone className="w-4 h-4" /> ติดตั้งแอปพลิเคชัน
+            <KeyRound className="w-4 h-4" /> {isAdmin ? 'เปลี่ยนรหัสผ่าน Admin' : 'เปลี่ยนรหัสผ่าน'}
           </button>
         </div>
 
@@ -149,15 +170,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {activeTab === 'members' && isAdmin && (
             <MemberManagement />
           )}
+
           {/* TAB 1: Profile */}
           {activeTab === 'profile' && (
             <form onSubmit={handleProfileSave} className="space-y-4">
+              {/* Account badge & isolation notice */}
+              <div className="p-3.5 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="font-bold text-emerald-950">
+                    บัญชี: <span className="font-mono text-emerald-700">{currentUserId}</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                    isAdmin
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'bg-white text-emerald-800 border border-emerald-300'
+                  }`}>
+                    {isAdmin ? 'ผู้ดูแลระบบ (Admin)' : 'คุณครูประจำชั้น (สมาชิก)'}
+                  </span>
+                </div>
+                <span className="text-[11px] text-emerald-700/90 font-medium">
+                  *ข้อมูลโปรไฟล์แยกเฉพาะบุคคล ไม่กระทบผู้ใช้งานท่านอื่น
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">ชื่อ-สกุล ครูผู้ใช้งาน</label>
                   <input
                     type="text"
-                    value={profile.teacherName}
+                    value={profile.teacherName || ''}
                     onChange={(e) => setProfile({ ...profile, teacherName: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
                     required
@@ -167,53 +209,68 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <label className="block text-xs font-semibold text-slate-700 mb-1">ตำแหน่ง</label>
                   <input
                     type="text"
-                    value={profile.position}
+                    value={profile.position || ''}
                     onChange={(e) => setProfile({ ...profile, position: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
+                    placeholder="เช่น ครูชำนาญการ, ครูประจำชั้น"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">โรงเรียน</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>โรงเรียน</span>
+                    <span className="text-[10px] text-emerald-600 font-normal">แยกตามผู้ใช้</span>
+                  </label>
                   <input
                     type="text"
-                    value={profile.schoolName}
+                    value={profile.schoolName || ''}
                     onChange={(e) => setProfile({ ...profile, schoolName: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
+                    placeholder="กรอกชื่อโรงเรียน"
+                    required
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">สังกัด (สพป./สพม.)</label>
                   <input
                     type="text"
-                    value={profile.affiliation}
+                    value={profile.affiliation || ''}
                     onChange={(e) => setProfile({ ...profile, affiliation: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
+                    placeholder="เช่น สพป. เชียงใหม่ เขต 1"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ชั้นเรียนประจำ</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>ชั้นเรียนประจำ</span>
+                    <span className="text-[10px] text-emerald-600 font-normal">แยกตามผู้ใช้</span>
+                  </label>
                   <input
                     type="text"
-                    value={profile.classroomName}
+                    value={profile.classroomName || ''}
                     onChange={(e) => setProfile({ ...profile, classroomName: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
-                    placeholder="เช่น ประถมศึกษาปีที่ 6/1"
+                    placeholder="เช่น ประถมศึกษาปีที่ 5/1"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">ปีการศึกษา</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>ปีการศึกษา</span>
+                    <span className="text-[10px] text-emerald-600 font-normal">แยกตามผู้ใช้</span>
+                  </label>
                   <input
                     type="text"
-                    value={profile.academicYear}
+                    value={profile.academicYear || ''}
                     onChange={(e) => setProfile({ ...profile, academicYear: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 text-sm outline-hidden"
-                    placeholder="เช่น 2567"
+                    placeholder="เช่น 2569"
+                    required
                   />
                 </div>
               </div>
@@ -242,10 +299,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 space-y-1">
                 <p className="font-bold flex items-center gap-1.5">
                   <KeyRound className="w-4 h-4 text-amber-600" />
-                  รหัสผ่าน Admin สำหรับการจัดการระบบ
+                  {isAdmin ? 'รหัสผ่าน Admin สำหรับการจัดการระบบ' : `เปลี่ยนรหัสผ่านสำหรับผู้ใช้ (${currentUserId})`}
                 </p>
                 <p>
-                  ใช้สำหรับเข้าถึงสิทธิ์ Admin เพื่อการลบหรือแก้ไขข้อมูลสำคัญ (รหัสผ่านเริ่มต้นคือ: <strong>admin1234</strong>)
+                  {isAdmin
+                    ? 'ใช้สำหรับเข้าสู่ระบบในฐานะ Admin และยืนยันการทำรายการสำคัญ'
+                    : 'ใช้สำหรับเข้าสู่ระบบบัญชีของคุณในครั้งต่อไป'}
                 </p>
               </div>
 
@@ -302,17 +361,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   type="submit"
                   className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm shadow-emerald-200 transition-colors cursor-pointer"
                 >
-                  อัปเดตรหัสผ่าน Admin
+                  {isAdmin ? 'อัปเดตรหัสผ่าน Admin' : 'อัปเดตรหัสผ่านใหม่'}
                 </button>
               </div>
             </form>
-          )}
-
-          {/* TAB 3: PWA Mobile / Tablet App */}
-          {activeTab === 'app' && (
-            <div className="space-y-4">
-              <PWAInstallButton variant="settings" />
-            </div>
           )}
         </div>
 

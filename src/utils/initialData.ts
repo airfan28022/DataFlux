@@ -351,7 +351,9 @@ export const INITIAL_STUDENTS: Student[] = [
 
 export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
   teacherName: 'ครูสมศรี ใจดีงาม',
+  position: 'ครูประจำชั้น',
   schoolName: 'โรงเรียนอนุบาลและประถมศึกษาสาธิต',
+  affiliation: 'สพป.',
   classroomName: 'ชั้นประถมศึกษาปีที่ 5',
   academicYear: '2569',
   adminUsername: 'airfan',

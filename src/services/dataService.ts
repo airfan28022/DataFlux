@@ -214,7 +214,7 @@ class DataService {
     return [admin];
   }
 
-  public async saveMember(member: AppUser): Promise<void> {
+  public async saveMember(member: AppUser, silent = false): Promise<void> {
     const cleanMember: AppUser = {
       ...member,
       id: member.id.toLowerCase(),
@@ -243,7 +243,52 @@ class DataService {
       this._currentUser = cleanMember;
     }
 
-    this.notifyToast('success', 'บันทึกสมาชิกสำเร็จ', `อัปเดตข้อมูลผู้ใช้ ${cleanMember.username} เรียบร้อยแล้ว`);
+    // Sync member's profile document in users/{cleanMember.id}/settings/profile
+    try {
+      const userProfileKey = `${STORAGE_KEYS.TEACHER_PROFILE}_${cleanMember.id}`;
+      const savedProfileRaw = localStorage.getItem(userProfileKey);
+      let profileToSave: TeacherProfile;
+      if (savedProfileRaw) {
+        const parsed: TeacherProfile = JSON.parse(savedProfileRaw);
+        profileToSave = {
+          ...parsed,
+          teacherName: cleanMember.name || parsed.teacherName,
+          schoolName: cleanMember.schoolName || parsed.schoolName,
+          classroomName: cleanMember.classroom || parsed.classroomName,
+          position: cleanMember.position || parsed.position || 'ครูประจำชั้น',
+          affiliation: cleanMember.affiliation || parsed.affiliation || '',
+          academicYear: cleanMember.academicYear || parsed.academicYear || '2569',
+          adminUsername: cleanMember.username,
+          adminPasswordHash: cleanMember.password,
+          lastModifiedTimestamp: new Date().toISOString(),
+        };
+      } else {
+        profileToSave = {
+          ...INITIAL_TEACHER_PROFILE,
+          teacherName: cleanMember.name || 'คุณครูประจำชั้น',
+          schoolName: cleanMember.schoolName || 'โรงเรียนสาธิต',
+          classroomName: cleanMember.classroom || 'ห้องเรียน',
+          position: cleanMember.position || 'ครูประจำชั้น',
+          affiliation: cleanMember.affiliation || '',
+          academicYear: cleanMember.academicYear || '2569',
+          adminUsername: cleanMember.username,
+          adminPasswordHash: cleanMember.password,
+          lastModifiedTimestamp: new Date().toISOString(),
+        };
+      }
+      localStorage.setItem(userProfileKey, JSON.stringify(profileToSave));
+      setDoc(doc(db, 'users', cleanMember.id, 'settings', 'profile'), cleanForFirestore(profileToSave)).catch(() => {});
+      if (cleanMember.id === 'airfan') {
+        localStorage.setItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(profileToSave));
+        setDoc(doc(db, 'settings', 'profile'), cleanForFirestore(profileToSave)).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[DataService] Profile sync for member error:', err);
+    }
+
+    if (!silent) {
+      this.notifyToast('success', 'บันทึกสมาชิกสำเร็จ', `อัปเดตข้อมูลผู้ใช้ ${cleanMember.username} เรียบร้อยแล้ว`);
+    }
     this.notifyChanges();
   }
 
@@ -583,6 +628,10 @@ class DataService {
           }
         } else if (cleanUid === 'airfan') {
           this.seedProfileToFirestore();
+        } else {
+          // Seed profile to Firestore for member if not yet created
+          const current = this.getProfile();
+          setDoc(doc(db, 'users', cleanUid, 'settings', 'profile'), cleanForFirestore(current)).catch(() => {});
         }
       }, (err) => console.warn('[Firestore] User Profile listener warning:', err));
       this.userDataListeners.push(unsubProfile);
@@ -830,6 +879,7 @@ class DataService {
   // Profile & Settings
   public getProfile(): TeacherProfile {
     if (this._profileCache) return this._profileCache;
+    const uid = this.getCurrentUserId();
     const data = this.getStorageItem(STORAGE_KEYS.TEACHER_PROFILE);
     if (!data) {
       const currentUser = this.getCurrentUser();
@@ -838,7 +888,10 @@ class DataService {
           ...INITIAL_TEACHER_PROFILE,
           teacherName: currentUser.name || 'คุณครูประจำชั้น',
           classroomName: currentUser.classroom || 'ห้องเรียน',
-          schoolName: currentUser.schoolName || INITIAL_TEACHER_PROFILE.schoolName,
+          schoolName: currentUser.schoolName || 'โรงเรียนสาธิต',
+          position: currentUser.position || 'ครูประจำชั้น',
+          affiliation: currentUser.affiliation || '',
+          academicYear: currentUser.academicYear || '2569',
           adminUsername: currentUser.username,
           adminPasswordHash: currentUser.password,
           lastModifiedTimestamp: new Date().toISOString(),
@@ -897,12 +950,28 @@ class DataService {
         updatedMember.classroom = profile.classroomName;
         memberChanged = true;
       }
+      if (profile.schoolName && profile.schoolName !== currentUser.schoolName) {
+        updatedMember.schoolName = profile.schoolName;
+        memberChanged = true;
+      }
+      if (profile.position && profile.position !== currentUser.position) {
+        updatedMember.position = profile.position;
+        memberChanged = true;
+      }
+      if (profile.affiliation && profile.affiliation !== currentUser.affiliation) {
+        updatedMember.affiliation = profile.affiliation;
+        memberChanged = true;
+      }
+      if (profile.academicYear && profile.academicYear !== currentUser.academicYear) {
+        updatedMember.academicYear = profile.academicYear;
+        memberChanged = true;
+      }
       if (profile.adminPasswordHash && profile.adminPasswordHash !== currentUser.password) {
         updatedMember.password = profile.adminPasswordHash;
         memberChanged = true;
       }
       if (memberChanged) {
-        this.saveMember(updatedMember);
+        this.saveMember(updatedMember, true);
       }
     }
 
