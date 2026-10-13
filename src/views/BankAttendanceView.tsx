@@ -2727,7 +2727,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             }
           }}
         >
-          <div className="bg-white w-full h-full md:h-auto md:max-w-lg md:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col relative overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-6 duration-200">
+          <div className="bg-white w-full h-full md:h-[640px] md:max-h-[92vh] md:max-w-lg md:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col relative overflow-hidden border border-slate-200 animate-in slide-in-from-bottom-6 duration-200">
             {/* Modal Header */}
             <div className="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 text-white flex items-center justify-between shrink-0 shadow-md relative z-20">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
@@ -2761,16 +2761,16 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                     <button
                       type="button"
                       onClick={() => setShowStudentSelectorDropdown(true)}
-                      className="flex items-center gap-1.5 sm:gap-2 group text-left bg-white/15 hover:bg-white/25 active:scale-[0.99] px-2.5 sm:px-3 py-1 rounded-xl border border-white/30 shadow-2xs transition-all cursor-pointer max-w-full"
-                      title="กดตรงชื่อนี้เพื่อเลือกคนถัดไป หรือคนอื่นๆ (ระบบบันทึกอัตโนมัติ ข้อมูลไม่หาย)"
+                      className="flex items-center gap-1.5 sm:gap-2 bg-white/20 hover:bg-white/30 active:scale-[0.98] px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/40 shadow-xs transition-all max-w-full cursor-pointer text-left group"
+                      title="กดตรงชื่อนี้เพื่อเลือกนักเรียนคนอื่น (ระบบบันทึกอัตโนมัติ ไม่สูญหาย)"
                     >
-                      <span className="text-sm sm:text-base font-black text-white truncate drop-shadow-xs">
+                      <span className="text-sm sm:text-base font-black text-white truncate drop-shadow-xs group-hover:underline">
                         {selectedStudentModal.prefix}{selectedStudentModal.firstName} {selectedStudentModal.lastName}
                         {selectedStudentModal.nickname ? ` (${selectedStudentModal.nickname})` : ''}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-white text-emerald-800 px-2 py-0.5 rounded-lg shadow-2xs shrink-0 group-hover:bg-emerald-50">
-                        <Users className="w-3 h-3 text-emerald-700" />
-                        <span>เลือกคนถัดไป ▼</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-white text-emerald-800 group-hover:bg-emerald-50 px-2 py-0.5 rounded-lg shadow-2xs shrink-0">
+                        <Users className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>เลือกคนอื่น ▼</span>
                       </span>
                     </button>
                   </div>
@@ -3010,6 +3010,75 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   <span>วันที่บันทึก:</span>
                 </span>
                 <span className="font-bold text-emerald-800">{formatThaiDate(selectedDate)}</span>
+              </div>
+
+              {/* Student Selector Dropdown in Pop-up Body (กดชื่อเพื่อเลือกคนอื่นได้ทันที) */}
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-3 sm:p-3.5 rounded-2xl border-2 border-emerald-300 shadow-xs space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-emerald-950 flex-wrap gap-1">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>ชื่อนักเรียน (กดเพื่อเลือกคนอื่นได้ทันที):</span>
+                  </span>
+                  <span className="text-[10px] bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                    บันทึกอัตโนมัติ
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <select
+                      value={selectedStudentModal.id}
+                      onChange={(e) => {
+                        const target = students.find((s) => s.id === e.target.value);
+                        if (target) {
+                          handleSelectStudentInModal(target);
+                        }
+                      }}
+                      className="w-full appearance-none bg-white text-slate-800 text-xs sm:text-sm font-bold pl-3 pr-8 py-2.5 rounded-xl border-2 border-emerald-400 hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs cursor-pointer truncate"
+                      title="กดเพื่อเลือกนักเรียนคนอื่นๆ ในห้องนี้ (ระบบบันทึกอัตโนมัติ)"
+                    >
+                      {students.map((std, idx) => {
+                        const curAtt = attendanceMapRef.current[std.id];
+                        const curDep = depositsMapRef.current[std.id] || 0;
+                        const statusLabel = curAtt === 'present' ? 'ม' : curAtt === 'sick' ? 'ป' : curAtt === 'personal' ? 'ล' : curAtt === 'absent' ? 'ข' : '-';
+                        return (
+                          <option key={`body-select-${std.id}`} value={std.id}>
+                            เลขที่ {idx + 1}: {std.prefix}{std.firstName} {std.lastName} {std.nickname ? `(${std.nickname})` : ''} [{statusLabel} | ฿{curDep}]
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-emerald-700 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {/* Quick Prev / Next in body */}
+                  <button
+                    type="button"
+                    onClick={handlePrevStudentInModal}
+                    disabled={students.findIndex((s) => s.id === selectedStudentModal.id) === 0}
+                    className="p-2 sm:px-2.5 sm:py-2 bg-white hover:bg-emerald-100 text-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl border border-emerald-300 font-bold text-xs transition-colors cursor-pointer shrink-0"
+                    title="นักเรียนคนก่อนหน้า (บันทึกอัตโนมัติ)"
+                  >
+                    ◀
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextStudentInModal}
+                    className="p-2 sm:px-2.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                    title="นักเรียนคนถัดไป (บันทึกอัตโนมัติ)"
+                  >
+                    <span>ถัดไป</span>
+                    <span>▶</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowStudentSelectorDropdown(true)}
+                    className="p-2 sm:px-2.5 sm:py-2 bg-white hover:bg-emerald-100 text-emerald-800 rounded-xl border border-emerald-300 font-bold text-xs transition-colors cursor-pointer shrink-0"
+                    title="เปิดดูสมุดรายชื่อทั้งหมดพร้อมรูปภาพและค้นหา"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* 1. Attendance Status Selection (เลือก ม, ป, ล, ข) */}
