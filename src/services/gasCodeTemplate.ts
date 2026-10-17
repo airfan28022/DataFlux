@@ -1,28 +1,25 @@
 /**
- * Production-ready Google Apps Script (Code.gs) template for teachers.
- * Teachers can copy this into Google Apps Script connected to Google Sheet & Google Drive.
+ * Production-ready Google Apps Script (Code.gs) template for teachers & schools.
+ * Supports Multi-User / Multi-Classroom: Displays ALL teachers, members, and student IDs.
  * Fully compatible with the Classroom Management Web Application.
  */
 
 export const GAS_CODE_TEMPLATE = `/**
  * =========================================================================================
- * 🎓 ระบบสารสนเทศและบริหารจัดการข้อมูลครูประจำชั้น (Google Apps Script Backend API)
- * 📁 Google Sheets (ฐานข้อมูล 7 ตาราง) + ☁️ Google Drive (คลังจัดเก็บไฟล์/รูปภาพนักเรียน)
+ * 🎓 ระบบสารสนเทศและบริหารจัดการข้อมูลครูประจำชั้น (Google Apps Script Backend API v3.0)
+ * 📁 Google Sheets (ฐานข้อมูล 8 หมวดหมู่ รองรับหลายบัญชี/หลายครู/หลายห้องเรียน) + ☁️ Google Drive
  * =========================================================================================
  * 
- * 📌 ขั้นตอนการติดตั้งใช้งาน:
- * 1. เปิด Google Sheets เปล่าขึ้นมา 1 ไฟล์ (เช่น ตั้งชื่อว่า "ฐานข้อมูลครูประจำชั้น ป.6")
+ * 📌 ขั้นตอนการติดตั้งหรืออัปเกรด:
+ * 1. เปิด Google Sheets ของท่าน
  * 2. ไปที่เมนู "ส่วนขยาย" (Extensions) > เลือก "Apps Script"
- * 3. ลบโค้ดเดิมทั้งหมดในไฟล์ Code.gs แล้ววางโค้ดชุดนี้ลงไปทั้งหมด
- * 4. (ทางเลือก) เลือกฟังก์ชัน "initSpreadsheet" แล้วกด "เรียกใช้" (Run) เพื่อสร้างหัวตารางทั้ง 7 ชีตโดยอัตโนมัติ
- * 5. กดปุ่มสีน้ำเงิน "การทำให้ใช้งานได้" (Deploy) > เลือก "การทำให้ใช้งานได้รายการใหม่" (New deployment)
- * 6. เลือกประเภท: "เว็บแอป" (Web app)
- *    - คำอธิบาย: ระบบจัดการข้อมูลครูประจำชั้น v2.0
- *    - ดำเนินการในฐานะ (Execute as): ฉัน (อีเมลของคุณ)
- *    - ผู้ที่มีสิทธิ์เข้าถึง (Who has access): "ทุกคน" (Anyone) **สำคัญมาก ต้องเลือกทุกคน**
- * 7. กด "ทำให้ใช้งานได้" (Deploy) และอนุญาตสิทธิ์เข้าถึง (Grant Access)
- * 8. คัดลอก "URL ของเว็บแอป" (Web App URL) ที่ลงท้ายด้วย /exec
- * 9. นำ URL มาวางในเมนู "ตั้งค่า" > "Google Apps Script & Drive" ในหน้าเว็บไซต์
+ * 3. ลบโค้ดเดิมทั้งหมดในไฟล์ Code.gs แล้ววางโค้ดชุดนี้ลงไปแทนที่ทั้งหมด
+ * 4. เลือกฟังก์ชัน "initSpreadsheet" แล้วกด "เรียกใช้" (Run) 1 ครั้ง เพื่อเตรียมหัวตารางทั้ง 8 ชีต
+ * 5. กดปุ่มสีน้ำเงิน "การทำให้ใช้งานได้" (Deploy) > "จัดการการทำให้ใช้งานได้" (Manage deployments)
+ *    - กดรูปดินสอ (Edit) > เลือกเวอร์ชัน: "เวอร์ชันใหม่" (New version)
+ *    - ผู้ที่มีสิทธิ์เข้าถึง: "ทุกคน" (Anyone)
+ *    - กด "ทำให้ใช้งานได้" (Deploy)
+ * 6. ระบบจะบันทึกข้อมูลของทุก ID/ทุกสมาชิก และแยกแสดงครูผู้รับผิดชอบแต่ละห้องเรียนอย่างเป็นระเบียบ
  * =========================================================================================
  */
 
@@ -35,8 +32,16 @@ var DEFAULT_DRIVE_FOLDER_ID = "1nymxjSukQ_exIWuN6HRehXRTFrPrfekP";
 function initSpreadsheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. ชีต Students (ทะเบียนนักเรียน)
+  // 1. ชีต Members (รายชื่อสมาชิกและบัญชีผู้ใช้ทั้งหมด)
+  setupSheet(ss, "Members", [
+    "รหัสสมาชิก (User ID)", "ชื่อผู้ใช้งาน (Username)", "ชื่อ-สกุลครู", 
+    "บทบาท (Role)", "ห้องเรียนที่รับผิดชอบ", "โรงเรียน", 
+    "สถานะบัญชี", "วันที่สร้าง", "เข้าสู่ระบบล่าสุด"
+  ], "#7c3aed");
+
+  // 2. ชีต Students (ทะเบียนนักเรียนทุกคน - ทุกห้องเรียน)
   setupSheet(ss, "Students", [
+    "บัญชีครู (ID)", "ชื่อครูผู้รับผิดชอบ", "ห้องเรียน", 
     "รหัสนักเรียน (ID)", "เลขประจำตัว", "คำนำหน้า", "ชื่อ", "นามสกุล", 
     "ชื่อเล่น", "วันเกิด", "อายุ", "เพศ", "อาศัยอยู่กับ", 
     "การเดินทาง", "เงินมา รร. (บาท)", "อาชีพผู้ปกครอง", "เบอร์โทรผู้ปกครอง", 
@@ -44,46 +49,47 @@ function initSpreadsheet() {
     "เงินออมสะสม (บาท)", "ข้อมูลเพิ่มเติม (JSON)", "วันที่สร้าง", "อัปเดตล่าสุด"
   ], "#047857");
 
-  // 2. ชีต WeightHeight (น้ำหนัก-ส่วนสูง BMI)
+  // 3. ชีต AttendanceBank (เช็คชื่อประจำวันและฝากเงิน - ทุกห้องเรียน)
+  setupSheet(ss, "AttendanceBank", [
+    "วันที่ (วว/ดด/ปปปป)", "บัญชีครู (ID)", "ห้องเรียน", 
+    "รหัสนักเรียน", "ชื่อ-สกุล", "สถานะการมาเรียน", "ยอดเงินฝากวันนี้ (บาท)", 
+    "หมายเหตุประจำวัน", "อัปเดตล่าสุด"
+  ], "#0d9488");
+
+  // 4. ชีต WeightHeight (น้ำหนัก-ส่วนสูง BMI - ทุกห้องเรียน)
   setupSheet(ss, "WeightHeight", [
-    "รหัสบันทึก", "วันที่ตรวจวัด", "ปีการศึกษา", "ภาคเรียน", 
+    "รหัสบันทึก", "บัญชีครู (ID)", "ห้องเรียน", "วันที่ตรวจวัด", "ปีการศึกษา", "ภาคเรียน", 
     "รหัสนักเรียน", "ชื่อ-สกุล", "อายุ (ปี)", "น้ำหนัก (กก.)", 
     "ส่วนสูง (ซม.)", "ค่า BMI", "สถานะการเจริญเติบโต", "หมายเหตุ", "บันทึกเมื่อ"
   ], "#059669");
 
-  // 3. ชีต AttendanceBank (เช็คชื่อประจำวันและฝากเงิน)
-  setupSheet(ss, "AttendanceBank", [
-    "วันที่ (วว/ดด/ปปปป)", "รหัสนักเรียน", "ชื่อ-สกุล", 
-    "สถานะการมาเรียน", "ยอดเงินฝากวันนี้ (บาท)", "หมายเหตุประจำวัน", "อัปเดตล่าสุด"
-  ], "#0d9488");
-
-  // 4. ชีต Withdrawals (ประวัติการถอนเงินออม)
+  // 5. ชีต Withdrawals (ประวัติการถอนเงินออม - ทุกห้องเรียน)
   setupSheet(ss, "Withdrawals", [
-    "รหัสรายการ", "รหัสนักเรียน", "ชื่อนักเรียน", "วันที่ถอน", 
-    "เวลา", "ยอดเงินที่ถอน (บาท)", "เหตุผลการถอน", "ครูผู้บันทึก", "วันที่บันทึก"
+    "รหัสรายการ", "บัญชีครู (ID)", "ห้องเรียน", "รหัสนักเรียน", "ชื่อนักเรียน", 
+    "วันที่ถอน", "เวลา", "ยอดเงินที่ถอน (บาท)", "เหตุผลการถอน", "ครูผู้บันทึก", "วันที่บันทึก"
   ], "#e11d48");
 
-  // 5. ชีต Scores (บันทึกคะแนนและตัดเกรด - แยกภาคเรียน 1 และ 2)
+  // 6. ชีต Scores (บันทึกคะแนนและตัดเกรด - ทุกห้องเรียน)
   setupSheet(ss, "Scores", [
-    "รหัสชุดคะแนน", "ชื่อวิชา", "รหัสวิชา", "ระดับชั้น", "ภาคเรียน", "ปีการศึกษา",
+    "รหัสชุดคะแนน", "บัญชีครู (ID)", "ห้องเรียน", "ชื่อวิชา", "รหัสวิชา", "ระดับชั้น", "ภาคเรียน", "ปีการศึกษา",
     "รหัสนักเรียน", "ชื่อ-สกุล", "บทที่ 1", "บทที่ 2", "บทที่ 3", "บทที่ 4", 
     "บทที่ 5", "บทที่ 6", "บทที่ 7", "บทที่ 8", "สอบปลายภาค", "คะแนนรวม (100)", 
     "เกรดที่ได้", "โครงสร้างบทเรียน (JSON)", "อัปเดตล่าสุด"
   ], "#2563eb");
 
-  // 6. ชีต Events (ปฏิทินกิจกรรมและการนัดหมาย)
+  // 7. ชีต Events (ปฏิทินกิจกรรมและการนัดหมาย)
   setupSheet(ss, "Events", [
-    "รหัสกิจกรรม", "ชื่อกิจกรรม/นัดหมาย", "วันที่", "เวลาเริ่มต้น", 
-    "เวลาสิ้นสุด", "สีแถบกิจกรรม", "รายละเอียด/สถานที่", "วันที่สร้าง"
+    "รหัสกิจกรรม", "บัญชีครู (ID)", "ห้องเรียน", "ชื่อกิจกรรม/นัดหมาย", 
+    "วันที่", "เวลาเริ่มต้น", "เวลาสิ้นสุด", "สีแถบกิจกรรม", "รายละเอียด/สถานที่", "วันที่สร้าง"
   ], "#d97706");
 
-  // 7. ชีต Settings (ข้อมูลโรงเรียนและครูประจำชั้น)
+  // 8. ชีต Settings (ข้อมูลโรงเรียนและครูแต่ละห้อง)
   setupSheet(ss, "Settings", [
-    "ชื่อครูประจำชั้น", "โรงเรียน", "ชั้นเรียน", "ปีการศึกษา", 
-    "Google Drive Folder ID", "อัปเดตล่าสุด"
+    "บัญชีครู (ID)", "ชื่อครูประจำชั้น", "โรงเรียน", "ชั้นเรียน", 
+    "ปีการศึกษา", "Google Drive Folder ID", "อัปเดตล่าสุด"
   ], "#475569");
 
-  Logger.log("✅ สร้างและจัดระเบียบตารางใน Google Sheets ครบทั้ง 7 หมวดหมู่เรียบร้อยแล้ว!");
+  Logger.log("✅ สร้างและจัดระเบียบตารางใน Google Sheets ครบทั้ง 8 หมวดหมู่ (รองรับทุกสมาชิก/ทุก ID) เรียบร้อยแล้ว!");
 }
 
 /**
@@ -95,14 +101,12 @@ function setupSheet(ss, sheetName, headers, headerColor) {
     sheet = ss.insertSheet(sheetName);
   }
   
-  // ตรวจสอบว่ามีข้อมูลหัวตารางหรือยัง
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
   } else {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
 
-  // จัดรูปแบบหัวตารางให้สวยงาม เป็นมืออาชีพ
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setBackground(headerColor || "#047857");
   headerRange.setFontColor("#FFFFFF");
@@ -114,26 +118,16 @@ function setupSheet(ss, sheetName, headers, headerColor) {
   sheet.setFrozenRows(1);
 }
 
-/**
- * 🌐 รองรับ GET Request (สำหรับทดสอบ Ping และดึงข้อมูล)
- */
 function doGet(e) {
   return handleRequest(e);
 }
 
-/**
- * 🌐 รองรับ POST Request (สำหรับรับข้อมูลจากหน้าเว็บและอัปโหลดไฟล์)
- */
 function doPost(e) {
   return handleRequest(e);
 }
 
-/**
- * ⚙️ แกนประมวลผลคำขอ (Request Router)
- */
 function handleRequest(e) {
   var lock = LockService.getScriptLock();
-  // ล็อคคิวการเขียนเพื่อป้องกันข้อมูลชนกัน
   lock.tryLock(20000);
 
   try {
@@ -153,14 +147,12 @@ function handleRequest(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
 
     switch (action) {
-      // 1. ตรวจสอบสถานะการเชื่อมต่อ
       case "ping":
         responseData.message = "ระบบเชื่อมต่อ Google Apps Script สำเร็จพร้อมใช้งาน!";
         responseData.spreadsheetName = ss.getName();
         responseData.timestamp = new Date().toISOString();
         break;
 
-      // 2. อัปโหลดไฟล์หรือรูปถ่ายลง Google Drive
       case "uploadFile":
         var fileInfo = saveFileToDrive(
           params.base64Data, 
@@ -172,9 +164,9 @@ function handleRequest(e) {
         responseData.message = "อัปโหลดไฟล์ลง Google Drive สำเร็จ";
         break;
 
-      // 3. ดึงข้อมูลทั้งหมดจาก Google Sheets กลับไปยังหน้าเว็บ
       case "getAllData":
         responseData.data = {
+          Members: readMembersSheet(ss),
           Students: readStudentsSheet(ss),
           WeightHeight: readWeightHeightSheet(ss),
           AttendanceBank: readAttendanceBankSheet(ss),
@@ -186,12 +178,11 @@ function handleRequest(e) {
         responseData.message = "ดึงข้อมูลจาก Google Sheets สำเร็จ";
         break;
 
-      // 4. ซิงค์ข้อมูลทั้งหมดจากหน้าเว็บมาบันทึกลง Google Sheets
       case "syncAllData":
         if (params.payload) {
-          syncAllDataToSheets(ss, params.payload);
+          syncAllDataToSheets(ss, params.payload, params.userId);
         }
-        responseData.message = "ซิงค์และบันทึกข้อมูลทั้งหมดลง Google Sheets สำเร็จสมบูรณ์";
+        responseData.message = "ซิงค์และบันทึกข้อมูลทุกสมาชิกลง Google Sheets สำเร็จสมบูรณ์";
         responseData.syncedAt = new Date().toISOString();
         break;
 
@@ -216,48 +207,88 @@ function handleRequest(e) {
 /**
  * 💾 ซิงค์ข้อมูลทั้งหมดจาก Web App มาลง Google Sheets
  */
-function syncAllDataToSheets(ss, payload) {
-  // 1. ซิงค์นักเรียน (Students)
+function syncAllDataToSheets(ss, payload, targetUserId) {
+  // 1. ซิงค์รายชื่อสมาชิก/ครูทั้งหมด (Members)
+  if (payload.Members && Array.isArray(payload.Members)) {
+    syncMembers(ss, payload.Members);
+  }
+
+  // 2. ซิงค์นักเรียน (Students)
   if (payload.Students && Array.isArray(payload.Students)) {
-    syncStudents(ss, payload.Students);
+    syncStudents(ss, payload.Students, targetUserId);
   }
 
-  // 2. ซิงค์น้ำหนัก-ส่วนสูง BMI (WeightHeight)
+  // 3. ซิงค์น้ำหนัก-ส่วนสูง BMI (WeightHeight)
   if (payload.WeightHeight && Array.isArray(payload.WeightHeight)) {
-    syncWeightHeight(ss, payload.WeightHeight);
+    syncWeightHeight(ss, payload.WeightHeight, targetUserId);
   }
 
-  // 3. ซิงค์เช็คชื่อและเงินฝากประจำวัน (AttendanceBank)
+  // 4. ซิงค์เช็คชื่อและเงินฝากประจำวัน (AttendanceBank)
   if (payload.AttendanceBank && Array.isArray(payload.AttendanceBank)) {
-    syncAttendanceBank(ss, payload.AttendanceBank);
+    syncAttendanceBank(ss, payload.AttendanceBank, targetUserId);
   }
 
-  // 4. ซิงค์ประวัติการถอนเงิน (Withdrawals)
+  // 5. ซิงค์ประวัติการถอนเงิน (Withdrawals)
   if (payload.Withdrawals && Array.isArray(payload.Withdrawals)) {
-    syncWithdrawals(ss, payload.Withdrawals);
+    syncWithdrawals(ss, payload.Withdrawals, targetUserId);
   }
 
-  // 5. ซิงค์คะแนนและการตัดเกรด (Scores)
+  // 6. ซิงค์คะแนนและการตัดเกรด (Scores)
   if (payload.Scores && Array.isArray(payload.Scores)) {
-    syncScores(ss, payload.Scores);
+    syncScores(ss, payload.Scores, targetUserId);
   }
 
-  // 6. ซิงค์ปฏิทินกิจกรรม (Events)
+  // 7. ซิงค์ปฏิทินกิจกรรม (Events)
   if (payload.Events && Array.isArray(payload.Events)) {
     syncEvents(ss, payload.Events);
   }
 
-  // 7. ซิงค์ข้อมูลครูและการตั้งค่า (Settings)
-  if (payload.Settings && Array.isArray(payload.Settings)) {
-    syncSettings(ss, payload.Settings[0] || payload.Settings);
+  // 8. ซิงค์ข้อมูลครูและการตั้งค่า (Settings)
+  if (payload.Settings) {
+    var settingsList = Array.isArray(payload.Settings) ? payload.Settings : [payload.Settings];
+    syncSettings(ss, settingsList);
   }
 }
 
 /**
- * 1️⃣ ซิงค์ชีต Students
+ * 0️⃣ ซิงค์ชีต Members (รายชื่อสมาชิกและครูทั้งหมด)
  */
-function syncStudents(ss, students) {
+function syncMembers(ss, members) {
   var headers = [
+    "รหัสสมาชิก (User ID)", "ชื่อผู้ใช้งาน (Username)", "ชื่อ-สกุลครู", 
+    "บทบาท (Role)", "ห้องเรียนที่รับผิดชอบ", "โรงเรียน", 
+    "สถานะบัญชี", "วันที่สร้าง", "เข้าสู่ระบบล่าสุด"
+  ];
+  setupSheet(ss, "Members", headers, "#7c3aed");
+  var sheet = ss.getSheetByName("Members");
+  clearDataRows(sheet);
+
+  if (!members || members.length === 0) return;
+
+  var rows = members.map(function(m) {
+    return [
+      m.id || "",
+      m.username || "",
+      m.name || "",
+      m.role === "admin" ? "ผู้ดูแลระบบ (Admin)" : "ครูประจำชั้น (สมาชิก)",
+      m.classroom || "",
+      m.schoolName || "",
+      m.status === "active" ? "ใช้งานปกติ" : "ระงับการใช้งาน",
+      m.createdAt || "",
+      m.lastLogin || ""
+    ];
+  });
+
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  sheet.autoResizeColumns(1, headers.length);
+}
+
+/**
+ * 1️⃣ ซิงค์ชีต Students (รองรับระบุครูผู้ดูแล และทุกห้องเรียน)
+ */
+function syncStudents(ss, students, targetUserId) {
+  var headers = [
+    "บัญชีครู (ID)", "ชื่อครูผู้รับผิดชอบ", "ห้องเรียน", 
     "รหัสนักเรียน (ID)", "เลขประจำตัว", "คำนำหน้า", "ชื่อ", "นามสกุล", 
     "ชื่อเล่น", "วันเกิด", "อายุ", "เพศ", "อาศัยอยู่กับ", 
     "การเดินทาง", "เงินมา รร. (บาท)", "อาชีพผู้ปกครอง", "เบอร์โทรผู้ปกครอง", 
@@ -267,13 +298,14 @@ function syncStudents(ss, students) {
   setupSheet(ss, "Students", headers, "#047857");
   var sheet = ss.getSheetByName("Students");
   
-  // ล้างแถวข้อมูลเดิม (คงแถวหัวตารางไว้)
   clearDataRows(sheet);
-
-  if (students.length === 0) return;
+  if (!students || students.length === 0) return;
 
   var rows = students.map(function(s) {
     return [
+      s._teacherId || s.teacherId || "airfan",
+      s._teacherName || s.teacherName || "",
+      s._classroom || s.gradeLevel || "",
       s.id || "",
       s.studentCode || "",
       s.prefix || "",
@@ -306,9 +338,9 @@ function syncStudents(ss, students) {
 /**
  * 2️⃣ ซิงค์ชีต WeightHeight
  */
-function syncWeightHeight(ss, records) {
+function syncWeightHeight(ss, records, targetUserId) {
   var headers = [
-    "รหัสบันทึก", "วันที่ตรวจวัด", "ปีการศึกษา", "ภาคเรียน", 
+    "รหัสบันทึก", "บัญชีครู (ID)", "ห้องเรียน", "วันที่ตรวจวัด", "ปีการศึกษา", "ภาคเรียน", 
     "รหัสนักเรียน", "ชื่อ-สกุล", "อายุ (ปี)", "น้ำหนัก (กก.)", 
     "ส่วนสูง (ซม.)", "ค่า BMI", "สถานะการเจริญเติบโต", "หมายเหตุ", "บันทึกเมื่อ"
   ];
@@ -316,12 +348,18 @@ function syncWeightHeight(ss, records) {
   var sheet = ss.getSheetByName("WeightHeight");
   clearDataRows(sheet);
 
+  if (!records || records.length === 0) return;
+
   var rows = [];
   records.forEach(function(rec) {
     var measurements = rec.measurements || [];
+    var teacherId = rec._teacherId || rec.teacherId || "airfan";
+    var classroom = rec._classroom || "";
     measurements.forEach(function(m) {
       rows.push([
         rec.id || "",
+        teacherId,
+        classroom,
         rec.date || "",
         rec.academicYear || "",
         "ภาคเรียนที่ " + (rec.term || 1),
@@ -345,16 +383,19 @@ function syncWeightHeight(ss, records) {
 }
 
 /**
- * 3️⃣ ซิงค์ชีต AttendanceBank (เช็คชื่อและฝากเงิน)
+ * 3️⃣ ซิงค์ชีต AttendanceBank (เช็คชื่อและฝากเงิน - ระบุครูและห้องเรียน)
  */
-function syncAttendanceBank(ss, days) {
+function syncAttendanceBank(ss, days, targetUserId) {
   var headers = [
-    "วันที่ (วว/ดด/ปปปป)", "รหัสนักเรียน", "ชื่อ-สกุล", 
-    "สถานะการมาเรียน", "ยอดเงินฝากวันนี้ (บาท)", "หมายเหตุประจำวัน", "อัปเดตล่าสุด"
+    "วันที่ (วว/ดด/ปปปป)", "บัญชีครู (ID)", "ห้องเรียน", 
+    "รหัสนักเรียน", "ชื่อ-สกุล", "สถานะการมาเรียน", "ยอดเงินฝากวันนี้ (บาท)", 
+    "หมายเหตุประจำวัน", "อัปเดตล่าสุด"
   ];
   setupSheet(ss, "AttendanceBank", headers, "#0d9488");
   var sheet = ss.getSheetByName("AttendanceBank");
   clearDataRows(sheet);
+
+  if (!days || days.length === 0) return;
 
   var rows = [];
   var statusThai = {
@@ -366,11 +407,15 @@ function syncAttendanceBank(ss, days) {
   };
 
   days.forEach(function(day) {
+    var teacherId = day._teacherId || day.teacherId || "airfan";
+    var classroom = day._classroom || "";
     var records = day.records || {};
     for (var stdId in records) {
       var r = records[stdId];
       rows.push([
         day.date || "",
+        teacherId,
+        classroom,
         stdId,
         r.studentName || "",
         statusThai[r.status] || r.status || "มาเรียน",
@@ -390,20 +435,22 @@ function syncAttendanceBank(ss, days) {
 /**
  * 4️⃣ ซิงค์ชีต Withdrawals
  */
-function syncWithdrawals(ss, withdrawals) {
+function syncWithdrawals(ss, withdrawals, targetUserId) {
   var headers = [
-    "รหัสรายการ", "รหัสนักเรียน", "ชื่อนักเรียน", "วันที่ถอน", 
-    "เวลา", "ยอดเงินที่ถอน (บาท)", "เหตุผลการถอน", "ครูผู้บันทึก", "วันที่บันทึก"
+    "รหัสรายการ", "บัญชีครู (ID)", "ห้องเรียน", "รหัสนักเรียน", "ชื่อนักเรียน", 
+    "วันที่ถอน", "เวลา", "ยอดเงินที่ถอน (บาท)", "เหตุผลการถอน", "ครูผู้บันทึก", "วันที่บันทึก"
   ];
   setupSheet(ss, "Withdrawals", headers, "#e11d48");
   var sheet = ss.getSheetByName("Withdrawals");
   clearDataRows(sheet);
 
-  if (withdrawals.length === 0) return;
+  if (!withdrawals || withdrawals.length === 0) return;
 
   var rows = withdrawals.map(function(w) {
     return [
       w.id || "",
+      w._teacherId || w.teacherId || "airfan",
+      w._classroom || "",
       w.studentId || "",
       w.studentName || "",
       w.date || "",
@@ -420,11 +467,11 @@ function syncWithdrawals(ss, withdrawals) {
 }
 
 /**
- * 5️⃣ ซิงค์ชีต Scores (คะแนนและตัดเกรด - รองรับแยกภาคเรียน 1 และ 2)
+ * 5️⃣ ซิงค์ชีต Scores
  */
-function syncScores(ss, scoreSheets) {
+function syncScores(ss, scoreSheets, targetUserId) {
   var headers = [
-    "รหัสชุดคะแนน", "ชื่อวิชา", "รหัสวิชา", "ระดับชั้น", "ภาคเรียน", "ปีการศึกษา",
+    "รหัสชุดคะแนน", "บัญชีครู (ID)", "ห้องเรียน", "ชื่อวิชา", "รหัสวิชา", "ระดับชั้น", "ภาคเรียน", "ปีการศึกษา",
     "รหัสนักเรียน", "ชื่อ-สกุล", "บทที่ 1", "บทที่ 2", "บทที่ 3", "บทที่ 4", 
     "บทที่ 5", "บทที่ 6", "บทที่ 7", "บทที่ 8", "สอบปลายภาค", "คะแนนรวม (100)", 
     "เกรดที่ได้", "โครงสร้างบทเรียน (JSON)", "อัปเดตล่าสุด"
@@ -433,8 +480,12 @@ function syncScores(ss, scoreSheets) {
   var sheet = ss.getSheetByName("Scores");
   clearDataRows(sheet);
 
+  if (!scoreSheets || scoreSheets.length === 0) return;
+
   var rows = [];
   scoreSheets.forEach(function(sc) {
+    var teacherId = sc._teacherId || sc.teacherId || "airfan";
+    var classroom = sc._classroom || sc.classroom || "";
     var studentScores = sc.studentScores || [];
     var chaptersJson = JSON.stringify(sc.chapters || []);
 
@@ -442,6 +493,8 @@ function syncScores(ss, scoreSheets) {
       var chScores = st.chapterScores || [];
       rows.push([
         sc.id || "",
+        teacherId,
+        classroom,
         sc.subjectName || sc.title || "",
         sc.subjectCode || "",
         sc.classroom || "",
@@ -477,18 +530,20 @@ function syncScores(ss, scoreSheets) {
  */
 function syncEvents(ss, events) {
   var headers = [
-    "รหัสกิจกรรม", "ชื่อกิจกรรม/นัดหมาย", "วันที่", "เวลาเริ่มต้น", 
-    "เวลาสิ้นสุด", "สีแถบกิจกรรม", "รายละเอียด/สถานที่", "วันที่สร้าง"
+    "รหัสกิจกรรม", "บัญชีครู (ID)", "ห้องเรียน", "ชื่อกิจกรรม/นัดหมาย", 
+    "วันที่", "เวลาเริ่มต้น", "เวลาสิ้นสุด", "สีแถบกิจกรรม", "รายละเอียด/สถานที่", "วันที่สร้าง"
   ];
   setupSheet(ss, "Events", headers, "#d97706");
   var sheet = ss.getSheetByName("Events");
   clearDataRows(sheet);
 
-  if (events.length === 0) return;
+  if (!events || events.length === 0) return;
 
   var rows = events.map(function(ev) {
     return [
       ev.id || "",
+      ev._teacherId || ev.teacherId || "airfan",
+      ev._classroom || "",
       ev.title || "",
       ev.date || "",
       ev.startTime || "",
@@ -504,35 +559,35 @@ function syncEvents(ss, events) {
 }
 
 /**
- * 7️⃣ ซิงค์ชีต Settings
+ * 7️⃣ ซิงค์ชีต Settings (รายชื่อครูและห้องเรียนทั้งหมด)
  */
-function syncSettings(ss, settings) {
+function syncSettings(ss, settingsList) {
   var headers = [
-    "ชื่อครูประจำชั้น", "โรงเรียน", "ชั้นเรียน", "ปีการศึกษา", 
-    "Google Drive Folder ID", "อัปเดตล่าสุด"
+    "บัญชีครู (ID)", "ชื่อครูประจำชั้น", "โรงเรียน", "ชั้นเรียน", 
+    "ปีการศึกษา", "Google Drive Folder ID", "อัปเดตล่าสุด"
   ];
   setupSheet(ss, "Settings", headers, "#475569");
   var sheet = ss.getSheetByName("Settings");
   clearDataRows(sheet);
 
-  if (!settings) return;
+  if (!settingsList || settingsList.length === 0) return;
 
-  var row = [
-    settings.teacherName || "",
-    settings.schoolName || "",
-    settings.classroomName || "",
-    settings.academicYear || "",
-    settings.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
-    new Date().toISOString()
-  ];
+  var rows = settingsList.map(function(st) {
+    return [
+      st.userId || "airfan",
+      st.teacherName || "",
+      st.schoolName || "",
+      st.classroomName || "",
+      st.academicYear || "",
+      st.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
+      new Date().toISOString()
+    ];
+  });
 
-  sheet.getRange(2, 1, 1, headers.length).setValues([row]);
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
   sheet.autoResizeColumns(1, headers.length);
 }
 
-/**
- * 🧹 ฟังก์ชันลบเฉพาะแถวข้อมูล (เก็บแถวที่ 1 ซึ่งเป็นหัวตารางไว้เสมอ)
- */
 function clearDataRows(sheet) {
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
@@ -541,10 +596,6 @@ function clearDataRows(sheet) {
   }
 }
 
-/**
- * ☁️ จัดเก็บไฟล์/รูปภาพลง Google Drive โดยอัตโนมัติ
- * และตั้งสิทธิ์เป็นสาธารณะ (ANYONE_WITH_LINK) เพื่อให้รูปแสดงผลในเว็บได้ทันที
- */
 function saveFileToDrive(base64Data, fileName, mimeType, folderId) {
   try {
     var targetFolderId = folderId || DEFAULT_DRIVE_FOLDER_ID;
@@ -553,11 +604,9 @@ function saveFileToDrive(base64Data, fileName, mimeType, folderId) {
     try {
       folder = DriveApp.getFolderById(targetFolderId);
     } catch (e) {
-      // หากหาโฟลเดอร์ไม่พบ ให้ใช้ Root Directory
       folder = DriveApp.getRootFolder();
     }
 
-    // ล้าง Data URL Prefix หากมีติดมา
     var cleanBase64 = (base64Data || "").replace(/^data:[^;]+;base64,/, "");
     var decoded = Utilities.base64Decode(cleanBase64);
     var safeMime = mimeType || "image/jpeg";
@@ -565,12 +614,9 @@ function saveFileToDrive(base64Data, fileName, mimeType, folderId) {
 
     var blob = Utilities.newBlob(decoded, safeMime, safeName);
     var file = folder.createFile(blob);
-
-    // เปิดสิทธิ์ให้ทุกคนที่มีลิงก์เข้าดูได้
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
     var fileId = file.getId();
-    // Direct CDN Link สำหรับแท็ก <img> โดยไม่มีปัญหา CORS
     var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
 
     return {
@@ -585,9 +631,10 @@ function saveFileToDrive(base64Data, fileName, mimeType, folderId) {
   }
 }
 
-/**
- * 📖 ฟังก์ชันอ่านข้อมูลจากชีตกลับเป็น JSON (สำหรับ action: getAllData)
- */
+function readMembersSheet(ss) {
+  return getSheetObjects(ss, "Members");
+}
+
 function readStudentsSheet(ss) {
   return getSheetObjects(ss, "Students");
 }

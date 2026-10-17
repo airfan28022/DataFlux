@@ -830,6 +830,227 @@ class DataService {
     }, delay);
   }
 
+  /**
+   * รวบรวมข้อมูลของสมาชิกทุก ID (All Members) เพื่อส่งไปบันทึกลง Google Sheets
+   * ทำให้ใน Google Sheets แสดงข้อมูลครบทุกคน ทุกห้องเรียน ไม่แสดงเฉพาะ airfan
+   */
+  public async buildMultiUserSyncPayload(): Promise<{
+    Members: AppUser[];
+    Students: any[];
+    WeightHeight: any[];
+    AttendanceBank: any[];
+    Withdrawals: any[];
+    Scores: any[];
+    Events: any[];
+    Settings: any[];
+  }> {
+    const members = this.getMembers();
+    const currentUid = this.getCurrentUserId();
+
+    const allStudents: any[] = [];
+    const allWeightHeight: any[] = [];
+    const allAttendanceBank: any[] = [];
+    const allWithdrawals: any[] = [];
+    const allScores: any[] = [];
+    const allEvents: any[] = [];
+    const allSettings: any[] = [];
+
+    for (const m of members) {
+      const uid = m.id.toLowerCase();
+      const teacherName = m.name || (uid === 'airfan' ? this.getProfile().teacherName : 'ครูประจำชั้น');
+      const classroom = m.classroom || (uid === 'airfan' ? this.getProfile().classroomName : 'ห้องเรียน');
+      const schoolName = m.schoolName || this.getProfile().schoolName || 'โรงเรียนสาธิต';
+
+      // 1. Students for this member
+      let students: Student[] = [];
+      if (uid === currentUid) {
+        students = this.getStudents();
+      } else {
+        const raw = localStorage.getItem(`teacher_app_students_v1_${uid}`) || (uid === 'airfan' ? localStorage.getItem(STORAGE_KEYS.STUDENTS) : null);
+        if (raw) {
+          try { students = JSON.parse(raw); } catch {}
+        }
+        if ((!students || students.length === 0) && typeof window !== 'undefined') {
+          try {
+            const snap = await getDocs(collection(db, 'users', uid, 'students'));
+            if (!snap.empty) {
+              students = snap.docs.map((d) => d.data() as Student);
+            }
+          } catch {}
+        }
+      }
+      students.forEach((s) => {
+        allStudents.push({
+          ...s,
+          _teacherId: uid,
+          _teacherName: teacherName,
+          _classroom: s.gradeLevel || classroom,
+          _schoolName: schoolName,
+        });
+      });
+
+      // 2. Weight & Height records for this member
+      let whRecords: WeightHeightRecord[] = [];
+      if (uid === currentUid) {
+        whRecords = this.getWeightHeightRecords();
+      } else {
+        const raw = localStorage.getItem(`teacher_app_weight_height_v1_${uid}`) || (uid === 'airfan' ? localStorage.getItem(STORAGE_KEYS.WEIGHT_HEIGHT) : null);
+        if (raw) {
+          try { whRecords = JSON.parse(raw); } catch {}
+        }
+        if ((!whRecords || whRecords.length === 0) && typeof window !== 'undefined') {
+          try {
+            const snap = await getDocs(collection(db, 'users', uid, 'weightHeight'));
+            if (!snap.empty) {
+              whRecords = snap.docs.map((d) => d.data() as WeightHeightRecord);
+            }
+          } catch {}
+        }
+      }
+      whRecords.forEach((r) => {
+        allWeightHeight.push({
+          ...r,
+          _teacherId: uid,
+          _teacherName: teacherName,
+          _classroom: classroom,
+        });
+      });
+
+      // 3. Attendance & Bank for this member
+      let attBankDays: DayAttendanceAndBank[] = [];
+      if (uid === currentUid) {
+        attBankDays = Object.values(this.getAllAttendanceAndBank());
+      } else {
+        const raw = localStorage.getItem(`teacher_app_attendance_bank_v1_${uid}`) || (uid === 'airfan' ? localStorage.getItem(STORAGE_KEYS.ATTENDANCE_BANK) : null);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            attBankDays = Object.values(parsed);
+          } catch {}
+        }
+        if ((!attBankDays || attBankDays.length === 0) && typeof window !== 'undefined') {
+          try {
+            const snap = await getDocs(collection(db, 'users', uid, 'attendanceBank'));
+            if (!snap.empty) {
+              attBankDays = snap.docs.map((d) => d.data() as DayAttendanceAndBank);
+            }
+          } catch {}
+        }
+      }
+      attBankDays.forEach((d) => {
+        allAttendanceBank.push({
+          ...d,
+          _teacherId: uid,
+          _teacherName: teacherName,
+          _classroom: classroom,
+        });
+      });
+
+      // 4. Withdrawals for this member
+      let withdrawals: WithdrawalLog[] = [];
+      if (uid === currentUid) {
+        withdrawals = this.getWithdrawalLogs();
+      } else {
+        const raw = localStorage.getItem(`teacher_app_withdrawal_logs_v1_${uid}`) || (uid === 'airfan' ? localStorage.getItem(STORAGE_KEYS.WITHDRAWAL_LOGS) : null);
+        if (raw) {
+          try { withdrawals = JSON.parse(raw); } catch {}
+        }
+        if ((!withdrawals || withdrawals.length === 0) && typeof window !== 'undefined') {
+          try {
+            const snap = await getDocs(collection(db, 'users', uid, 'withdrawals'));
+            if (!snap.empty) {
+              withdrawals = snap.docs.map((d) => d.data() as WithdrawalLog);
+            }
+          } catch {}
+        }
+      }
+      withdrawals.forEach((w) => {
+        allWithdrawals.push({
+          ...w,
+          _teacherId: uid,
+          _teacherName: teacherName,
+          _classroom: classroom,
+        });
+      });
+
+      // 5. Scores for this member
+      let scores: ScoreSheet[] = [];
+      if (uid === currentUid) {
+        scores = this.getScoreSheets();
+      } else {
+        const raw = localStorage.getItem(`teacher_app_score_sheets_v1_${uid}`) || (uid === 'airfan' ? localStorage.getItem(STORAGE_KEYS.SCORE_SHEETS) : null);
+        if (raw) {
+          try { scores = JSON.parse(raw); } catch {}
+        }
+        if ((!scores || scores.length === 0) && typeof window !== 'undefined') {
+          try {
+            const snap = await getDocs(collection(db, 'users', uid, 'scores'));
+            if (!snap.empty) {
+              scores = snap.docs.map((d) => d.data() as ScoreSheet);
+            }
+          } catch {}
+        }
+      }
+      scores.forEach((sc) => {
+        allScores.push({
+          ...sc,
+          _teacherId: uid,
+          _teacherName: teacherName,
+          _classroom: sc.classroom || classroom,
+        });
+      });
+
+      // 6. Events for this member
+      let events: CalendarEvent[] = [];
+      if (uid === currentUid) {
+        events = this.getCalendarEvents();
+      } else {
+        const raw = localStorage.getItem(`teacher_app_calendar_events_v1_${uid}`) || (uid === 'airfan' ? localStorage.getItem(STORAGE_KEYS.CALENDAR_EVENTS) : null);
+        if (raw) {
+          try { events = JSON.parse(raw); } catch {}
+        }
+      }
+      events.forEach((ev) => {
+        allEvents.push({
+          ...ev,
+          _teacherId: uid,
+          _teacherName: teacherName,
+          _classroom: classroom,
+        });
+      });
+
+      // 7. Settings for this member
+      let prof: TeacherProfile | null = null;
+      if (uid === currentUid) {
+        prof = this.getProfile();
+      } else {
+        const raw = localStorage.getItem(`teacher_app_profile_v1_${uid}`);
+        if (raw) {
+          try { prof = JSON.parse(raw); } catch {}
+        }
+      }
+      allSettings.push({
+        teacherName: prof?.teacherName || teacherName,
+        schoolName: prof?.schoolName || schoolName,
+        classroomName: prof?.classroomName || classroom,
+        academicYear: prof?.academicYear || '2569',
+        driveFolderId: prof?.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
+        userId: uid,
+      });
+    }
+
+    return {
+      Members: members,
+      Students: allStudents,
+      WeightHeight: allWeightHeight,
+      AttendanceBank: allAttendanceBank,
+      Withdrawals: allWithdrawals,
+      Scores: allScores,
+      Events: allEvents,
+      Settings: allSettings,
+    };
+  }
+
   public async performAutoSync(): Promise<boolean> {
     const profile = this.getProfile();
     if (!profile.gasWebAppUrl) return false;
@@ -839,21 +1060,13 @@ class DataService {
 
     try {
       const currentUser = this.getCurrentUser();
+      const multiPayload = await this.buildMultiUserSyncPayload();
       const payload = {
         action: 'syncAllData',
         userId: this.getCurrentUserId(),
         userName: currentUser?.name || profile.teacherName,
         classroom: currentUser?.classroom || profile.classroomName,
-        payload: {
-          Students: this.getStudents(),
-          WeightHeight: this.getWeightHeightRecords(),
-          AttendanceBank: Object.values(this.getAllAttendanceAndBank()),
-          Withdrawals: this.getWithdrawalLogs(),
-          Scores: this.getScoreSheets(),
-          Events: this.getCalendarEvents(),
-          Notes: this.getNotes(),
-          Settings: [this.getProfile()],
-        },
+        payload: multiPayload,
       };
 
       await fetch(profile.gasWebAppUrl, {
@@ -2287,7 +2500,7 @@ class DataService {
     };
   }
 
-  // Asynchronous Cloud Sync (GAS Web App)
+  // Asynchronous Cloud Sync (GAS Web App) - Multi-User Supported
   public async syncWithGoogleAppsScript(): Promise<boolean> {
     const profile = this.getProfile();
     if (!profile.gasWebAppUrl) {
@@ -2297,21 +2510,17 @@ class DataService {
 
     this.setLoading(true);
     try {
+      const currentUser = this.getCurrentUser();
+      const multiPayload = await this.buildMultiUserSyncPayload();
       const payload = {
         action: 'syncAllData',
-        payload: {
-          Students: this.getStudents(),
-          WeightHeight: this.getWeightHeightRecords(),
-          AttendanceBank: Object.values(this.getAllAttendanceAndBank()),
-          Withdrawals: this.getWithdrawalLogs(),
-          Scores: this.getScoreSheets(),
-          Events: this.getCalendarEvents(),
-          Notes: this.getNotes(),
-          Settings: [this.getProfile()],
-        },
+        userId: this.getCurrentUserId(),
+        userName: currentUser?.name || profile.teacherName,
+        classroom: currentUser?.classroom || profile.classroomName,
+        payload: multiPayload,
       };
 
-      const response = await fetch(profile.gasWebAppUrl, {
+      await fetch(profile.gasWebAppUrl, {
         method: 'POST',
         mode: 'no-cors', // standard GAS Web App cross-origin call
         headers: {
@@ -2321,7 +2530,11 @@ class DataService {
       });
 
       this.updateLastModified();
-      this.notifyToast('success', 'เชื่อมต่อ Google Apps Script สำเร็จ', 'ส่งข้อมูลไปบันทึกลง Google Sheets และ Drive แล้ว');
+      this.notifyToast(
+        'success',
+        'ซิงค์ข้อมูลทุกสมาชิกสำเร็จ!',
+        `ส่งข้อมูลสมาชิก ${multiPayload.Members.length} บัญชี และนักเรียน ${multiPayload.Students.length} คน ลง Google Sheets แล้ว`
+      );
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -21,7 +21,8 @@ import {
   School,
   BookOpen,
   X,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 
 export const MemberManagement: React.FC = () => {
@@ -47,6 +48,16 @@ export const MemberManagement: React.FC = () => {
   // Password visibility map for the table
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+
+  const handleSyncToSheets = async () => {
+    setIsSyncingSheets(true);
+    try {
+      await dataService.syncWithGoogleAppsScript();
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
 
   // Subscribe to dataService updates
   useEffect(() => {
@@ -245,14 +256,27 @@ export const MemberManagement: React.FC = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>+ เพิ่มสมาชิกใหม่</span>
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleSyncToSheets}
+              disabled={isSyncingSheets}
+              className="w-full sm:w-auto px-3.5 py-2.5 bg-white/20 hover:bg-white/30 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0 border border-white/20"
+              title="ซิงค์ข้อมูลทุกสมาชิกและนักเรียนทุกคนลง Google Sheets ทันที"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+              <span>{isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ทุก ID ลง Sheets'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ เพิ่มสมาชิกใหม่</span>
+            </button>
+          </div>
         </div>
 
         {/* Quick Stat Badges */}

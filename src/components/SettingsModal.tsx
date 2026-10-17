@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
 import { MemberManagement } from './MemberManagement';
+import { GAS_CODE_TEMPLATE } from '../services/gasCodeTemplate';
 import {
   Settings,
   KeyRound,
@@ -11,7 +12,13 @@ import {
   CheckCircle2,
   ShieldCheck,
   Building,
-  School
+  School,
+  FileSpreadsheet,
+  RefreshCw,
+  Copy,
+  Check,
+  ExternalLink,
+  Cloud
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -26,12 +33,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
+  const [isSyncingGas, setIsSyncingGas] = useState(false);
+  const [isCopiedGas, setIsCopiedGas] = useState(false);
+
   const isAdmin = dataService.isAdmin();
   const membersCount = dataService.getMembers().length;
   const currentUserId = dataService.getCurrentUserId();
   const currentUser = dataService.getCurrentUser();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members'>(
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members' | 'gas'>(
     isAdmin ? 'members' : 'profile'
   );
 
@@ -100,6 +110,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }, 500);
   };
 
+  const handleSyncAllMembersToSheets = async () => {
+    setIsSyncingGas(true);
+    try {
+      await dataService.syncWithGoogleAppsScript();
+    } finally {
+      setIsSyncingGas(false);
+    }
+  };
+
+  const handleCopyGasCode = () => {
+    navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
+    setIsCopiedGas(true);
+    dataService.notifyToast('success', 'คัดลอกโค้ดสำเร็จ', 'คัดลอกโค้ด Google Apps Script v3.0 เรียบร้อยแล้ว');
+    setTimeout(() => setIsCopiedGas(false), 2500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className={`bg-white rounded-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden transition-all duration-300 ${
@@ -161,6 +187,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <KeyRound className="w-4 h-4" /> {isAdmin ? 'เปลี่ยนรหัสผ่าน Admin' : 'เปลี่ยนรหัสผ่าน'}
+          </button>
+          <button
+            onClick={() => setActiveTab('gas')}
+            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'gas'
+                ? 'border-emerald-600 text-emerald-700 font-semibold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4" /> Google Sheets & Apps Script
           </button>
         </div>
 
@@ -365,6 +401,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </button>
               </div>
             </form>
+          )}
+
+          {/* TAB 3: Google Sheets & Drive (Multi-User) */}
+          {activeTab === 'gas' && (
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {/* Status Header */}
+              <div className="p-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5 text-emerald-200" />
+                    <h4 className="font-bold text-base">ระบบซิงค์ Google Sheets (Multi-User)</h4>
+                  </div>
+                  <p className="text-xs text-emerald-100 mt-1">
+                    รองรับการรวมข้อมูลของสมาชิกทุก ID ({membersCount} บัญชี) และนักเรียนทุกห้องเรียนลงใน Google Sheets เดียวกันอย่างเป็นระเบียบ
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSyncAllMembersToSheets}
+                  disabled={isSyncingGas}
+                  className="px-4 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSyncingGas ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingGas ? 'กำลังซิงค์ทุก ID...' : 'ซิงค์ข้อมูลทุก ID ทันที'}</span>
+                </button>
+              </div>
+
+              {/* Multi-user explanation */}
+              <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-2">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-800">
+                  <Cloud className="w-4 h-4 text-emerald-600" />
+                  <span>ทำไม Google Sheets จึงแสดงครบทุก ID (ระบบ v3.0):</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1.5 text-emerald-900/90 pl-1">
+                  <li><strong>ชีต Members ใหม่:</strong> เพิ่มชีตแสดงรายชื่อคุณครู/สมาชิกทุก ID ในระบบพร้อมสถานะการเข้าใช้งาน</li>
+                  <li><strong>คอลัมน์ระบุครูผู้ดูแล:</strong> เพิ่มคอลัมน์ "บัญชีครู (ID)", "ชื่อครูผู้รับผิดชอบ" และ "ห้องเรียน" ในทุกตาราง (Students, Attendance, Scores ฯลฯ) ทำให้ข้อมูลไม่ปนกันและไม่ทับซ้อน</li>
+                  <li><strong>ระบบซิงค์ Multi-User:</strong> เมื่อกดซิงค์ ระบบจะรวบรวมข้อมูลของทุก ID ไปบันทึกลงในชีตเดียวกันทันที</li>
+                </ul>
+              </div>
+
+              {/* GAS Code Section */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h5 className="font-bold text-slate-800 text-xs sm:text-sm">โค้ด Google Apps Script (Code.gs) v3.0</h5>
+                    <p className="text-[11px] text-slate-500">คัดลอกโค้ดนี้ไปวางใน Google Apps Script ของ Google Sheets เพื่อรองรับทุก ID</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyGasCode}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                  >
+                    {isCopiedGas ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{isCopiedGas ? 'คัดลอกเรียบร้อย!' : 'คัดลอกโค้ด Code.gs'}</span>
+                  </button>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1 font-mono max-h-32 overflow-y-auto">
+                  <pre className="text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap">{GAS_CODE_TEMPLATE.slice(0, 500)}... (คลิกปุ่มคัดลอกเพื่อรับโค้ดเต็ม)</pre>
+                </div>
+
+                {/* Instructions */}
+                <div className="text-[11px] text-slate-500 space-y-1 border-t border-slate-200 pt-2">
+                  <span className="font-bold text-slate-700 block">📌 ขั้นตอนการอัปเกรดง่ายๆ 3 ขั้นตอน:</span>
+                  <p>1. เปิด Google Sheets &gt; เมนู "ส่วนขยาย" (Extensions) &gt; Apps Script</p>
+                  <p>2. วางโค้ดใหม่ทับโค้ดเดิมทั้งหมด &gt; เลือกฟังก์ชัน <code className="bg-slate-200 px-1 rounded text-slate-800">initSpreadsheet</code> แล้วกด <strong>"เรียกใช้" (Run)</strong> เพื่อเตรียมชีตครบ 8 หมวด</p>
+                  <p>3. กดปุ่ม "การทำให้ใช้งานได้" &gt; "จัดการการทำให้ใช้งานได้" &gt; แก้ไข &gt; เลือกรุ่นใหม่ &gt; กด "ทำให้ใช้งานได้"</p>
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
