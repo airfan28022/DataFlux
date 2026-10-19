@@ -190,6 +190,8 @@ export interface AppUser {
   position?: string;
   affiliation?: string;
   academicYear?: string;
+  spreadsheetUrl?: string;
+  spreadsheetId?: string;
   createdAt: string;
   updatedAt?: string;
   lastLogin?: string;

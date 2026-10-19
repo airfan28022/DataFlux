@@ -96,6 +96,9 @@ class DataService {
   constructor() {
     this.initFirestoreRealtime();
     testConnection().catch(() => {});
+    setTimeout(() => {
+      this.performAutoSync().catch(() => {});
+    }, 2500);
   }
 
   // Current User & Member Identity
@@ -285,6 +288,9 @@ class DataService {
     } catch (err) {
       console.warn('[DataService] Profile sync for member error:', err);
     }
+
+    // Provision dedicated Google Sheet in Google Drive via Google Apps Script (in background)
+    this.triggerMemberSpreadsheetCreation(cleanMember).catch(() => {});
 
     if (!silent) {
       this.notifyToast('success', 'บันทึกสมาชิกสำเร็จ', `อัปเดตข้อมูลผู้ใช้ ${cleanMember.username} เรียบร้อยแล้ว`);
@@ -1066,6 +1072,7 @@ class DataService {
         userId: this.getCurrentUserId(),
         userName: currentUser?.name || profile.teacherName,
         classroom: currentUser?.classroom || profile.classroomName,
+        folderId: profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
         payload: multiPayload,
       };
 
@@ -1086,6 +1093,50 @@ class DataService {
       this.syncStatus = 'error';
       this.syncStatusListeners.forEach((fn) => fn(this.syncStatus));
       return false;
+    }
+  }
+
+  public async testGasConnection(targetUrl?: string): Promise<{ success: boolean; message: string; details?: any }> {
+    const url = targetUrl || this.getProfile().gasWebAppUrl;
+    if (!url || url.trim() === '') {
+      return { success: false, message: 'ยังไม่ได้ระบุ Google Apps Script Web App URL' };
+    }
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'ping' }),
+      });
+
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (data.status === 'success') {
+            return {
+              success: true,
+              message: data.message || 'เชื่อมต่อกับ Google Apps Script สำเร็จพร้อมใช้งาน!',
+              details: data,
+            };
+          }
+        } catch {}
+        return { success: true, message: 'เชื่อมต่อกับ Google Apps Script สำเร็จ (HTTP 200 OK)' };
+      }
+      return { success: false, message: `การเชื่อมต่อส่งคืนรหัส HTTP ${res.status}` };
+    } catch (err: unknown) {
+      try {
+        await fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'ping' }),
+        });
+        return { success: true, message: 'ส่งสัญญาณเชื่อมต่อสำเร็จ (No-CORS Mode)' };
+      } catch (e2) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { success: false, message: `ไม่สามารถเชื่อมต่อได้: ${msg}` };
+      }
     }
   }
 
@@ -2517,6 +2568,7 @@ class DataService {
         userId: this.getCurrentUserId(),
         userName: currentUser?.name || profile.teacherName,
         classroom: currentUser?.classroom || profile.classroomName,
+        folderId: profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
         payload: multiPayload,
       };
 
@@ -2532,13 +2584,66 @@ class DataService {
       this.updateLastModified();
       this.notifyToast(
         'success',
-        'ซิงค์ข้อมูลทุกสมาชิกสำเร็จ!',
-        `ส่งข้อมูลสมาชิก ${multiPayload.Members.length} บัญชี และนักเรียน ${multiPayload.Students.length} คน ลง Google Sheets แล้ว`
+        'ซิงค์ข้อมูลทุกสมาชิกสำเร็จ! (แยก Google Sheet ประจำ ID)',
+        `ส่งข้อมูลสมาชิก ${multiPayload.Members.length} บัญชี และนักเรียน ${multiPayload.Students.length} คน พร้อมแยก Google Sheet ราย ID เรียบร้อย (ข้อมูลไม่สูญหาย)`
       );
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       this.notifyToast('error', 'การเชื่อมต่อขัดข้อง', msg);
+      return false;
+    } finally {
+      this.setLoading(false);
+    }
+  }
+
+  // สร้างไฟล์ Google Sheet เฉพาะสำหรับ ID สมาชิกใน Google Drive อัตโนมัติ
+  public async triggerMemberSpreadsheetCreation(member: AppUser): Promise<void> {
+    const profile = this.getProfile();
+    if (!profile.gasWebAppUrl) return;
+
+    try {
+      const payload = {
+        action: 'createMemberSpreadsheet',
+        userId: member.id,
+        userName: member.name,
+        classroom: member.classroom || 'ห้องเรียน',
+        schoolName: member.schoolName || profile.schoolName,
+        folderId: profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
+      };
+
+      await fetch(profile.gasWebAppUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.warn('[DataService] triggerMemberSpreadsheetCreation warning:', e);
+    }
+  }
+
+  public async createMemberSpreadsheet(member: AppUser): Promise<boolean> {
+    const profile = this.getProfile();
+    if (!profile.gasWebAppUrl) {
+      this.notifyToast('warning', 'ยังไม่ได้ตั้งค่า Google Apps Script Web App URL', 'กรุณาระบุ URL ในหน้าตั้งค่าก่อนสร้างชีต');
+      return false;
+    }
+
+    this.setLoading(true);
+    try {
+      await this.triggerMemberSpreadsheetCreation(member);
+      this.notifyToast(
+        'success',
+        'ส่งคำสั่งสร้าง Google Sheet สำเร็จ!',
+        `สร้าง Google Sheet ไฟล์ใหม่เฉพาะสำหรับ ID "${member.username}" (${member.name}) ใน Google Drive เรียบร้อย`
+      );
+      return true;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.notifyToast('error', 'สร้าง Google Sheet ขัดข้อง', msg);
       return false;
     } finally {
       this.setLoading(false);

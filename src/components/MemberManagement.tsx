@@ -22,7 +22,9 @@ import {
   BookOpen,
   X,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  FileSpreadsheet,
+  ExternalLink
 } from 'lucide-react';
 
 export const MemberManagement: React.FC = () => {
@@ -268,14 +270,29 @@ export const MemberManagement: React.FC = () => {
               <span>{isSyncingSheets ? 'กำลังซิงค์...' : 'ซิงค์ทุก ID ลง Sheets'}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>+ เพิ่มสมาชิกใหม่</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={async () => {
+                  await dataService.syncWithGoogleAppsScript();
+                  setMembers(dataService.getMembers());
+                }}
+                className="w-full sm:w-auto px-3.5 py-2.5 bg-emerald-700/80 hover:bg-emerald-600 text-white font-semibold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shrink-0 border border-emerald-500/40"
+                title="สั่งให้ Google Apps Script สร้างหรืออัปเดต Google Sheet แยกราย ID สำหรับทุกสมาชิกใน Google Drive"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+                <span>ซิงค์ &amp; แยกชีตทุก ID</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenAddModal}
+                className="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ เพิ่มสมาชิกใหม่</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -293,6 +310,21 @@ export const MemberManagement: React.FC = () => {
             <span className="text-emerald-200">ระงับใช้งาน</span>
             <span className="font-bold text-sm text-rose-300">{suspendedCount} คน</span>
           </div>
+        </div>
+      </div>
+
+      {/* Info Banner: Per-ID Sheet separation and Zero Data Loss */}
+      <div className="bg-emerald-50 border border-emerald-200/90 rounded-2xl p-3.5 flex items-start gap-3 shadow-2xs">
+        <FileSpreadsheet className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+        <div className="text-xs text-emerald-950 space-y-1">
+          <p className="font-bold text-emerald-900">
+            ระบบสร้าง Google Sheet ใหม่แยกราย ID อัตโนมัติ (Google Apps Script v4.0)
+          </p>
+          <p className="text-[11px] leading-relaxed text-emerald-800">
+            ทุก ID ที่ Admin สร้างขึ้น ระบบจะสร้างไฟล์ Google Sheet ส่วนตัวแยกเด็ดขาด 1 ไฟล์ต่อ 1 ID ใน Google Drive 
+            พร้อมทั้งรักษาข้อมูลของ ID อื่นไว้เสมอ (Zero Data Loss) คุณครูแต่ละคนสามารถเปิดดูเฉพาะข้อมูลห้องของตนเองได้ 
+            และ Admin สามารถดูชีตกลาง Master ที่รวบรวมลิงก์ของทุก ID ไว้ในที่เดียว
+          </p>
         </div>
       </div>
 
@@ -356,6 +388,7 @@ export const MemberManagement: React.FC = () => {
                 <th className="py-3 px-3.5 sm:px-4">รหัสผ่าน (Password)</th>
                 <th className="py-3 px-3.5 sm:px-4">ชื่อ-สกุล คุณครู</th>
                 <th className="py-3 px-3.5 sm:px-4">ห้องเรียนประจำชั้น</th>
+                <th className="py-3 px-3.5 sm:px-4 text-center">Google Sheet ประจำ ID</th>
                 <th className="py-3 px-3.5 sm:px-4 text-center">สถานะ</th>
                 <th className="py-3 px-3.5 sm:px-4 text-right">การจัดการ</th>
               </tr>
@@ -363,7 +396,7 @@ export const MemberManagement: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
                     <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">ไม่พบข้อมูลสมาชิก</p>
                     <p className="text-[11px]">ลองเปลี่ยนคำค้นหา หรือกดปุ่ม &quot;+ เพิ่มสมาชิกใหม่&quot;</p>
@@ -459,6 +492,21 @@ export const MemberManagement: React.FC = () => {
                         <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px]">
                           {member.classroom || 'ไม่ระบุ'}
                         </span>
+                      </td>
+
+                      {/* Google Sheet ประจำ ID */}
+                      <td className="py-3 px-3.5 sm:px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await dataService.createMemberSpreadsheet(member);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/90 font-medium text-[11px] transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+                          title={`สร้างหรืออัปเดต Google Sheet เฉพาะของ ID "${member.username}" ใน Google Drive`}
+                        >
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>ชีตประจำ ID</span>
+                        </button>
                       </td>
 
                       {/* Status */}

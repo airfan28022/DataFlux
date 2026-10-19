@@ -35,6 +35,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const [isSyncingGas, setIsSyncingGas] = useState(false);
   const [isCopiedGas, setIsCopiedGas] = useState(false);
+  const [gasUrlInput, setGasUrlInput] = useState(profile.gasWebAppUrl || '');
+  const [isTestingGas, setIsTestingGas] = useState(false);
+  const [testGasResult, setTestGasResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const isAdmin = dataService.isAdmin();
   const membersCount = dataService.getMembers().length;
@@ -48,7 +51,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   // Sync profile & active tab every time modal opens or data changes
   useEffect(() => {
     if (isOpen) {
-      setProfile(dataService.getProfile());
+      const p = dataService.getProfile();
+      setProfile(p);
+      setGasUrlInput(p.gasWebAppUrl || '');
+      setTestGasResult(null);
       setCurrentPasswordInput('');
       setNewPasswordInput('');
       setConfirmPasswordInput('');
@@ -60,7 +66,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
       if (isOpen) {
-        setProfile(dataService.getProfile());
+        const p = dataService.getProfile();
+        setProfile(p);
       }
     });
     return unsub;
@@ -122,8 +129,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleCopyGasCode = () => {
     navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
     setIsCopiedGas(true);
-    dataService.notifyToast('success', 'คัดลอกโค้ดสำเร็จ', 'คัดลอกโค้ด Google Apps Script v3.0 เรียบร้อยแล้ว');
+    dataService.notifyToast('success', 'คัดลอกโค้ดสำเร็จ', 'คัดลอกโค้ด Google Apps Script v4.0 เรียบร้อยแล้ว');
     setTimeout(() => setIsCopiedGas(false), 2500);
+  };
+
+  const handleSaveGasUrl = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanUrl = gasUrlInput.trim();
+    dataService.saveProfile({ gasWebAppUrl: cleanUrl });
+    dataService.notifyToast(
+      'success',
+      'บันทึก URL สำเร็จ!',
+      'ระบบเชื่อมต่อ Google Apps Script เรียบร้อย พร้อมซิงค์ข้อมูลอัตโนมัติ'
+    );
+  };
+
+  const handleTestGasConnection = async () => {
+    setIsTestingGas(true);
+    setTestGasResult(null);
+    try {
+      const res = await dataService.testGasConnection(gasUrlInput.trim());
+      setTestGasResult(res);
+      if (res.success) {
+        dataService.notifyToast('success', 'เชื่อมต่อสำเร็จ!', res.message);
+      } else {
+        dataService.notifyToast('warning', 'ผลการทดสอบการเชื่อมต่อ', res.message);
+      }
+    } finally {
+      setIsTestingGas(false);
+    }
   };
 
   return (
@@ -428,16 +462,82 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </button>
               </div>
 
+              {/* Web App URL Configuration Card */}
+              <div className="p-4 bg-white border border-emerald-200 rounded-2xl shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <h5 className="font-bold text-slate-800 text-xs sm:text-sm">Google Apps Script Web App URL</h5>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    🟢 ซิงค์อัตโนมัติเปิดใช้งานอยู่
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] text-slate-500 font-medium">
+                    URL ของเว็บแอปที่ได้จากการ Deploy ใน Google Apps Script:
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url"
+                      value={gasUrlInput}
+                      onChange={(e) => setGasUrlInput(e.target.value)}
+                      placeholder="https://script.google.com/macros/s/.../exec"
+                      className="flex-1 px-3.5 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden bg-slate-50"
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleSaveGasUrl}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
+                      >
+                        บันทึก URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTestGasConnection}
+                        disabled={isTestingGas}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition-all cursor-pointer whitespace-nowrap active:scale-95 disabled:opacity-60 flex items-center gap-1"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isTestingGas ? 'animate-spin' : ''}`} />
+                        <span>{isTestingGas ? 'กำลังทดสอบ...' : 'ทดสอบเชื่อมต่อ'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {testGasResult && (
+                  <div
+                    className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
+                      testGasResult.success
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-900 border border-amber-200'
+                    }`}
+                  >
+                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${testGasResult.success ? 'text-emerald-600' : 'text-amber-600'}`} />
+                    <div className="space-y-0.5">
+                      <p className="font-semibold">{testGasResult.message}</p>
+                      {!testGasResult.success && (
+                        <p className="text-[11px] text-amber-800">
+                          ข้อแนะนำ: ใน Google Apps Script ตอน Deploy ต้องตั้งค่า &quot;ผู้ที่มีสิทธิ์เข้าถึง&quot; เป็น &quot;ทุกคน&quot; (Anyone) เสมอครับ
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Multi-user explanation */}
               <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-2">
                 <div className="font-bold flex items-center gap-1.5 text-emerald-800">
                   <Cloud className="w-4 h-4 text-emerald-600" />
-                  <span>ทำไม Google Sheets จึงแสดงครบทุก ID (ระบบ v3.0):</span>
+                  <span>ระบบ Google Sheets v4.0 (แยกไฟล์ประจำ ID &amp; ข้อมูลไม่หาย 100%):</span>
                 </div>
                 <ul className="list-disc list-inside space-y-1.5 text-emerald-900/90 pl-1">
-                  <li><strong>ชีต Members ใหม่:</strong> เพิ่มชีตแสดงรายชื่อคุณครู/สมาชิกทุก ID ในระบบพร้อมสถานะการเข้าใช้งาน</li>
-                  <li><strong>คอลัมน์ระบุครูผู้ดูแล:</strong> เพิ่มคอลัมน์ "บัญชีครู (ID)", "ชื่อครูผู้รับผิดชอบ" และ "ห้องเรียน" ในทุกตาราง (Students, Attendance, Scores ฯลฯ) ทำให้ข้อมูลไม่ปนกันและไม่ทับซ้อน</li>
-                  <li><strong>ระบบซิงค์ Multi-User:</strong> เมื่อกดซิงค์ ระบบจะรวบรวมข้อมูลของทุก ID ไปบันทึกลงในชีตเดียวกันทันที</li>
+                  <li><strong>📁 สร้าง Google Sheet ใหม่แยกราย ID:</strong> ทุก ID ที่ Admin สร้าง ระบบจะสร้างไฟล์ Google Sheet แยกส่วนตัว 1 ไฟล์ต่อ 1 ID ใน Google Drive คุณครูแต่ละคนจะมีชีตข้อมูลห้องของตนเองแบบแยกเด็ดขาด ไม่ปะปนกับใคร</li>
+                  <li><strong>🛡️ ป้องกันข้อมูลสูญหาย 100% (Zero Data Loss):</strong> เมื่อครูคนใดคนหนึ่งกดซิงค์ ระบบจะไม่ลบข้อมูลของครูหรือ ID อื่นๆ ในชีตหลัก Master ข้อมูลของทุก ID จะถูกเก็บรักษาไว้อย่างปลอดภัยเสมอ</li>
+                  <li><strong>🔗 ลิงก์ตรงในแท็บ Members:</strong> ในชีตหลัก Master มีคอลัมน์ลิงก์เปิดดู Google Sheet ประจำตัวของแต่ละ ID ให้ Admin คลิกเปิดดูได้ทันที</li>
                 </ul>
               </div>
 
@@ -445,8 +545,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <h5 className="font-bold text-slate-800 text-xs sm:text-sm">โค้ด Google Apps Script (Code.gs) v3.0</h5>
-                    <p className="text-[11px] text-slate-500">คัดลอกโค้ดนี้ไปวางใน Google Apps Script ของ Google Sheets เพื่อรองรับทุก ID</p>
+                    <h5 className="font-bold text-slate-800 text-xs sm:text-sm">โค้ด Google Apps Script (Code.gs) v4.0</h5>
+                    <p className="text-[11px] text-slate-500">คัดลอกโค้ดนี้ไปวางใน Google Apps Script เพื่อเปิดใช้งานระบบแยก Google Sheet ประจำ ID</p>
                   </div>
                   <button
                     type="button"
@@ -465,9 +565,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 {/* Instructions */}
                 <div className="text-[11px] text-slate-500 space-y-1 border-t border-slate-200 pt-2">
                   <span className="font-bold text-slate-700 block">📌 ขั้นตอนการอัปเกรดง่ายๆ 3 ขั้นตอน:</span>
-                  <p>1. เปิด Google Sheets &gt; เมนู "ส่วนขยาย" (Extensions) &gt; Apps Script</p>
-                  <p>2. วางโค้ดใหม่ทับโค้ดเดิมทั้งหมด &gt; เลือกฟังก์ชัน <code className="bg-slate-200 px-1 rounded text-slate-800">initSpreadsheet</code> แล้วกด <strong>"เรียกใช้" (Run)</strong> เพื่อเตรียมชีตครบ 8 หมวด</p>
-                  <p>3. กดปุ่ม "การทำให้ใช้งานได้" &gt; "จัดการการทำให้ใช้งานได้" &gt; แก้ไข &gt; เลือกรุ่นใหม่ &gt; กด "ทำให้ใช้งานได้"</p>
+                  <p>1. เปิด Google Sheets &gt; เมนู &quot;ส่วนขยาย&quot; (Extensions) &gt; Apps Script</p>
+                  <p>2. วางโค้ดใหม่ทับโค้ดเดิมทั้งหมด &gt; เลือกฟังก์ชัน <code className="bg-slate-200 px-1 rounded text-slate-800 font-bold">initSpreadsheet</code> แล้วกด <strong>&quot;เรียกใช้&quot; (Run)</strong> 1 ครั้ง</p>
+                  <p>3. กดปุ่มสีน้ำเงิน &quot;การทำให้ใช้งานได้&quot; &gt; &quot;จัดการการทำให้ใช้งานได้&quot; &gt; แก้ไข &gt; เลือกรุ่นใหม่ &gt; กด &quot;ทำให้ใช้งานได้&quot;</p>
                 </div>
               </div>
             </div>
