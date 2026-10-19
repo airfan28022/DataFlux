@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { TeacherProfile } from '../types';
 import { dataService } from '../services/dataService';
 import { MemberManagement } from './MemberManagement';
-import { GAS_CODE_TEMPLATE } from '../services/gasCodeTemplate';
 import {
   Settings,
   KeyRound,
@@ -12,13 +11,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   Building,
-  School,
-  FileSpreadsheet,
-  RefreshCw,
-  Copy,
-  Check,
-  ExternalLink,
-  Cloud
+  School
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -33,18 +26,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const [isSyncingGas, setIsSyncingGas] = useState(false);
-  const [isCopiedGas, setIsCopiedGas] = useState(false);
-  const [gasUrlInput, setGasUrlInput] = useState(profile.gasWebAppUrl || '');
-  const [isTestingGas, setIsTestingGas] = useState(false);
-  const [testGasResult, setTestGasResult] = useState<{ success: boolean; message: string } | null>(null);
-
   const isAdmin = dataService.isAdmin();
   const membersCount = dataService.getMembers().length;
   const currentUserId = dataService.getCurrentUserId();
   const currentUser = dataService.getCurrentUser();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members' | 'gas'>(
+  const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'members'>(
     isAdmin ? 'members' : 'profile'
   );
 
@@ -53,8 +40,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (isOpen) {
       const p = dataService.getProfile();
       setProfile(p);
-      setGasUrlInput(p.gasWebAppUrl || '');
-      setTestGasResult(null);
       setCurrentPasswordInput('');
       setNewPasswordInput('');
       setConfirmPasswordInput('');
@@ -117,49 +102,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }, 500);
   };
 
-  const handleSyncAllMembersToSheets = async () => {
-    setIsSyncingGas(true);
-    try {
-      await dataService.syncWithGoogleAppsScript();
-    } finally {
-      setIsSyncingGas(false);
-    }
-  };
-
-  const handleCopyGasCode = () => {
-    navigator.clipboard.writeText(GAS_CODE_TEMPLATE);
-    setIsCopiedGas(true);
-    dataService.notifyToast('success', 'คัดลอกโค้ดสำเร็จ', 'คัดลอกโค้ด Google Apps Script v4.0 เรียบร้อยแล้ว');
-    setTimeout(() => setIsCopiedGas(false), 2500);
-  };
-
-  const handleSaveGasUrl = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanUrl = gasUrlInput.trim();
-    dataService.saveProfile({ gasWebAppUrl: cleanUrl });
-    dataService.notifyToast(
-      'success',
-      'บันทึก URL สำเร็จ!',
-      'ระบบเชื่อมต่อ Google Apps Script เรียบร้อย พร้อมซิงค์ข้อมูลอัตโนมัติ'
-    );
-  };
-
-  const handleTestGasConnection = async () => {
-    setIsTestingGas(true);
-    setTestGasResult(null);
-    try {
-      const res = await dataService.testGasConnection(gasUrlInput.trim());
-      setTestGasResult(res);
-      if (res.success) {
-        dataService.notifyToast('success', 'เชื่อมต่อสำเร็จ!', res.message);
-      } else {
-        dataService.notifyToast('warning', 'ผลการทดสอบการเชื่อมต่อ', res.message);
-      }
-    } finally {
-      setIsTestingGas(false);
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className={`bg-white rounded-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-emerald-100 overflow-hidden transition-all duration-300 ${
@@ -173,7 +115,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-lg">ตั้งค่าระบบและบัญชีครู</h3>
-              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น จัดการสมาชิก รหัสผ่าน และระบบหลังบ้าน</p>
+              <p className="text-xs text-slate-500">จัดการข้อมูลประจำชั้น จัดการสมาชิก และรหัสผ่าน</p>
             </div>
           </div>
           <button
@@ -221,16 +163,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <KeyRound className="w-4 h-4" /> {isAdmin ? 'เปลี่ยนรหัสผ่าน Admin' : 'เปลี่ยนรหัสผ่าน'}
-          </button>
-          <button
-            onClick={() => setActiveTab('gas')}
-            className={`py-3 px-3.5 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
-              activeTab === 'gas'
-                ? 'border-emerald-600 text-emerald-700 font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <FileSpreadsheet className="w-4 h-4" /> Google Sheets & Apps Script
           </button>
         </div>
 
@@ -436,151 +368,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </form>
           )}
-
-          {/* TAB 3: Google Sheets & Drive (Multi-User) */}
-          {activeTab === 'gas' && (
-            <div className="space-y-4 max-w-2xl mx-auto">
-              {/* Status Header */}
-              <div className="p-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-5 h-5 text-emerald-200" />
-                    <h4 className="font-bold text-base">ระบบซิงค์ Google Sheets (Multi-User)</h4>
-                  </div>
-                  <p className="text-xs text-emerald-100 mt-1">
-                    รองรับการรวมข้อมูลของสมาชิกทุก ID ({membersCount} บัญชี) และนักเรียนทุกห้องเรียนลงใน Google Sheets เดียวกันอย่างเป็นระเบียบ
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSyncAllMembersToSheets}
-                  disabled={isSyncingGas}
-                  className="px-4 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95 rounded-xl font-bold text-xs shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-60"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isSyncingGas ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingGas ? 'กำลังซิงค์ทุก ID...' : 'ซิงค์ข้อมูลทุก ID ทันที'}</span>
-                </button>
-              </div>
-
-              {/* Web App URL Configuration Card */}
-              <div className="p-4 bg-white border border-emerald-200 rounded-2xl shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                    <h5 className="font-bold text-slate-800 text-xs sm:text-sm">Google Apps Script Web App URL</h5>
-                  </div>
-                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    🟢 ซิงค์อัตโนมัติเปิดใช้งานอยู่
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] text-slate-500 font-medium">
-                    URL ของเว็บแอปที่ได้จากการ Deploy ใน Google Apps Script:
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="url"
-                      value={gasUrlInput}
-                      onChange={(e) => setGasUrlInput(e.target.value)}
-                      placeholder="https://script.google.com/macros/s/.../exec"
-                      className="flex-1 px-3.5 py-2 text-xs font-mono rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-hidden bg-slate-50"
-                    />
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={handleSaveGasUrl}
-                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-95"
-                      >
-                        บันทึก URL
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleTestGasConnection}
-                        disabled={isTestingGas}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 transition-all cursor-pointer whitespace-nowrap active:scale-95 disabled:opacity-60 flex items-center gap-1"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${isTestingGas ? 'animate-spin' : ''}`} />
-                        <span>{isTestingGas ? 'กำลังทดสอบ...' : 'ทดสอบเชื่อมต่อ'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {testGasResult && (
-                  <div
-                    className={`p-2.5 rounded-xl text-xs flex items-start gap-2 ${
-                      testGasResult.success
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-900 border border-amber-200'
-                    }`}
-                  >
-                    <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${testGasResult.success ? 'text-emerald-600' : 'text-amber-600'}`} />
-                    <div className="space-y-0.5">
-                      <p className="font-semibold">{testGasResult.message}</p>
-                      {!testGasResult.success && (
-                        <p className="text-[11px] text-amber-800">
-                          ข้อแนะนำ: ใน Google Apps Script ตอน Deploy ต้องตั้งค่า &quot;ผู้ที่มีสิทธิ์เข้าถึง&quot; เป็น &quot;ทุกคน&quot; (Anyone) เสมอครับ
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Multi-user explanation */}
-              <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl text-xs text-emerald-950 space-y-2">
-                <div className="font-bold flex items-center gap-1.5 text-emerald-800">
-                  <Cloud className="w-4 h-4 text-emerald-600" />
-                  <span>ระบบ Google Sheets v4.0 (แยกไฟล์ประจำ ID &amp; ข้อมูลไม่หาย 100%):</span>
-                </div>
-                <ul className="list-disc list-inside space-y-1.5 text-emerald-900/90 pl-1">
-                  <li><strong>📁 สร้าง Google Sheet ใหม่แยกราย ID:</strong> ทุก ID ที่ Admin สร้าง ระบบจะสร้างไฟล์ Google Sheet แยกส่วนตัว 1 ไฟล์ต่อ 1 ID ใน Google Drive คุณครูแต่ละคนจะมีชีตข้อมูลห้องของตนเองแบบแยกเด็ดขาด ไม่ปะปนกับใคร</li>
-                  <li><strong>🛡️ ป้องกันข้อมูลสูญหาย 100% (Zero Data Loss):</strong> เมื่อครูคนใดคนหนึ่งกดซิงค์ ระบบจะไม่ลบข้อมูลของครูหรือ ID อื่นๆ ในชีตหลัก Master ข้อมูลของทุก ID จะถูกเก็บรักษาไว้อย่างปลอดภัยเสมอ</li>
-                  <li><strong>🔗 ลิงก์ตรงในแท็บ Members:</strong> ในชีตหลัก Master มีคอลัมน์ลิงก์เปิดดู Google Sheet ประจำตัวของแต่ละ ID ให้ Admin คลิกเปิดดูได้ทันที</li>
-                </ul>
-              </div>
-
-              {/* GAS Code Section */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <h5 className="font-bold text-slate-800 text-xs sm:text-sm">โค้ด Google Apps Script (Code.gs) v4.0</h5>
-                    <p className="text-[11px] text-slate-500">คัดลอกโค้ดนี้ไปวางใน Google Apps Script เพื่อเปิดใช้งานระบบแยก Google Sheet ประจำ ID</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyGasCode}
-                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-                  >
-                    {isCopiedGas ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{isCopiedGas ? 'คัดลอกเรียบร้อย!' : 'คัดลอกโค้ด Code.gs'}</span>
-                  </button>
-                </div>
-
-                <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1 font-mono max-h-32 overflow-y-auto">
-                  <pre className="text-[11px] leading-relaxed text-slate-700 whitespace-pre-wrap">{GAS_CODE_TEMPLATE.slice(0, 500)}... (คลิกปุ่มคัดลอกเพื่อรับโค้ดเต็ม)</pre>
-                </div>
-
-                {/* Instructions */}
-                <div className="text-[11px] text-slate-500 space-y-1 border-t border-slate-200 pt-2">
-                  <span className="font-bold text-slate-700 block">📌 ขั้นตอนการอัปเกรดง่ายๆ 3 ขั้นตอน:</span>
-                  <p>1. เปิด Google Sheets &gt; เมนู &quot;ส่วนขยาย&quot; (Extensions) &gt; Apps Script</p>
-                  <p>2. วางโค้ดใหม่ทับโค้ดเดิมทั้งหมด &gt; เลือกฟังก์ชัน <code className="bg-slate-200 px-1 rounded text-slate-800 font-bold">initSpreadsheet</code> แล้วกด <strong>&quot;เรียกใช้&quot; (Run)</strong> 1 ครั้ง</p>
-                  <p>3. กดปุ่มสีน้ำเงิน &quot;การทำให้ใช้งานได้&quot; &gt; &quot;จัดการการทำให้ใช้งานได้&quot; &gt; แก้ไข &gt; เลือกรุ่นใหม่ &gt; กด &quot;ทำให้ใช้งานได้&quot;</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Clean Background Services Indicator */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>ระบบหลังบ้านเชื่อมต่อ Google Sheets และ Drive ทำงานอัตโนมัติ</span>
-          </div>
-          <span className="text-[11px] text-slate-400 font-mono">Cloud Sync Active</span>
         </div>
       </div>
     </div>

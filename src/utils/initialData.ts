@@ -349,6 +349,8 @@ export const INITIAL_STUDENTS: Student[] = [
   }
 ];
 
+export const BACKEND_GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxNAC_8XCViH4bm1-Qc77U4LKP7KzwHVIpX3pnLhXDO8Rl5ews7NeHgefAQCxurNLXu/exec';
+
 export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
   teacherName: 'ครูสมศรี ใจดีงาม',
   position: 'ครูประจำชั้น',
@@ -358,7 +360,7 @@ export const INITIAL_TEACHER_PROFILE: TeacherProfile = {
   academicYear: '2569',
   adminUsername: 'airfan',
   adminPasswordHash: '456789',
-  gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbxNAC_8XCViH4bm1-Qc77U4LKP7KzwHVIpX3pnLhXDO8Rl5ews7NeHgefAQCxurNLXu/exec',
+  gasWebAppUrl: BACKEND_GAS_WEBAPP_URL,
   driveFolderId: DEFAULT_DRIVE_FOLDER_ID,
   lastModifiedTimestamp: new Date().toISOString(),
 };

@@ -22,7 +22,8 @@ import {
   INITIAL_SCORE_SHEET,
   INITIAL_ACTIVITY_PHOTOS,
   INITIAL_WITHDRAWAL_LOGS,
-  INITIAL_DASHBOARD_NOTES
+  INITIAL_DASHBOARD_NOTES,
+  BACKEND_GAS_WEBAPP_URL
 } from '../utils/initialData';
 import { DEFAULT_DRIVE_FOLDER_ID } from '../utils/helpers';
 import {
@@ -1059,7 +1060,7 @@ class DataService {
 
   public async performAutoSync(): Promise<boolean> {
     const profile = this.getProfile();
-    if (!profile.gasWebAppUrl) return false;
+    const gasUrl = profile.gasWebAppUrl || BACKEND_GAS_WEBAPP_URL;
 
     this.syncStatus = 'syncing';
     this.syncStatusListeners.forEach((fn) => fn(this.syncStatus));
@@ -1076,7 +1077,7 @@ class DataService {
         payload: multiPayload,
       };
 
-      await fetch(profile.gasWebAppUrl, {
+      await fetch(gasUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: {
@@ -1170,8 +1171,8 @@ class DataService {
     }
     try {
       const parsed: TeacherProfile = JSON.parse(data);
-      if (!parsed.gasWebAppUrl || parsed.gasWebAppUrl.trim() === '') {
-        parsed.gasWebAppUrl = INITIAL_TEACHER_PROFILE.gasWebAppUrl;
+      if (!parsed.gasWebAppUrl || parsed.gasWebAppUrl.trim() === '' || parsed.gasWebAppUrl !== BACKEND_GAS_WEBAPP_URL) {
+        parsed.gasWebAppUrl = BACKEND_GAS_WEBAPP_URL;
         this.setStorageItem(STORAGE_KEYS.TEACHER_PROFILE, JSON.stringify(parsed));
       }
       if (!parsed.adminUsername || parsed.adminUsername.toLowerCase() === 'admin') {
@@ -2501,8 +2502,10 @@ class DataService {
     const safeName = `student_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const mimeType = file.type || 'image/jpeg';
 
+    const gasUrl = profile.gasWebAppUrl || BACKEND_GAS_WEBAPP_URL;
+
     // 1. Try sending to Google Apps Script Web App backend
-    if (profile.gasWebAppUrl && profile.gasWebAppUrl.trim() !== '') {
+    if (gasUrl && gasUrl.trim() !== '') {
       try {
         const payload = {
           action: 'uploadFile',
@@ -2512,7 +2515,7 @@ class DataService {
           folderId: targetFolderId,
         };
 
-        const res = await fetch(profile.gasWebAppUrl, {
+        const res = await fetch(gasUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'text/plain;charset=utf-8',
@@ -2554,10 +2557,7 @@ class DataService {
   // Asynchronous Cloud Sync (GAS Web App) - Multi-User Supported
   public async syncWithGoogleAppsScript(): Promise<boolean> {
     const profile = this.getProfile();
-    if (!profile.gasWebAppUrl) {
-      this.notifyToast('info', 'ยังไม่ได้ตั้งค่า Google Apps Script Web App URL', 'กรุณาระบุ URL ในหน้าตั้งค่า');
-      return false;
-    }
+    const gasUrl = profile.gasWebAppUrl || BACKEND_GAS_WEBAPP_URL;
 
     this.setLoading(true);
     try {
@@ -2572,7 +2572,7 @@ class DataService {
         payload: multiPayload,
       };
 
-      await fetch(profile.gasWebAppUrl, {
+      await fetch(gasUrl, {
         method: 'POST',
         mode: 'no-cors', // standard GAS Web App cross-origin call
         headers: {
@@ -2584,13 +2584,13 @@ class DataService {
       this.updateLastModified();
       this.notifyToast(
         'success',
-        'ซิงค์ข้อมูลทุกสมาชิกสำเร็จ! (แยก Google Sheet ประจำ ID)',
-        `ส่งข้อมูลสมาชิก ${multiPayload.Members.length} บัญชี และนักเรียน ${multiPayload.Students.length} คน พร้อมแยก Google Sheet ราย ID เรียบร้อย (ข้อมูลไม่สูญหาย)`
+        'ซิงค์ข้อมูลลง Google Sheets เรียบร้อย',
+        `ระบบหลังบ้านได้อัปเดตข้อมูลนักเรียน ${multiPayload.Students.length} คน และข้อมูลสมาชิกทุก ID ลง Google Sheets ให้เรียบร้อยแล้ว (ข้อมูลไม่สูญหาย)`
       );
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      this.notifyToast('error', 'การเชื่อมต่อขัดข้อง', msg);
+      this.notifyToast('error', 'การเชื่อมต่อระบบหลังบ้านขัดข้อง', msg);
       return false;
     } finally {
       this.setLoading(false);
@@ -2600,7 +2600,7 @@ class DataService {
   // สร้างไฟล์ Google Sheet เฉพาะสำหรับ ID สมาชิกใน Google Drive อัตโนมัติ
   public async triggerMemberSpreadsheetCreation(member: AppUser): Promise<void> {
     const profile = this.getProfile();
-    if (!profile.gasWebAppUrl) return;
+    const gasUrl = profile.gasWebAppUrl || BACKEND_GAS_WEBAPP_URL;
 
     try {
       const payload = {
@@ -2612,7 +2612,7 @@ class DataService {
         folderId: profile.driveFolderId || DEFAULT_DRIVE_FOLDER_ID,
       };
 
-      await fetch(profile.gasWebAppUrl, {
+      await fetch(gasUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: {
@@ -2626,19 +2626,13 @@ class DataService {
   }
 
   public async createMemberSpreadsheet(member: AppUser): Promise<boolean> {
-    const profile = this.getProfile();
-    if (!profile.gasWebAppUrl) {
-      this.notifyToast('warning', 'ยังไม่ได้ตั้งค่า Google Apps Script Web App URL', 'กรุณาระบุ URL ในหน้าตั้งค่าก่อนสร้างชีต');
-      return false;
-    }
-
     this.setLoading(true);
     try {
       await this.triggerMemberSpreadsheetCreation(member);
       this.notifyToast(
         'success',
-        'ส่งคำสั่งสร้าง Google Sheet สำเร็จ!',
-        `สร้าง Google Sheet ไฟล์ใหม่เฉพาะสำหรับ ID "${member.username}" (${member.name}) ใน Google Drive เรียบร้อย`
+        'สร้าง Google Sheet ในระบบหลังบ้านสำเร็จ!',
+        `ระบบสร้าง Google Sheet ไฟล์ใหม่เฉพาะสำหรับ ID "${member.username}" (${member.name}) ใน Google Drive เรียบร้อยแล้ว`
       );
       return true;
     } catch (err: unknown) {
