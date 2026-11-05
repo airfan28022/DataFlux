@@ -1688,10 +1688,10 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
             <div className="flex items-center justify-between gap-2">
               {/* Left Side: Chapter Title in front, followed by small circular buttons */}
               <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none min-w-0 py-0.5">
-                {/* ชื่อบท / ชื่อแท็บที่เลือกอยู่ด้านหน้าสุด */}
-                <div className="flex items-center gap-1.5 shrink-0 pr-1 border-r border-slate-200">
+                {/* ชื่อบท / ชื่อแท็บที่เลือกอยู่ด้านหน้าสุด (แสดงบนเดสก์ท็อป/แท็บเล็ต md ขึ้นไป) */}
+                <div className="hidden md:flex items-center gap-1.5 shrink-0 pr-2 border-r border-slate-200">
                   <BookOpen className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                  <span className="text-xs font-bold text-slate-800 whitespace-nowrap max-w-[130px] sm:max-w-[200px] md:max-w-xs truncate">
+                  <span className="text-xs font-bold text-slate-800 whitespace-nowrap max-w-[200px] lg:max-w-xs truncate">
                     {typeof activeChapterTab === 'number' && currentActiveChapter
                       ? `บทที่ ${currentActiveChapter.chapterNumber}: ${currentActiveChapter.title}`
                       : activeChapterTab === 'final'
@@ -1804,6 +1804,82 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                     <Maximize2 className="w-4 h-4 text-slate-600" />
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Only: เมื่อกดบทที่ 1 หรือ 2 หรืออื่นๆ ให้แสดงชื่อบทด้านล่าง */}
+          <div className="md:hidden px-3.5 py-2.5 bg-gradient-to-r from-sky-50 via-sky-50/70 to-indigo-50/50 border-b border-slate-200/90 shadow-2xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                  typeof activeChapterTab === 'number'
+                    ? 'bg-sky-600 text-white'
+                    : activeChapterTab === 'final'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-emerald-600 text-white'
+                }`}
+              >
+                {typeof activeChapterTab === 'number' ? (
+                  <BookOpen className="w-3.5 h-3.5" />
+                ) : activeChapterTab === 'final' ? (
+                  <FileText className="w-3.5 h-3.5" />
+                ) : (
+                  <Award className="w-3.5 h-3.5" />
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md border ${
+                      typeof activeChapterTab === 'number'
+                        ? 'bg-sky-100 text-sky-800 border-sky-200'
+                        : activeChapterTab === 'final'
+                        ? 'bg-amber-100 text-amber-900 border-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    }`}
+                  >
+                    {typeof activeChapterTab === 'number' && currentActiveChapter
+                      ? `บทที่ ${currentActiveChapter.chapterNumber}`
+                      : activeChapterTab === 'final'
+                      ? 'สอบปลายภาค (ส)'
+                      : 'สรุปรวม (All)'}
+                  </span>
+                  <span className="text-xs font-bold text-slate-900 truncate">
+                    {typeof activeChapterTab === 'number' && currentActiveChapter
+                      ? currentActiveChapter.title.startsWith(`บทที่ ${currentActiveChapter.chapterNumber}`)
+                        ? currentActiveChapter.title
+                        : `บทที่ ${currentActiveChapter.chapterNumber}: ${currentActiveChapter.title}`
+                      : activeChapterTab === 'final'
+                      ? 'คะแนนสอบปลายภาคเรียน'
+                      : 'ตารางสรุปผลคะแนนรวมทุกบทเรียนและตัดเกรด'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 font-medium">
+                  {typeof activeChapterTab === 'number' && currentActiveChapter && (
+                    <>
+                      <span className="text-sky-700 font-semibold">
+                        คะแนนเต็ม {currentActiveChapter.maxScore || (currentActiveChapter.topics.filter((t) => !!t.trim()).length * 5)} คะแนน
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {currentActiveChapter.topics.filter((t) => !!t.trim()).length} ช่องคะแนน
+                      </span>
+                    </>
+                  )}
+                  {activeChapterTab === 'final' && (
+                    <span className="text-amber-800 font-semibold">
+                      คะแนนเต็ม {activeSheet?.finalExamMaxScore !== undefined ? activeSheet.finalExamMaxScore : 30} คะแนน
+                    </span>
+                  )}
+                  {activeChapterTab === 'summary' && (
+                    <span className="text-emerald-800 font-semibold">
+                      รวมคะแนนเก็บ + ปลายภาค ตัดเกรด 8 ระดับ (0 - 4)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -2052,7 +2128,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                               setTargetStudentRowId(student.id);
                               setShowCopyStudentModal(true);
                             }}
-                            className="p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                            className="hidden md:flex p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
                             title="คัดลอก/เลือกชื่อนักเรียนจากทะเบียนประวัติ (แก้5)"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -2179,16 +2255,16 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
           {/* Bottom Bar: Action buttons & Auto-Save indicator (ปุ่มล้างคะแนน กับ เติมคะแนน 5 ทุกคน และบันทึกอัตโนมัติอยู่ด้านล่างเลย) */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-slate-600">
+            <div className="hidden sm:block text-xs text-slate-600">
               คะแนนดิบจะคิดเฉพาะเรื่องที่กรอกชื่อเรื่อง (เรื่องละ 5 คะแนน) และนำไปคำนวณเฉลี่ยเทียบกับคะแนนเก็บ{' '}
               <strong className="text-slate-900">{currentActiveChapter.maxScore || 15} คะแนน</strong> โดยอัตโนมัติ
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-              {/* บันทึกอัตโนมัติ */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-semibold select-none">
+              {/* ระบบหลังบ้าน */}
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-xl text-xs font-semibold select-none">
                 <CheckCircle2 className={`w-3.5 h-3.5 text-emerald-600 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
-                <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกอัตโนมัติ'}</span>
+                <span>ระบบหลังบ้าน</span>
               </div>
 
               {/* เพิ่มแถวนักเรียน */}
@@ -2309,7 +2385,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                               setTargetStudentRowId(student.id);
                               setShowCopyStudentModal(true);
                             }}
-                            className="p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                            className="hidden md:flex p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
                             title="คัดลอก/เลือกชื่อนักเรียนจากทะเบียนประวัติ (แก้5)"
                           >
                             <Copy className="w-3.5 h-3.5" />
@@ -2391,15 +2467,15 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
           {/* Bottom Bar for Final Exam: Action buttons & Auto-Save indicator */}
           <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-xs text-amber-900">
+            <div className="hidden sm:block text-xs text-amber-900">
               คะแนนสอบจะนำไปรวมกับคะแนนเก็บของบทเรียนที่ 1 ถึง {currentChapters.length} ในหน้า "รวมทุกบท"
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-              {/* บันทึกอัตโนมัติ */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/90 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold select-none">
+              {/* ระบบหลังบ้าน */}
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/90 text-amber-900 border border-amber-300 rounded-xl text-xs font-semibold select-none">
                 <CheckCircle2 className={`w-3.5 h-3.5 text-amber-700 shrink-0 ${autoSaveStatus === 'saving' ? 'animate-spin' : ''}`} />
-                <span>{autoSaveStatus === 'saving' ? 'กำลังบันทึกอัตโนมัติ...' : 'บันทึกอัตโนมัติ'}</span>
+                <span>ระบบหลังบ้าน</span>
               </div>
 
               {/* เพิ่มแถวนักเรียน */}
@@ -2560,7 +2636,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                             setTargetStudentRowId(row.studentId);
                             setShowCopyStudentModal(true);
                           }}
-                          className="p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
+                          className="hidden md:flex p-1 text-purple-600 hover:text-purple-800 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0"
                           title="คัดลอก/เลือกชื่อนักเรียนจากทะเบียนประวัติ (แก้5)"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -3169,9 +3245,9 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
                   <span className="text-purple-200 text-xs truncate">
                     {activeSheet?.subjectName || 'รายวิชา'} {activeSheet?.classroom || profile.classroomName ? `• ${activeSheet?.classroom || profile.classroomName}` : ''}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40">
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40">
                     <CheckCircle2 className="w-3 h-3 text-emerald-300" />
-                    บันทึกอัตโนมัติ
+                    ระบบหลังบ้าน
                   </span>
                 </div>
 
@@ -3452,7 +3528,7 @@ export const GradeScoreView: React.FC<GradeScoreViewProps> = ({ isAdmin }) => {
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      ระบุคะแนนสอบที่ได้ (บันทึกอัตโนมัติ)
+                      ระบุคะแนนสอบที่ได้ <span className="hidden sm:inline">(ระบบหลังบ้าน)</span>
                     </label>
                     <input
                       type="number"

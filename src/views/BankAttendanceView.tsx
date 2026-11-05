@@ -48,6 +48,38 @@ const THAI_MONTHS = [
 
 const WEEKDAY_NAMES = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
 
+export const toShortPrefix = (prefix?: string, firstName?: string): { prefix: string; firstName: string } => {
+  let p = (prefix || '').trim();
+  let fn = (firstName || '').trim();
+
+  if (fn.startsWith('เด็กชาย')) {
+    p = 'ด.ช.';
+    fn = fn.replace(/^เด็กชาย\s*/, '');
+  } else if (fn.startsWith('เด็กหญิง')) {
+    p = 'ด.ญ.';
+    fn = fn.replace(/^เด็กหญิง\s*/, '');
+  } else if (fn.startsWith('นางสาว')) {
+    p = 'น.ส.';
+    fn = fn.replace(/^นางสาว\s*/, '');
+  } else if (fn.startsWith('ด.ช.')) {
+    p = 'ด.ช.';
+    fn = fn.replace(/^ด\.ช\.\s*/, '');
+  } else if (fn.startsWith('ด.ญ.')) {
+    p = 'ด.ญ.';
+    fn = fn.replace(/^ด\.ญ\.\s*/, '');
+  } else if (fn.startsWith('น.ส.')) {
+    p = 'น.ส.';
+    fn = fn.replace(/^น\.ส\.\s*/, '');
+  } else {
+    if (p === 'เด็กชาย') p = 'ด.ช.';
+    else if (p === 'เด็กหญิง') p = 'ด.ญ.';
+    else if (p === 'นางสาว') p = 'น.ส.';
+    else if (p === 'นาย') p = 'นาย';
+  }
+
+  return { prefix: p, firstName: fn };
+};
+
 export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin }) => {
   // Custom Copied Students filter state (บันทึกลง localStorage เพื่อให้เป็นชั้นนั้นเป็นค่าเริ่มต้นทุกครั้งที่เปิดใช้งาน)
   const [customCopiedGrade, setCustomCopiedGrade] = useState<string | null>(() => {
@@ -1154,6 +1186,16 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   <span>ชั้น {customCopiedGrade} ({students.length} คน)</span>
                 </div>
               )}
+
+              {/* ป้ายแสดงระบบหลังบ้านบันทึกอัตโนมัติ */}
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/90 text-[10px] font-bold text-emerald-800 shrink-0 select-none shadow-2xs"
+                title="ระบบหลังบ้านบันทึกและซิงค์ข้อมูลอัตโนมัติ ไม่จำเป็นต้องกดปุ่มบันทึก"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="hidden sm:inline">ระบบหลังบ้านบันทึกอัตโนมัติ</span>
+                <span className="sm:hidden">ระบบหลังบ้าน</span>
+              </div>
             </div>
 
             {/* Right side controls: เลื่อนวัน ซ้าย-ขวา (ไม่มีคำว่าวันนี้), จำนวนนักเรียน, ปุ่มขยายตารางเฉพาะไอคอน (แก้8) */}
@@ -1209,15 +1251,17 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
             </div>
           </div>
 
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="overflow-x-auto flex-1 relative">
+            <table className="w-full text-left border-separate border-spacing-0 text-xs">
               <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-semibold sticky top-0 bg-slate-50 z-10">
-                  <th className="py-2.5 px-2.5 w-12 text-center">ลำดับ</th>
-                  <th className="py-2.5 px-3 min-w-[200px]">
+                <tr className="bg-slate-50 text-slate-700 font-semibold sticky top-0 z-20">
+                  <th className="py-2.5 px-1 sm:px-2 w-8 min-w-[32px] max-w-[32px] sm:w-11 sm:min-w-[44px] sm:max-w-[44px] text-center sticky left-0 top-0 z-30 bg-slate-50 border-b border-r border-slate-200">
+                    ลำดับ
+                  </th>
+                  <th className="py-2.5 px-2 sm:px-3 min-w-[145px] sm:min-w-[200px] max-w-[165px] sm:max-w-none sticky left-[32px] sm:left-[44px] top-0 z-30 bg-slate-50 border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
                     <span>รูป / ชื่อ-สกุล นักเรียน</span>
                   </th>
-                  <th className="py-2.5 px-2 w-36 text-center">
+                  <th className="py-2.5 px-2 w-36 min-w-[140px] text-center border-b border-slate-200 bg-slate-50">
                     <div className="flex items-center justify-center gap-1.5">
                       <span>สถานะมาเรียน</span>
                       <button
@@ -1235,34 +1279,37 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       </button>
                     </div>
                   </th>
-                  <th className="py-2.5 px-2 w-28 text-center">ฝากเงินวันนี้</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-emerald-700 bg-emerald-50/40">มารวม</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-amber-700 bg-amber-50/40">ป่วยรวม</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-blue-700 bg-blue-50/40">ลารวม</th>
-                  <th className="py-2.5 px-2 w-16 text-center text-rose-700 bg-rose-50/40">ขาดรวม</th>
-                  <th className="py-2.5 px-3 w-28 text-right bg-emerald-100/40 text-emerald-900 font-bold">
+                  <th className="py-2.5 px-2 w-28 min-w-[100px] text-center border-b border-slate-200 bg-slate-50">ฝากเงินวันนี้</th>
+                  <th className="py-2.5 px-2 w-16 min-w-[55px] text-center text-emerald-700 bg-emerald-50/40 border-b border-slate-200">มารวม</th>
+                  <th className="py-2.5 px-2 w-16 min-w-[55px] text-center text-amber-700 bg-amber-50/40 border-b border-slate-200">ป่วยรวม</th>
+                  <th className="py-2.5 px-2 w-16 min-w-[55px] text-center text-blue-700 bg-blue-50/40 border-b border-slate-200">ลารวม</th>
+                  <th className="py-2.5 px-2 w-16 min-w-[55px] text-center text-rose-700 bg-rose-50/40 border-b border-slate-200">ขาดรวม</th>
+                  <th className="py-2.5 px-3 w-28 min-w-[95px] text-right bg-emerald-100/40 text-emerald-900 font-bold border-b border-slate-200">
                     ยอดรวม
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {students.map((student, index) => {
                   const currentStatus = attendanceMap[student.id];
                   const currentDeposit = depositsMap[student.id] || 0;
                   const stats = studentCumulativeStats[student.id] || { present: 0, sick: 0, personal: 0, absent: 0 };
+                  const shortInfo = toShortPrefix(student.prefix, student.firstName);
 
                   return (
-                    <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-2 px-2.5 text-center text-slate-500 font-medium">{index + 1}</td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-2.5">
+                    <tr key={student.id} className="hover:bg-slate-50/80 transition-colors group/row">
+                      <td className="py-2 px-1 sm:px-2 text-center text-slate-500 font-medium sticky left-0 z-10 bg-white group-hover/row:bg-slate-50 transition-colors w-8 min-w-[32px] max-w-[32px] sm:w-11 sm:min-w-[44px] sm:max-w-[44px] border-b border-r border-slate-100">
+                        {index + 1}
+                      </td>
+                      <td className="py-2 px-2 sm:px-3 sticky left-[32px] sm:left-[44px] z-10 bg-white group-hover/row:bg-slate-50 transition-colors min-w-[145px] sm:min-w-[200px] max-w-[165px] sm:max-w-none border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                        <div className="flex items-center gap-1.5 sm:gap-2.5">
                           <button
                             type="button"
                             onClick={() => handleOpenStudentModal(student)}
-                            className="flex items-center gap-2.5 text-left group/std hover:opacity-90 transition-all cursor-pointer min-w-0"
+                            className="flex items-center gap-1.5 sm:gap-2.5 text-left group/std hover:opacity-90 transition-all cursor-pointer min-w-0 flex-1"
                             title="กดเพื่อเปิดป๊อปอัปเช็คชื่อและฝากเงิน (ม, ป, ล, ข)"
                           >
-                            <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 group-hover/std:border-emerald-500 bg-slate-100 shrink-0 transition-colors shadow-2xs">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg overflow-hidden border border-slate-200 group-hover/std:border-emerald-500 bg-slate-100 shrink-0 transition-colors shadow-2xs">
                               <ImageWithFallback
                                 src={student.photoUrl}
                                 alt={student.firstName}
@@ -1271,18 +1318,22 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                               />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1">
                                 <span className="font-semibold text-slate-800 text-xs truncate group-hover/std:text-emerald-700 underline decoration-slate-300 group-hover/std:decoration-emerald-500 underline-offset-2">
-                                  {student.prefix}{student.firstName} {student.lastName}
+                                  {/* บนมือถือ: ใช้คำย่อ เช่น ด.ช. / ด.ญ. / น.ส. */}
+                                  <span className="md:hidden">
+                                    {shortInfo.prefix ? `${shortInfo.prefix} ` : ''}{shortInfo.firstName} {student.lastName}
+                                  </span>
+                                  {/* บนจอใหญ่: แสดงคำนำหน้าเต็ม */}
+                                  <span className="hidden md:inline">
+                                    {student.prefix}{student.firstName} {student.lastName}
+                                  </span>
                                 </span>
                                 {student.nickname && (
                                   <span className="text-[10px] text-slate-500 shrink-0">({student.nickname})</span>
                                 )}
-                                <span className="inline-flex md:hidden text-[9px] bg-emerald-50 text-emerald-700 px-1 py-0.2 rounded font-medium border border-emerald-200 shrink-0">
-                                  กดบันทึก
-                                </span>
                               </div>
-                              <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                              <div className="flex items-center gap-1 text-[9px] text-slate-400">
                                 <span>#{student.studentCode}</span>
                                 {student.gradeLevel && (
                                   <span className="px-1 py-0.2 bg-purple-50 text-purple-600 rounded font-medium text-[8.5px]">
@@ -1293,6 +1344,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             </div>
                           </button>
 
+                          {/* เอาออกไอคอนคัดลอกใน mobile (แสดงเฉพาะ md ขึ้นไป) */}
                           <button
                             type="button"
                             onClick={() => {
@@ -1306,7 +1358,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                                 dataService.notifyToast('info', 'คัดลอกชื่อนักเรียน', nameToCopy);
                               });
                             }}
-                            className="p-1 text-slate-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0 ml-auto"
+                            className="hidden md:flex p-1 text-slate-400 hover:text-purple-600 rounded-md hover:bg-purple-50 transition-colors cursor-pointer shrink-0 ml-auto"
                             title="คัดลอกชื่อ-นามสกุลนักเรียน"
                           >
                             {copiedStudentId === student.id ? (
@@ -1319,7 +1371,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       </td>
 
                       {/* Attendance Status Selector (ม, ป, ล, ข) */}
-                      <td className="py-2 px-2 text-center">
+                      <td className="py-2 px-2 text-center border-b border-slate-100">
                         <div className="inline-flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg">
                           <button
                             type="button"
@@ -1373,7 +1425,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       </td>
 
                       {/* Deposit input / Auto display "ป, ล, ข" when marked absent/sick/leave */}
-                      <td className="py-2 px-2 text-center">
+                      <td className="py-2 px-2 text-center border-b border-slate-100">
                         {currentStatus === 'sick' ? (
                           <div className="w-20 mx-auto py-1 px-2 bg-amber-50 text-amber-700 font-bold border border-amber-200 rounded-lg text-xs text-center">
                             ป
@@ -1468,35 +1520,35 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                       </td>
 
                       {/* Cumulative Present Total (ม) */}
-                      <td className="py-2 px-2 text-center bg-emerald-50/20">
+                      <td className="py-2 px-2 text-center bg-emerald-50/20 border-b border-slate-100">
                         <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/60" title={`มาเรียนสะสม ${stats.present} วัน`}>
                           {stats.present}
                         </span>
                       </td>
 
                       {/* Cumulative Sick Total (ป) */}
-                      <td className="py-2 px-2 text-center bg-amber-50/20">
+                      <td className="py-2 px-2 text-center bg-amber-50/20 border-b border-slate-100">
                         <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60" title={`ป่วยสะสม ${stats.sick} วัน`}>
                           {stats.sick}
                         </span>
                       </td>
 
                       {/* Cumulative Personal Leave Total (ล) */}
-                      <td className="py-2 px-2 text-center bg-blue-50/20">
+                      <td className="py-2 px-2 text-center bg-blue-50/20 border-b border-slate-100">
                         <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60" title={`ลากิจสะสม ${stats.personal} วัน`}>
                           {stats.personal}
                         </span>
                       </td>
 
                       {/* Cumulative Absent Total (ข) */}
-                      <td className="py-2 px-2 text-center bg-rose-50/20">
+                      <td className="py-2 px-2 text-center bg-rose-50/20 border-b border-slate-100">
                         <span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200/60" title={`ขาดเรียนสะสม ${stats.absent} วัน`}>
                           {stats.absent}
                         </span>
                       </td>
 
                       {/* Cumulative Savings */}
-                      <td className="py-2 px-3 text-right bg-emerald-50/30">
+                      <td className="py-2 px-3 text-right bg-emerald-50/30 border-b border-slate-100">
                         <span className="font-bold text-emerald-800 text-xs sm:text-sm">
                           {(studentCumulativeSavings[student.id] || 0).toLocaleString()} ฿
                         </span>
@@ -2752,20 +2804,26 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                     </span>
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-500/40 text-emerald-100 px-2 py-0.5 rounded-full border border-emerald-400/50">
                       <CheckCircle2 className="w-3 h-3 text-emerald-200" />
-                      บันทึกอัตโนมัติ
+                      ระบบหลังบ้าน
                     </span>
                   </div>
 
-                  {/* กดตรงชื่อนักเรียนด้านบนเพื่อเลือกคนถัดไปได้ทันที (Auto-save) */}
+                  {/* กดตรงชื่อนักเรียนด้านบนเพื่อเลือกคนถัดไปได้ทันที */}
                   <div className="mt-1">
                     <button
                       type="button"
                       onClick={() => setShowStudentSelectorDropdown(true)}
                       className="flex items-center gap-1.5 sm:gap-2 bg-white/20 hover:bg-white/30 active:scale-[0.98] px-2.5 sm:px-3 py-1.5 rounded-xl border border-white/40 shadow-xs transition-all max-w-full cursor-pointer text-left group"
-                      title="กดตรงชื่อนี้เพื่อเลือกนักเรียนคนอื่น (ระบบบันทึกอัตโนมัติ ไม่สูญหาย)"
+                      title="กดตรงชื่อนี้เพื่อเลือกนักเรียนคนอื่น (ระบบหลังบ้าน)"
                     >
                       <span className="text-sm sm:text-base font-black text-white truncate drop-shadow-xs group-hover:underline">
-                        {selectedStudentModal.prefix}{selectedStudentModal.firstName} {selectedStudentModal.lastName}
+                        <span className="md:hidden">
+                          {toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName).prefix ? `${toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName).prefix} ` : ''}
+                          {toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName).firstName} {selectedStudentModal.lastName}
+                        </span>
+                        <span className="hidden md:inline">
+                          {selectedStudentModal.prefix}{selectedStudentModal.firstName} {selectedStudentModal.lastName}
+                        </span>
                         {selectedStudentModal.nickname ? ` (${selectedStudentModal.nickname})` : ''}
                       </span>
                       <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold bg-white text-emerald-800 group-hover:bg-emerald-50 px-2 py-0.5 rounded-lg shadow-2xs shrink-0">
@@ -2784,7 +2842,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   onClick={handlePrevStudentInModal}
                   disabled={students.findIndex((s) => s.id === selectedStudentModal.id) === 0}
                   className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl transition-colors cursor-pointer"
-                  title="นักเรียนคนก่อนหน้า (บันทึกอัตโนมัติ)"
+                  title="นักเรียนคนก่อนหน้า (ระบบหลังบ้าน)"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -2792,7 +2850,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   type="button"
                   onClick={handleNextStudentInModal}
                   className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-colors cursor-pointer"
-                  title="นักเรียนคนถัดไป (บันทึกอัตโนมัติ)"
+                  title="นักเรียนคนถัดไป (ระบบหลังบ้าน)"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -2801,11 +2859,45 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                   onClick={handleCloseStudentModal}
                   className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer ml-1"
                   aria-label="ปิดหน้าต่าง"
-                  title="ปิดหน้าต่าง (บันทึกอัตโนมัติ)"
+                  title="ปิดหน้าต่าง (ระบบหลังบ้าน)"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
+            </div>
+
+            {/* แถบสไลด์ชื่อนักเรียน พร้อมปุ่มสลับคนก่อนหน้า-ถัดไป แสดงชื่อนักเรียนชัดเจนมากยิ่งขึ้น */}
+            <div className="bg-emerald-950 text-white px-3.5 py-2 flex items-center justify-between gap-2 border-t border-white/20 text-xs shrink-0 shadow-inner z-20">
+              <button
+                type="button"
+                onClick={handlePrevStudentInModal}
+                disabled={students.findIndex((s) => s.id === selectedStudentModal.id) === 0}
+                className="px-2.5 py-1 bg-white/10 hover:bg-white/20 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg font-bold flex items-center gap-1 shrink-0 cursor-pointer text-xs"
+                title="สไลด์ไปนักเรียนคนก่อนหน้า"
+              >
+                <span>◀</span>
+                <span className="text-[11px]">ก่อนหน้า</span>
+              </button>
+
+              <div className="flex-1 text-center min-w-0 px-1">
+                <span className="font-black text-amber-300 text-sm sm:text-base truncate block drop-shadow-xs">
+                  {(() => {
+                    const shortInfo = toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName);
+                    return `${shortInfo.prefix ? `${shortInfo.prefix} ` : ''}${shortInfo.firstName} ${selectedStudentModal.lastName}`;
+                  })()}
+                  {selectedStudentModal.nickname ? ` (${selectedStudentModal.nickname})` : ''}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextStudentInModal}
+                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 rounded-lg font-bold flex items-center gap-1 shrink-0 cursor-pointer text-xs shadow-xs"
+                title="สไลด์ไปนักเรียนคนถัดไป"
+              >
+                <span className="text-[11px]">คนถัดไป</span>
+                <span>▶</span>
+              </button>
             </div>
 
             {/* Dedicated Full-view Student Selector Overlay (เมื่อกดตรงชื่อด้านบน) */}
@@ -2820,7 +2912,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                     </div>
                     <p className="text-[11px] sm:text-xs text-emerald-100/90 mt-0.5 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>บันทึกอัตโนมัติ: ระบบจะบันทึกข้อมูลของ {selectedStudentModal.prefix}{selectedStudentModal.firstName} ทันที ข้อมูลไม่หาย</span>
+                      <span>ระบบหลังบ้าน: บันทึกข้อมูลของ {toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName).prefix ? `${toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName).prefix} ` : ''}{toShortPrefix(selectedStudentModal.prefix, selectedStudentModal.firstName).firstName} ทันที ข้อมูลไม่หาย</span>
                     </p>
                   </div>
                   <button
@@ -2842,6 +2934,7 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                     const curIdx = students.findIndex((s) => s.id === selectedStudentModal.id);
                     const nextStudent = curIdx >= 0 && curIdx < students.length - 1 ? students[curIdx + 1] : null;
                     if (!nextStudent) return null;
+                    const nextShort = toShortPrefix(nextStudent.prefix, nextStudent.firstName);
                     return (
                       <button
                         type="button"
@@ -2855,7 +2948,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             เลขที่ {curIdx + 2}
                           </span>
                           <span className="truncate">
-                            {nextStudent.prefix}{nextStudent.firstName} {nextStudent.lastName}
+                            <span className="md:hidden">
+                              {nextShort.prefix ? `${nextShort.prefix} ` : ''}{nextShort.firstName} {nextStudent.lastName}
+                            </span>
+                            <span className="hidden md:inline">
+                              {nextStudent.prefix}{nextStudent.firstName} {nextStudent.lastName}
+                            </span>
                           </span>
                         </span>
                         <span className="text-[11px] font-bold bg-white/20 px-2 py-0.5 rounded-lg shrink-0">
@@ -2920,7 +3018,12 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-slate-800 text-xs sm:text-sm truncate">
-                                  {std.prefix}{std.firstName} {std.lastName}
+                                  <span className="md:hidden">
+                                    {toShortPrefix(std.prefix, std.firstName).prefix ? `${toShortPrefix(std.prefix, std.firstName).prefix} ` : ''}{toShortPrefix(std.prefix, std.firstName).firstName} {std.lastName}
+                                  </span>
+                                  <span className="hidden md:inline">
+                                    {std.prefix}{std.firstName} {std.lastName}
+                                  </span>
                                 </span>
                                 {std.nickname && (
                                   <span className="text-[11px] text-slate-500 font-medium">({std.nickname})</span>
@@ -3012,39 +3115,39 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                 <span className="font-bold text-emerald-800">{formatThaiDate(selectedDate)}</span>
               </div>
 
-              {/* 1. Attendance Status Selection (เลือก ม, ป, ล, ข) */}
-              <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
-                <label className="block text-xs font-bold text-slate-700 mb-2.5">
+              {/* 1. Attendance Status Selection (เลือก ม, ป, ล, ข - ปรับขนาดกะทัดรัด) */}
+              <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
                   1. เลือกสถานะการมาเรียน (ม, ป, ล, ข):
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
                   {[
                     {
                       status: 'present',
                       key: 'ม',
                       label: 'มาเรียน',
-                      badge: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400',
+                      badge: 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400',
                       inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300',
                     },
                     {
                       status: 'sick',
                       key: 'ป',
                       label: 'ป่วย',
-                      badge: 'bg-amber-500 text-white shadow-md shadow-amber-500/30 ring-2 ring-amber-300',
+                      badge: 'bg-amber-500 text-white shadow-xs ring-2 ring-amber-300',
                       inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-300',
                     },
                     {
                       status: 'personal',
                       key: 'ล',
                       label: 'ลากิจ',
-                      badge: 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-300',
+                      badge: 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-300',
                       inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-blue-50 hover:border-blue-300',
                     },
                     {
                       status: 'absent',
                       key: 'ข',
                       label: 'ขาดเรียน',
-                      badge: 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-300',
+                      badge: 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-300',
                       inactive: 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-rose-50 hover:border-rose-300',
                     },
                   ].map((item) => {
@@ -3063,13 +3166,13 @@ export const BankAttendanceView: React.FC<BankAttendanceViewProps> = ({ isAdmin 
                             }
                           }
                         }}
-                        className={`p-3 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                        className={`py-1.5 px-1 rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer border ${
                           isSelected ? item.badge : item.inactive
                         }`}
                         title={isSelected ? `คลิกเพื่อลบ/ยกเลิกสถานะ ${item.label}` : item.label}
                       >
-                        <span className="text-2xl font-black">{item.key}</span>
-                        <span className={`text-[11px] font-semibold mt-1 ${isSelected ? 'text-white' : 'text-slate-500'}`}>
+                        <span className="text-base font-black leading-none">{item.key}</span>
+                        <span className={`text-[10px] font-semibold mt-0.5 leading-tight ${isSelected ? 'text-white' : 'text-slate-500'}`}>
                           {item.label}
                         </span>
                       </button>

@@ -510,12 +510,14 @@ export const StudentRecordsView: React.FC<StudentRecordsViewProps> = ({ isAdmin 
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-gray-900">ข้อมูลนักเรียน (Student Records)</h2>
+              <h2 className="text-base font-bold text-gray-900">
+                ข้อมูลนักเรียน <span className="hidden sm:inline">(Student Records)</span>
+              </h2>
               <span className="text-xs bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-full">
                 {filteredStudents.length} คน
               </span>
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="hidden sm:block text-xs text-gray-500">
               ทะเบียนประวัตินักเรียน แยกตามระดับชั้นประถมศึกษา 1 - 6
             </p>
           </div>
